@@ -4869,11 +4869,8 @@ function generateHeadline(weekTasks, fallback) {
   if (undone.length === 0) return fallback;
   const isPriority = t => (t.pills || []).some(p => ['urgent','deadline','legal','financial'].includes(p));
   const prioritized = [...undone.filter(isPriority), ...undone.filter(t => !isPriority(t))];
-  const shorten = label => {
-    const clean = label.replace(/\s*[—:].*$/, '').trim();
-    return clean.length > 32 ? clean.slice(0, 30).trimEnd() + '…' : clean;
-  };
-  const picks = prioritized.slice(0, 3).map(t => shorten(t.label)).filter(Boolean);
+  const clean = label => label.replace(/\s*[—:].*$/, '').trim();
+  const picks = prioritized.slice(0, 3).map(t => clean(t.label)).filter(Boolean);
   return picks.join(' · ');
 }
 
