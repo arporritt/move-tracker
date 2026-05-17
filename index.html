@@ -336,15 +336,16 @@
   }
 
   .task-content { flex: 1; min-width: 0; }
-  .task-label-row { display: flex; align-items: flex-start; gap: 10px; flex-wrap: wrap; }
+  .task-label-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .task-label {
     font-size: 14.5px;
     color: var(--ink);
     line-height: 1.45;
     font-weight: 500;
-    flex: 1;
-    min-width: 200px;
+    flex: 0 1 auto;
+    min-width: 0;
   }
+  .task-owner { margin-left: auto; }
   .task-track-tag {
     display: inline-block;
     font-size: 9px;
@@ -389,6 +390,7 @@
   .task-owner.owner-other .task-owner-dot { background: #B5894A; }
 
   .task-note {
+    display: inline-block;
     font-size: 13px;
     color: var(--ink-soft);
     padding: 3px 8px;
@@ -401,8 +403,8 @@
     outline: none;
     white-space: pre-wrap;
     word-break: break-word;
-    flex: 1 1 180px;
-    min-width: 120px;
+    flex: 0 1 auto;
+    max-width: 420px;
     align-self: center;
   }
   .task-note.empty {
