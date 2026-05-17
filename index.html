@@ -638,6 +638,24 @@
   .list-controls input:focus,
   .list-controls select:focus { outline: none; border-color: var(--ink); }
   .list-controls input[type="search"] { flex: 1; min-width: 200px; }
+  .list-group-header td {
+    padding: 16px 16px 8px !important;
+    background: linear-gradient(180deg, rgba(122,160,194,0.12), rgba(122,160,194,0.02)) !important;
+    border-top: 2px solid var(--clay-soft) !important;
+    border-bottom: 1px solid var(--rule) !important;
+  }
+  .lgh-label {
+    font-family: 'Fraunces', serif;
+    font-size: 16px; font-weight: 500;
+    color: var(--ink); letter-spacing: -0.01em;
+    margin-right: 12px;
+  }
+  .lgh-count {
+    font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--clay); font-weight: 700;
+    background: rgba(122,160,194,0.18);
+    padding: 2px 8px; border-radius: 100px;
+  }
   .list-controls .add-btn {
     background: var(--ink); color: var(--bg-card); border: 1px solid var(--ink);
     cursor: pointer; padding: 8px 16px; border-radius: 4px;
@@ -4230,6 +4248,13 @@
       <option value="done">Done</option>
       <option value="behind">Behind</option>
     </select>
+    <select id="group-by" title="Group by">
+      <option value="">No grouping</option>
+      <option value="week">Group by week</option>
+      <option value="track">Group by workstream</option>
+      <option value="owner">Group by owner</option>
+      <option value="status">Group by status</option>
+    </select>
     <button class="add-btn" onclick="openTaskModal()">+ Add task</button>
   </div>
   <div class="list-wrap">
@@ -5065,6 +5090,30 @@ function moveTask(srcId, dstId, position) {
 let listSort = { key: 'week', dir: 'asc' };
 const WEEK_ORDER = WEEKS.reduce((acc, w, i) => { acc[w.id] = i; return acc; }, {});
 
+const TRACK_LABELS = { chi: 'CHI sale', wi: 'WI purchase', rentback: 'Rent-back', logistics: 'Logistics', admin: 'Admin', money: 'Money', family: 'Family' };
+
+function groupKeyFor(task, key) {
+  if (key === 'week') {
+    const w = WEEKS.find(w => w.id === task.week);
+    return w ? `${w.label} · ${w.dateLabel}` : (task.week || 'No week');
+  }
+  if (key === 'track') return TRACK_LABELS[task.track] || task.track || 'No workstream';
+  if (key === 'owner') return task.owner || 'Unassigned';
+  if (key === 'status') {
+    if (task.done) return 'Done';
+    if (isBehind(task)) return 'Behind';
+    return 'To do';
+  }
+  return '';
+}
+
+function groupSortValue(task, key, group) {
+  if (key === 'week') return WEEK_ORDER[task.week] ?? 999;
+  if (key === 'status') return { 'Behind': 0, 'To do': 1, 'Done': 2 }[group] ?? 3;
+  if (key === 'owner') return (group === 'Unassigned') ? 'zzz' : group.toLowerCase();
+  return group.toLowerCase();
+}
+
 function renderList() {
   const body = document.getElementById('list-body');
   const q = document.getElementById('list-search').value.trim().toLowerCase();
@@ -5102,7 +5151,32 @@ function renderList() {
   }
 
   body.innerHTML = '';
+  const groupBy = document.getElementById('group-by').value;
+  let lastGroup = null;
+  if (groupBy) {
+    rows.sort((a, b) => {
+      const ga = groupKeyFor(a, groupBy);
+      const gb = groupKeyFor(b, groupBy);
+      const sa = groupSortValue(a, groupBy, ga);
+      const sb = groupSortValue(b, groupBy, gb);
+      if (sa < sb) return -1;
+      if (sa > sb) return 1;
+      // within-group: preserve current listSort order
+      return 0;
+    });
+  }
   rows.forEach(t => {
+    if (groupBy) {
+      const g = groupKeyFor(t, groupBy);
+      if (g !== lastGroup) {
+        lastGroup = g;
+        const count = rows.filter(r => groupKeyFor(r, groupBy) === g).length;
+        const headerTr = document.createElement('tr');
+        headerTr.className = 'list-group-header';
+        headerTr.innerHTML = `<td colspan="6"><span class="lgh-label">${escapeHTML(g)}</span><span class="lgh-count">${count}</span></td>`;
+        body.appendChild(headerTr);
+      }
+    }
     const tr = document.createElement('tr');
     tr.dataset.taskId = t.id;
     if (t.done) tr.classList.add('row-done');
@@ -5629,6 +5703,7 @@ document.getElementById('filter-week').addEventListener('change', () => renderLi
 document.getElementById('filter-track').addEventListener('change', () => renderList());
 document.getElementById('filter-owner').addEventListener('change', () => renderList());
 document.getElementById('filter-status').addEventListener('change', () => renderList());
+document.getElementById('group-by').addEventListener('change', () => renderList());
 
 document.querySelectorAll('.list-table th[data-sort]').forEach(th => {
   th.addEventListener('click', () => {
