@@ -219,7 +219,7 @@
   .gantt-cell.dark .gc-label { color: var(--bg-card); }
   .gantt-today {
     position: absolute;
-    top: 12px; bottom: 10px;
+    top: -2px; bottom: -2px;
     width: 2px;
     background: var(--clay);
     z-index: 10;
@@ -228,7 +228,7 @@
   .gantt-today::after {
     content: 'Today';
     position: absolute;
-    top: -16px;
+    top: -20px;
     left: 50%;
     transform: translateX(-50%);
     background: var(--clay);
@@ -237,9 +237,21 @@
     font-weight: 700;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    padding: 1px 6px;
+    padding: 2px 8px;
     border-radius: 100px;
     white-space: nowrap;
+    box-shadow: 0 2px 6px rgba(92,139,171,0.3);
+  }
+  .gantt-today::before {
+    content: '';
+    position: absolute;
+    top: -8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 8px; height: 8px;
+    background: var(--clay);
+    border-radius: 50%;
+    border: 2px solid var(--bg-card);
   }
 
   /* ============ TRACK LEGEND ============ */
