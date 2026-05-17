@@ -42,7 +42,6 @@
     overflow-x: hidden;
   }
   html { overflow-x: hidden; }
-  body * { max-width: 100%; }
 
   /* ============ STICKY TOP ============ */
   .top-bar {
@@ -988,10 +987,12 @@
     .meta-value { font-size: 14px; }
     .meta-cell .small { display: block; margin-left: 0; }
     .gantt-wrap { padding: 0 14px; }
-    .gantt { padding: 14px 12px 34px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
-    .gantt-row { min-width: 720px; }
-    .gantt-cell .gc-label { font-size: 9px; }
-    .gantt-milestone .ms-label { font-size: 8px; padding: 1px 4px; letter-spacing: 0.05em; }
+    .gantt { padding: 14px 8px 34px; }
+    .gantt-row { gap: 2px; height: 22px; }
+    .gantt-cell .gc-label { display: none; }
+    .gantt-cell { min-width: 0; }
+    .gantt-milestone .ms-label { font-size: 8px; padding: 1px 4px; letter-spacing: 0.04em; }
+    .gantt-milestone .ms-flag { width: 6px; height: 6px; top: -6px; }
     .legend { padding: 8px 14px; font-size: 9px; gap: 8px; }
     .tab-bar-inner { gap: 6px; }
     .tab-btn { padding: 6px 12px; font-size: 12px; }
