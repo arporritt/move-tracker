@@ -227,40 +227,43 @@
   .week { margin-bottom: 44px; scroll-margin-top: 220px; }
   .week-header {
     text-align: center;
-    padding-bottom: 18px;
+    padding-bottom: 12px;
     border-bottom: 2px solid var(--ink);
-    margin-bottom: 24px;
+    margin-bottom: 16px;
     position: relative;
   }
   .week-num {
     font-family: 'Fraunces', serif;
-    font-size: 44px;
+    font-size: 32px;
     font-weight: 300;
     color: var(--ink);
     font-style: italic;
     line-height: 0.9;
     font-variation-settings: "opsz" 144, "SOFT" 60;
-    margin-bottom: 6px;
+    margin-bottom: 4px;
   }
   .week-eyebrow {
-    font-size: 11px;
+    font-size: 10px;
     letter-spacing: 0.18em;
     text-transform: uppercase;
     color: var(--clay);
     font-weight: 600;
-    margin-bottom: 8px;
+    margin-bottom: 4px;
   }
   .week-eyebrow .arrow { color: var(--ink-faint); margin: 0 6px; }
   .week-header h2 {
     font-family: 'Fraunces', serif;
-    font-size: clamp(22px, 2.8vw, 30px);
+    font-size: clamp(15px, 1.6vw, 18px);
     font-weight: 400;
-    letter-spacing: -0.015em;
-    line-height: 1.1;
-    font-variation-settings: "opsz" 72;
+    letter-spacing: -0.01em;
+    line-height: 1.25;
+    font-variation-settings: "opsz" 36;
+    color: var(--ink-soft);
+    max-width: 720px;
+    margin: 0 auto;
   }
   .week-progress {
-    margin-top: 12px;
+    margin-top: 8px;
     font-family: 'Fraunces', serif;
     font-size: 13px;
     color: var(--ink-faint);
@@ -4854,8 +4857,11 @@ function generateHeadline(weekTasks, fallback) {
   if (!weekTasks.length) return fallback;
   const topLabels = weekTasks
     .filter(t => !t.done)
-    .slice(0, 3)
-    .map(t => t.label.replace(/\s*[—:].*$/, '').trim()) // trim subtitles after — or :
+    .slice(0, 2)
+    .map(t => {
+      const clean = t.label.replace(/\s*[—:].*$/, '').trim();
+      return clean.length > 38 ? clean.slice(0, 36).trimEnd() + '…' : clean;
+    })
     .filter(Boolean);
   if (topLabels.length === 0) return fallback;
   return topLabels.join(' · ');
