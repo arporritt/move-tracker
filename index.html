@@ -61,8 +61,26 @@
   .top-count .total { color: var(--ink-faint); font-style: italic; }
   .top-count .pct { margin-left: 8px; font-size: 12px; color: var(--clay); font-style: italic; }
   .top-count .behind-count { margin-left: 12px; font-size: 11px; color: var(--behind); font-style: italic; font-weight: 600; font-family: 'Manrope', sans-serif; }
-  .jump-now-btn {
+  .global-search {
     margin-left: 16px;
+    flex: 0 1 280px;
+    padding: 6px 12px;
+    border: 1px solid var(--rule);
+    border-radius: 100px;
+    background: var(--bg-card);
+    font-family: 'Manrope', sans-serif;
+    font-size: 12px;
+    color: var(--ink);
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .global-search:focus { border-color: var(--clay); }
+  .global-search::placeholder { color: var(--ink-faint); font-style: italic; }
+  @media (max-width: 600px) {
+    .global-search { flex: 1 1 100%; margin-left: 0; margin-top: 6px; font-size: 11.5px; padding: 5px 10px; }
+  }
+  .jump-now-btn {
+    margin-left: 12px;
     background: var(--clay); color: white;
     border: none; border-radius: 100px;
     padding: 6px 14px;
@@ -1302,6 +1320,7 @@
         <span class="pct" id="pct-count">0%</span>
         <span class="behind-count" id="behind-count"></span>
       </span>
+      <input type="search" id="global-search" class="global-search" placeholder="Search tasks, notes, owners, budget…" oninput="onGlobalSearchInput()">
       <button class="jump-now-btn" onclick="jumpToCurrentWeek()">Jump to now ↓</button>
     </div>
     <div class="overall-bar"><div class="overall-fill" id="overall-fill" style="width: 0%;"></div></div>
@@ -5113,7 +5132,7 @@ function renderWeeks() {
   const c = document.getElementById('weeks-container');
   c.innerHTML = '';
   WEEKS.forEach(w => {
-    const weekTasks = state.tasks.filter(t => t.week === w.id);
+    const weekTasks = state.tasks.filter(t => t.week === w.id && matchesSearch(t));
     const done = weekTasks.filter(t => t.done).length;
     const behind = weekTasks.filter(isBehind).length;
     const sec = document.createElement('section');
@@ -5595,7 +5614,7 @@ function renderGantt() {
     const cell = document.createElement('div');
     cell.className = 'gantt-cell';
     cell.dataset.week = w.id;
-    const tasks = state.tasks.filter(t => t.week === w.id);
+    const tasks = state.tasks.filter(t => t.week === w.id && matchesSearch(t));
     const done = tasks.filter(t => t.done).length;
     const behind = tasks.filter(isBehind).length;
     const end = new Date(w.end + 'T23:59:59');
@@ -5870,6 +5889,26 @@ function renderActive() {
   else if (active === 'budget') renderBudget();
 }
 
+let globalSearchQuery = '';
+function onGlobalSearchInput() {
+  const el = document.getElementById('global-search');
+  globalSearchQuery = el.value.trim().toLowerCase();
+  // mirror into list-search field if it exists, so existing list filtering still works
+  const listSearch = document.getElementById('list-search');
+  if (listSearch) listSearch.value = el.value;
+  renderActive();
+}
+function matchesSearch(task) {
+  if (!globalSearchQuery) return true;
+  const hay = ((task.label||'') + ' ' + (task.note||'') + ' ' + (task.owner||'') + ' ' + (task.track||'')).toLowerCase();
+  return hay.includes(globalSearchQuery);
+}
+function matchesSearchBudget(item) {
+  if (!globalSearchQuery) return true;
+  const hay = ((item.label||'') + ' ' + (item.category||'') + ' ' + (item.note||'')).toLowerCase();
+  return hay.includes(globalSearchQuery);
+}
+
 function jumpToCurrentWeek() {
   const weeksTab = document.querySelector('.tab-btn[data-tab="weeks"]');
   if (!weeksTab.classList.contains('active')) weeksTab.click();
@@ -5946,7 +5985,7 @@ function parseMoney(s) {
 
 function renderBudget() {
   ensureBudgetState();
-  const items = state.budget.items;
+  const items = state.budget.items.filter(matchesSearchBudget);
 
   // Summary
   const totalEst = items.reduce((s, i) => s + (Number(i.estimated) || 0), 0);
