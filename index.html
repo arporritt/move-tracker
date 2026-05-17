@@ -4852,16 +4852,10 @@ function escapeHTML(s) {
 // ============================================================
 function generateHeadline(weekTasks, fallback) {
   if (!weekTasks.length) return fallback;
-  const topLabels = weekTasks
-    .filter(t => !t.done)
-    .slice(0, 2)
-    .map(t => {
-      const clean = t.label.replace(/\s*[—:].*$/, '').trim();
-      return clean.length > 38 ? clean.slice(0, 36).trimEnd() + '…' : clean;
-    })
-    .filter(Boolean);
-  if (topLabels.length === 0) return fallback;
-  return topLabels.join(' · ');
+  const first = weekTasks.find(t => !t.done);
+  if (!first) return fallback;
+  const clean = first.label.replace(/\s*[—:].*$/, '').trim();
+  return clean.length > 56 ? clean.slice(0, 54).trimEnd() + '…' : clean;
 }
 
 function renderWeeks() {
