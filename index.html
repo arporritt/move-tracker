@@ -4850,6 +4850,17 @@ function escapeHTML(s) {
 // ============================================================
 // RENDER: WEEKS VIEW
 // ============================================================
+function generateHeadline(weekTasks, fallback) {
+  if (!weekTasks.length) return fallback;
+  const topLabels = weekTasks
+    .filter(t => !t.done)
+    .slice(0, 3)
+    .map(t => t.label.replace(/\s*[—:].*$/, '').trim()) // trim subtitles after — or :
+    .filter(Boolean);
+  if (topLabels.length === 0) return fallback;
+  return topLabels.join(' · ');
+}
+
 function renderWeeks() {
   const c = document.getElementById('weeks-container');
   c.innerHTML = '';
@@ -4862,11 +4873,12 @@ function renderWeeks() {
     sec.id = w.id;
     const behindLine = behind > 0 ? `<span class="behind-pill">${behind} behind</span>` : '';
     const eyebrow = w.dateLabel.replace('→', '<span class="arrow">→</span>');
+    const dynHeadline = generateHeadline(weekTasks, w.headline);
     sec.innerHTML = `
       <div class="week-header">
         <div class="week-num">${w.label === 'Now' ? 'Now' : w.label === 'Beyond' ? 'Sep+' : w.label.replace('Week ', '').padStart(2, '0')}</div>
         <div class="week-eyebrow">${eyebrow}</div>
-        <h2>${escapeHTML(w.headline)}</h2>
+        <h2>${escapeHTML(dynHeadline)}</h2>
         <div class="week-progress"><span class="num-done">${done}</span> of <span class="num-total">${weekTasks.length}</span>${behindLine}</div>
       </div>
       <div class="week-tasks" data-week="${w.id}"></div>
