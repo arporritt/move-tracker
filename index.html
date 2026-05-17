@@ -1191,21 +1191,18 @@
 <!-- ============ SYNC PILL (top-right, always visible) ============ -->
 <style>
   .sync-pill {
-    position: fixed;
-    top: 14px; right: 18px;
-    z-index: 70;
-    display: flex; align-items: center; gap: 8px;
-    padding: 8px 14px;
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 12px;
     background: var(--bg-card);
     border: 1px solid var(--rule);
     border-radius: 100px;
-    box-shadow: var(--shadow);
     font-family: 'Manrope', sans-serif;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 600;
     letter-spacing: 0.04em;
     color: var(--ink-soft);
     transition: all 0.2s ease;
+    flex-shrink: 0;
   }
   .sync-pill .dot {
     width: 8px; height: 8px; border-radius: 50%;
@@ -1222,13 +1219,10 @@
   .sync-pill.is-loading .dot { animation: pulse 1s infinite; }
   @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
   @media (max-width: 600px) {
-    .sync-pill { top: 8px; right: 8px; padding: 6px 10px; font-size: 11px; }
+    .sync-pill { padding: 3px 8px; font-size: 10px; gap: 4px; }
+    .sync-pill .dot { width: 6px; height: 6px; }
   }
 </style>
-<div id="sync-pill" class="sync-pill is-loading">
-  <span class="dot"></span>
-  <span id="sync-pill-text">loading…</span>
-</div>
 
 <!-- ============ PASSWORD GATE ============ -->
 <style>
@@ -1302,6 +1296,10 @@
         <span class="behind-count" id="behind-count"></span>
       </span>
       <button class="jump-now-btn" onclick="jumpToCurrentWeek()">Jump to now ↓</button>
+      <div id="sync-pill" class="sync-pill is-loading">
+        <span class="dot"></span>
+        <span id="sync-pill-text">loading…</span>
+      </div>
     </div>
     <div class="overall-bar"><div class="overall-fill" id="overall-fill" style="width: 0%;"></div></div>
   </div>
