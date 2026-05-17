@@ -61,6 +61,21 @@
   .top-count .total { color: var(--ink-faint); font-style: italic; }
   .top-count .pct { margin-left: 8px; font-size: 12px; color: var(--clay); font-style: italic; }
   .top-count .behind-count { margin-left: 12px; font-size: 11px; color: var(--behind); font-style: italic; font-weight: 600; font-family: 'Manrope', sans-serif; }
+  .jump-now-btn {
+    margin-left: 16px;
+    background: var(--clay); color: white;
+    border: none; border-radius: 100px;
+    padding: 6px 14px;
+    font-family: 'Manrope', sans-serif;
+    font-size: 11px; font-weight: 700;
+    letter-spacing: 0.06em; text-transform: uppercase;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.15s;
+  }
+  .jump-now-btn:hover { background: var(--plum); transform: translateY(-1px); }
+  @media (max-width: 600px) {
+    .jump-now-btn { margin-left: auto; padding: 5px 10px; font-size: 10px; }
+  }
   .overall-bar { height: 5px; background: var(--rule); border-radius: 100px; overflow: hidden; }
   .overall-fill { height: 100%; background: linear-gradient(90deg, var(--forest), var(--clay)); width: 0%; transition: width 0.4s ease; }
 
@@ -1274,6 +1289,7 @@
         <span class="pct" id="pct-count">0%</span>
         <span class="behind-count" id="behind-count"></span>
       </span>
+      <button class="jump-now-btn" onclick="jumpToCurrentWeek()">Jump to now ↓</button>
     </div>
     <div class="overall-bar"><div class="overall-fill" id="overall-fill" style="width: 0%;"></div></div>
   </div>
@@ -5839,6 +5855,16 @@ function renderActive() {
   if (active === 'weeks') renderWeeks();
   else if (active === 'list') renderList();
   else if (active === 'budget') renderBudget();
+}
+
+function jumpToCurrentWeek() {
+  const weeksTab = document.querySelector('.tab-btn[data-tab="weeks"]');
+  if (!weeksTab.classList.contains('active')) weeksTab.click();
+  setTimeout(() => {
+    const cw = currentWeekId() || 'now';
+    const sec = document.getElementById(cw);
+    if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 80);
 }
 
 // ============================================================
