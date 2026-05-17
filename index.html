@@ -4985,6 +4985,21 @@ function renderTaskRow(task) {
 
 const OWNER_OPTIONS = ['Allie', 'Thomas', 'Both'];
 
+function getCustomOwners() {
+  const set = new Set();
+  if (Array.isArray(state.customOwners)) state.customOwners.forEach(o => o && set.add(o));
+  state.tasks.forEach(t => {
+    if (t.owner && !OWNER_OPTIONS.includes(t.owner)) set.add(t.owner);
+  });
+  return [...set];
+}
+
+function rememberCustomOwner(name) {
+  if (!name || OWNER_OPTIONS.includes(name)) return;
+  if (!Array.isArray(state.customOwners)) state.customOwners = [];
+  if (!state.customOwners.includes(name)) state.customOwners.push(name);
+}
+
 function ownerColorClass(owner) {
   if (!owner) return '';
   if (owner === 'Allie') return 'owner-allie';
@@ -4995,13 +5010,20 @@ function ownerColorClass(owner) {
 
 function ownerSelectHTML(current) {
   const cur = current || '';
-  const opts = ['', 'Allie', 'Thomas', 'Both'];
+  const customs = getCustomOwners();
+  const builtin = ['Allie', 'Thomas', 'Both'];
+  const seen = new Set(builtin);
   let html = '<select class="row-owner-select">';
   html += `<option value=""${cur === '' ? ' selected' : ''}>—</option>`;
-  for (const o of ['Allie', 'Thomas', 'Both']) {
-    html += `<option value="${o}"${cur === o ? ' selected' : ''}>${o}</option>`;
+  for (const o of builtin) {
+    html += `<option value="${escapeHTML(o)}"${cur === o ? ' selected' : ''}>${escapeHTML(o)}</option>`;
   }
-  if (cur && !opts.includes(cur)) {
+  for (const o of customs) {
+    if (seen.has(o)) continue;
+    seen.add(o);
+    html += `<option value="${escapeHTML(o)}"${cur === o ? ' selected' : ''}>${escapeHTML(o)}</option>`;
+  }
+  if (cur && !seen.has(cur)) {
     html += `<option value="${escapeHTML(cur)}" selected>${escapeHTML(cur)}</option>`;
   }
   html += '<option value="__other">Other…</option>';
@@ -5011,18 +5033,29 @@ function ownerSelectHTML(current) {
 
 function setOwnerSelect(value) {
   const sel = document.getElementById('m-owner');
-  // Remove any previously-added custom options
   [...sel.querySelectorAll('option.custom-owner')].forEach(o => o.remove());
-  const known = ['', 'Allie', 'Thomas', 'Both', '__other'];
+  const otherOpt = sel.querySelector('option[value="__other"]');
+  // Populate all remembered custom owners
+  const customs = getCustomOwners();
+  customs.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c;
+    opt.textContent = c;
+    opt.className = 'custom-owner';
+    sel.insertBefore(opt, otherOpt);
+  });
+  const known = ['', 'Allie', 'Thomas', 'Both', '__other', ...customs];
   if (known.includes(value)) {
     sel.value = value;
-  } else {
+  } else if (value) {
     const opt = document.createElement('option');
     opt.value = value;
     opt.textContent = value;
     opt.className = 'custom-owner';
-    sel.insertBefore(opt, sel.querySelector('option[value="__other"]'));
+    sel.insertBefore(opt, otherOpt);
     sel.value = value;
+  } else {
+    sel.value = '';
   }
 }
 
@@ -5030,6 +5063,7 @@ function handleOwnerSelectChange(sel) {
   if (sel.value !== '__other') return;
   const v = prompt('Owner name:', '');
   if (v && v.trim()) {
+    rememberCustomOwner(v.trim());
     setOwnerSelect(v.trim());
   } else {
     sel.value = '';
@@ -5042,7 +5076,8 @@ function showOwnerPicker(anchorEl, task) {
   const menu = document.createElement('div');
   menu.id = 'owner-picker';
   menu.className = 'owner-picker';
-  const options = [...OWNER_OPTIONS, '__other', '__clear'];
+  const customs = getCustomOwners();
+  const options = [...OWNER_OPTIONS, ...customs, '__other', '__clear'];
   options.forEach(opt => {
     const btn = document.createElement('button');
     btn.type = 'button';
@@ -5061,6 +5096,7 @@ function showOwnerPicker(anchorEl, task) {
         const v = prompt('Owner name:', current);
         if (v === null) { menu.remove(); return; }
         val = v.trim();
+        if (val) rememberCustomOwner(val);
       } else if (opt === '__clear') {
         val = '';
       } else {
@@ -5231,6 +5267,7 @@ function renderList() {
         const custom = prompt('Owner name:', t.owner || '');
         if (custom === null) { e.target.value = t.owner || ''; return; }
         v = custom.trim();
+        if (v) rememberCustomOwner(v);
       }
       t.owner = v;
       persist();
