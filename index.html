@@ -5772,7 +5772,14 @@ document.getElementById('filter-week').addEventListener('change', () => renderLi
 document.getElementById('filter-track').addEventListener('change', () => renderList());
 document.getElementById('filter-owner').addEventListener('change', () => renderList());
 document.getElementById('filter-status').addEventListener('change', () => renderList());
-document.getElementById('group-by').addEventListener('change', () => renderList());
+document.getElementById('group-by').addEventListener('change', e => {
+  try { localStorage.setItem('mt-group-by', e.target.value); } catch(err) {}
+  renderList();
+});
+try {
+  const savedGroup = localStorage.getItem('mt-group-by');
+  if (savedGroup) document.getElementById('group-by').value = savedGroup;
+} catch(err) {}
 
 document.querySelectorAll('.list-table th[data-sort]').forEach(th => {
   th.addEventListener('click', () => {
