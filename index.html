@@ -117,8 +117,40 @@
     position: relative;
     background: var(--bg-card);
     border: 1px solid var(--rule-soft); border-radius: 6px;
-    padding: 16px 18px 14px;
+    padding: 16px 18px 36px;
     box-shadow: var(--shadow);
+  }
+  .gantt-milestone {
+    position: absolute;
+    top: 12px; bottom: 28px;
+    width: 0;
+    border-left: 2px dashed var(--clay);
+    pointer-events: none;
+    z-index: 5;
+  }
+  .gantt-milestone .ms-flag {
+    position: absolute;
+    top: -8px; left: 50%; transform: translateX(-50%);
+    width: 8px; height: 8px;
+    background: var(--clay);
+    border-radius: 50%;
+    border: 2px solid var(--bg-card);
+  }
+  .gantt-milestone .ms-label {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--clay);
+    background: var(--bg-card);
+    padding: 2px 6px;
+    border-radius: 100px;
+    white-space: nowrap;
+    border: 1px solid currentColor;
   }
   .gantt-row { display: flex; gap: 4px; height: 28px; align-items: stretch; }
   .gantt-cell {
@@ -5414,6 +5446,35 @@ function renderGantt() {
     marker.style.left = `calc(18px + (100% - 36px) * ${visualPct / 100})`;
     g.appendChild(marker);
   }
+
+  // Milestones
+  const MILESTONES = [
+    { date: '2026-06-26', label: 'CHI close', color: '#5C8BAB' },
+    { date: '2026-06-30', label: 'WI close', color: '#4A8E95' },
+    { date: '2026-07-31', label: 'Rent-back ends', color: '#5A6890' }
+  ];
+  MILESTONES.forEach(m => {
+    const d = new Date(m.date + 'T12:00:00');
+    if (d < firstStart || d > lastEnd) return;
+    let cellIdx = WEEKS.findIndex(w => {
+      const s = new Date(w.start + 'T00:00:00');
+      const e = new Date(w.end + 'T23:59:59');
+      return d >= s && d <= e;
+    });
+    if (cellIdx < 0) return;
+    const cw_obj = WEEKS[cellIdx];
+    const cs = new Date(cw_obj.start + 'T00:00:00');
+    const ce = new Date(cw_obj.end + 'T23:59:59');
+    const intoCell = (d - cs) / (ce - cs);
+    const cellWidthPct = 100 / WEEKS.length;
+    const visualPct = (cellIdx + intoCell) * cellWidthPct;
+    const marker = document.createElement('div');
+    marker.className = 'gantt-milestone';
+    marker.style.left = `calc(18px + (100% - 36px) * ${visualPct / 100})`;
+    marker.style.borderLeftColor = m.color;
+    marker.innerHTML = `<div class="ms-flag" style="background:${m.color}"></div><div class="ms-label" style="color:${m.color}">${m.label}</div>`;
+    g.appendChild(marker);
+  });
 
   // Today tag in eyebrow
   const tag = document.getElementById('today-tag');
