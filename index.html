@@ -5095,7 +5095,7 @@ function renderTaskRow(task) {
         <div class="task-label">
           <span class="task-track-tag">${trackLabel}</span>${escapeHTML(task.label)} ${pills}
         </div>
-        <div class="task-note${task.note ? '' : ' empty'}" contenteditable="true" spellcheck="true">${escapeHTML(task.note || '')}</div>
+        ${task.note ? `<div class="task-note" contenteditable="true" spellcheck="true">${escapeHTML(task.note)}</div>` : ''}
         ${ownerHtml}
       </div>
     </div>
@@ -5118,28 +5118,29 @@ function renderTaskRow(task) {
     showOwnerPicker(ownerEl, task);
   });
 
-  // Inline note editing
+  // Inline note editing (only when a note already exists; add via edit modal)
   const noteEl = div.querySelector('.task-note');
-  noteEl.addEventListener('mousedown', e => e.stopPropagation());
-  noteEl.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); });
-  noteEl.addEventListener('paste', e => {
-    e.preventDefault();
-    const text = (e.clipboardData || window.clipboardData).getData('text/plain');
-    document.execCommand('insertText', false, text);
-  });
-  noteEl.addEventListener('keydown', e => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); noteEl.blur(); }
-    else if (e.key === 'Escape') { e.preventDefault(); noteEl.textContent = task.note || ''; noteEl.blur(); }
-  });
-  noteEl.addEventListener('blur', () => {
-    const newVal = noteEl.textContent.trim();
-    noteEl.classList.toggle('empty', !newVal);
-    if (newVal !== (task.note || '')) {
-      task.note = newVal;
-      persist();
-    }
-    if (!newVal) noteEl.textContent = '';
-  });
+  if (noteEl) {
+    noteEl.addEventListener('mousedown', e => e.stopPropagation());
+    noteEl.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); });
+    noteEl.addEventListener('paste', e => {
+      e.preventDefault();
+      const text = (e.clipboardData || window.clipboardData).getData('text/plain');
+      document.execCommand('insertText', false, text);
+    });
+    noteEl.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); noteEl.blur(); }
+      else if (e.key === 'Escape') { e.preventDefault(); noteEl.textContent = task.note || ''; noteEl.blur(); }
+    });
+    noteEl.addEventListener('blur', () => {
+      const newVal = noteEl.textContent.trim();
+      if (newVal !== (task.note || '')) {
+        task.note = newVal;
+        persist();
+        if (!newVal) renderActive();
+      }
+    });
+  }
 
   // Drag-and-drop reordering
   div.draggable = true;
