@@ -378,6 +378,15 @@
   }
   .task-owner.unassigned { color: var(--ink-faint); background: transparent; border: 1px dashed var(--rule); font-style: italic; font-weight: 400; }
   .task-owner-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-faint); display: inline-block; }
+  /* Owner-specific colors */
+  .task-owner.owner-allie { background: #E8DDF1; color: #5A4A78; }
+  .task-owner.owner-allie .task-owner-dot { background: #8B6FB5; }
+  .task-owner.owner-thomas { background: #DDEAF3; color: #3F5F7E; }
+  .task-owner.owner-thomas .task-owner-dot { background: #4A7DA8; }
+  .task-owner.owner-both { background: #DBEDE3; color: #355E48; }
+  .task-owner.owner-both .task-owner-dot { background: #4A8E68; }
+  .task-owner.owner-other { background: #F4E6D2; color: #7A5A2E; }
+  .task-owner.owner-other .task-owner-dot { background: #B5894A; }
 
   .task-note {
     font-size: 13px;
@@ -4882,8 +4891,9 @@ function renderTaskRow(task) {
     logistics: 'Logistics', admin: 'Admin', money: 'Money', family: 'Family'
   }[task.track] || task.track;
   const pills = (task.pills || []).map(p => `<span class="pill ${p}">${p}</span>`).join('');
+  const ownerClass = ownerColorClass(task.owner);
   const ownerHtml = task.owner
-    ? `<span class="task-owner"><span class="task-owner-dot"></span>${escapeHTML(task.owner)}</span>`
+    ? `<span class="task-owner ${ownerClass}"><span class="task-owner-dot"></span>${escapeHTML(task.owner)}</span>`
     : `<span class="task-owner unassigned">+ owner</span>`;
   div.innerHTML = `
     <input type="checkbox" class="task-check" ${task.done ? 'checked' : ''}>
@@ -4974,6 +4984,14 @@ function renderTaskRow(task) {
 }
 
 const OWNER_OPTIONS = ['Allie', 'Thomas', 'Both'];
+
+function ownerColorClass(owner) {
+  if (!owner) return '';
+  if (owner === 'Allie') return 'owner-allie';
+  if (owner === 'Thomas') return 'owner-thomas';
+  if (owner === 'Both') return 'owner-both';
+  return 'owner-other';
+}
 
 function ownerSelectHTML(current) {
   const cur = current || '';
