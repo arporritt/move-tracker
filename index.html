@@ -193,8 +193,8 @@
     position: relative;
     z-index: 2;
     padding: 6px 3px 0;
-    font-size: 9.5px;
-    font-weight: 600;
+    font-size: 10px;
+    font-weight: 700;
     color: var(--ink);
     white-space: nowrap;
     overflow: hidden;
@@ -5580,7 +5580,7 @@ function renderGantt() {
     const weekTag = w.label === 'Now' ? 'Now' : w.label === 'Beyond' ? 'Sep+' : w.label.replace('Week ','W');
     cell.innerHTML = `
       <div class="gc-fill" style="width:${pct}%"></div>
-      <div class="gc-label">${weekTag}<span class="gc-date">${dateStr}</span></div>
+      <div class="gc-label">${dateStr}<span class="gc-date">${weekTag}</span></div>
     `;
     cell.title = `${w.label} · ${w.dateLabel} · ${done}/${tasks.length}${behind ? ' · ' + behind + ' behind' : ''}`;
     cell.onclick = () => {
