@@ -159,15 +159,13 @@
     border: 1px solid currentColor;
   }
   .gantt-row { position: relative; display: flex; gap: 4px; height: 28px; align-items: stretch; }
-  .gantt-dates { display: flex; gap: 4px; margin-bottom: 6px; }
-  .gantt-date-cell {
-    flex: 1; min-width: 0;
-    text-align: center;
-    font-family: 'Manrope', sans-serif;
-    font-size: 9.5px;
-    font-weight: 600;
-    color: var(--ink-faint);
-    letter-spacing: 0.04em;
+  .gc-label .gc-date {
+    font-style: italic;
+    font-weight: 400;
+    opacity: 0.55;
+    margin-left: 4px;
+    font-family: 'Fraunces', serif;
+    letter-spacing: 0;
   }
   .gantt-cell {
     flex: 1; min-width: 0;
@@ -1004,8 +1002,8 @@
     .meta-cell .small { display: block; margin-left: 0; }
     .gantt-wrap { padding: 0 14px; }
     .gantt { padding: 14px 14px 34px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
-    .gantt-row, .gantt-dates { min-width: 760px; gap: 3px; }
-    .gantt-date-cell { font-size: 9px; }
+    .gantt-row { min-width: 760px; gap: 3px; }
+    .gc-label .gc-date { font-size: 9px; margin-left: 3px; }
     .gantt-cell { min-width: 0; }
     .gantt-cell .gc-label { font-size: 10px; }
     .gantt-milestone .ms-label { font-size: 8.5px; padding: 1px 5px; letter-spacing: 0.05em; }
@@ -5555,16 +5553,6 @@ function refreshOwnerFilters() {
 function renderGantt() {
   const g = document.getElementById('gantt');
   g.innerHTML = '';
-  const dateRow = document.createElement('div');
-  dateRow.className = 'gantt-dates';
-  WEEKS.forEach(w => {
-    const cell = document.createElement('div');
-    cell.className = 'gantt-date-cell';
-    const start = new Date(w.start + 'T00:00:00');
-    cell.textContent = (start.getMonth() + 1) + '/' + start.getDate();
-    dateRow.appendChild(cell);
-  });
-  g.appendChild(dateRow);
   const row = document.createElement('div');
   row.className = 'gantt-row';
   const today = todayDate();
@@ -5583,9 +5571,12 @@ function renderGantt() {
     else if (new Date(w.start + 'T00:00:00') > today) cell.classList.add('future');
     if (behind > 0) cell.classList.add('has-behind');
     if (w.id === cw) cell.style.outline = '2px solid var(--clay)';
+    const startDate = new Date(w.start + 'T00:00:00');
+    const dateStr = (startDate.getMonth() + 1) + '/' + startDate.getDate();
+    const weekTag = w.label === 'Now' ? 'Now' : w.label === 'Beyond' ? 'Sep+' : w.label.replace('Week ','W');
     cell.innerHTML = `
       <div class="gc-fill" style="width:${pct}%"></div>
-      <div class="gc-label">${w.label === 'Now' ? 'Now' : w.label === 'Beyond' ? 'Sep+' : w.label.replace('Week ','W')}</div>
+      <div class="gc-label">${weekTag}<span class="gc-date">${dateStr}</span></div>
     `;
     cell.title = `${w.label} · ${w.dateLabel} · ${done}/${tasks.length}${behind ? ' · ' + behind + ' behind' : ''}`;
     cell.onclick = () => {
