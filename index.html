@@ -398,6 +398,12 @@
   .task-owner.owner-both .task-owner-dot { background: #4A8E68; }
   .task-owner.owner-other { background: #F4E6D2; color: #7A5A2E; }
   .task-owner.owner-other .task-owner-dot { background: #B5894A; }
+  /* List view: select tinted to match owner */
+  .row-owner-select { font-weight: 600; }
+  .row-owner-select.owner-allie { background: #E8DDF1 !important; color: #5A4A78 !important; border-color: #8B6FB5 !important; }
+  .row-owner-select.owner-thomas { background: #DDEAF3 !important; color: #3F5F7E !important; border-color: #4A7DA8 !important; }
+  .row-owner-select.owner-both { background: #DBEDE3 !important; color: #355E48 !important; border-color: #4A8E68 !important; }
+  .row-owner-select.owner-other { background: #F4E6D2 !important; color: #7A5A2E !important; border-color: #B5894A !important; }
 
   .task-note {
     display: inline-block;
@@ -5037,7 +5043,8 @@ function ownerSelectHTML(current) {
   const customs = getCustomOwners();
   const builtin = ['Allie', 'Thomas', 'Both'];
   const seen = new Set(builtin);
-  let html = '<select class="row-owner-select">';
+  const colorClass = ownerColorClass(cur);
+  let html = `<select class="row-owner-select ${colorClass}">`;
   html += `<option value=""${cur === '' ? ' selected' : ''}>—</option>`;
   for (const o of builtin) {
     html += `<option value="${escapeHTML(o)}"${cur === o ? ' selected' : ''}>${escapeHTML(o)}</option>`;
