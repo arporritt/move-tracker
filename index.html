@@ -1065,15 +1065,18 @@
     footer { padding: 18px 14px 30px; font-size: 11px; }
   }
   @media (max-width: 600px) {
-    .top-bar, .tab-bar, .gantt-wrap, .meta-row, .masthead, footer, main, .list-controls, .list-wrap { max-width: 100vw; box-sizing: border-box; }
-    .top-bar-inner, .tab-bar-inner, footer { max-width: 100%; }
-    .week, .budget-summary, .budget-category, .budget-line, .budget-cols { max-width: 100%; box-sizing: border-box; }
-    .task { max-width: 100%; box-sizing: border-box; }
+    body, main, .top-bar, .tab-bar, .gantt-wrap, .meta-row, .masthead, footer, .list-controls, .list-wrap { max-width: 100vw; box-sizing: border-box; }
+    main, .top-bar-inner, .tab-bar-inner, footer, .week, .budget-summary, .budget-category, .budget-line, .budget-cols, .task { box-sizing: border-box; }
     .modal { max-width: calc(100vw - 24px); }
     .owner-picker { max-width: calc(100vw - 24px); }
     table.list-table { table-layout: fixed; width: 100%; }
-    .list-table td, .list-table th { overflow: hidden; text-overflow: ellipsis; }
+    .list-table td, .list-table th { overflow: hidden; text-overflow: ellipsis; word-break: break-word; }
     .row-label, .row-note { word-break: break-word; }
+    .task-label, .row-label { word-break: break-word; }
+    .budget-input.label { min-width: 0; }
+    .week-tasks, .task-content, .task-label-row { min-width: 0; }
+    /* Defensive: anything that could overflow */
+    pre, code, img, video, iframe, table, input, textarea, select { max-width: 100%; }
   }
   @media (max-width: 420px) {
     .top-bar-inner { padding: 6px 10px; }
