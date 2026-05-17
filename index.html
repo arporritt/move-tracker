@@ -5569,10 +5569,15 @@ function renderGantt() {
     const tasks = state.tasks.filter(t => t.week === w.id);
     const done = tasks.filter(t => t.done).length;
     const behind = tasks.filter(isBehind).length;
-    const pct = tasks.length ? (done / tasks.length) * 100 : 0;
     const end = new Date(w.end + 'T23:59:59');
+    const wStart = new Date(w.start + 'T00:00:00');
+    // Time-based fill: past = 100%, current = elapsed, future = 0%
+    let pct;
+    if (end < today) pct = 100;
+    else if (wStart > today) pct = 0;
+    else pct = Math.max(0, Math.min(100, ((today - wStart) / (end - wStart)) * 100));
     if (end < today) cell.classList.add('past');
-    else if (new Date(w.start + 'T00:00:00') > today) cell.classList.add('future');
+    else if (wStart > today) cell.classList.add('future');
     if (behind > 0) cell.classList.add('has-behind');
     if (w.id === cw) cell.style.outline = '2px solid var(--clay)';
     const startDate = new Date(w.start + 'T00:00:00');
