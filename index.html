@@ -340,7 +340,7 @@
   }
 
   .task {
-    display: flex; align-items: flex-start; gap: 12px;
+    display: flex; align-items: center; gap: 12px;
     padding: 10px 12px 10px 16px;
     transition: background 0.15s ease;
     border-radius: 4px;
@@ -348,6 +348,8 @@
     margin-bottom: 2px;
     position: relative;
   }
+  .task-check { align-self: center; }
+  .task-actions { align-self: center; }
   .task:hover { background: rgba(201,214,222,0.5); }
   .task[data-track="chi"] { border-left-color: var(--clay); }
   .task[data-track="wi"] { border-left-color: var(--forest); }
