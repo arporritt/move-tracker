@@ -61,6 +61,33 @@
   .top-count .total { color: var(--ink-faint); font-style: italic; }
   .top-count .pct { margin-left: 8px; font-size: 12px; color: var(--clay); font-style: italic; }
   .top-count .behind-count { margin-left: 12px; font-size: 11px; color: var(--behind); font-style: italic; font-weight: 600; font-family: 'Manrope', sans-serif; }
+  .week-filters {
+    max-width: 1240px; margin: 16px auto 0; padding: 0 40px;
+    display: flex; gap: 8px; flex-wrap: wrap;
+  }
+  .week-filter-btn {
+    background: var(--bg-card);
+    border: 1px solid var(--rule);
+    border-radius: 100px;
+    padding: 6px 14px;
+    font-family: 'Manrope', sans-serif;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--ink-soft);
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 0.02em;
+  }
+  .week-filter-btn:hover { border-color: var(--clay-soft); color: var(--clay); }
+  .week-filter-btn.active {
+    background: var(--clay);
+    color: white;
+    border-color: var(--clay);
+  }
+  @media (max-width: 600px) {
+    .week-filters { padding: 0 14px; gap: 6px; }
+    .week-filter-btn { padding: 5px 10px; font-size: 11px; }
+  }
   .global-search {
     margin-left: 16px;
     flex: 0 1 280px;
@@ -1443,6 +1470,11 @@
 
 <!-- ============ WEEK VIEW ============ -->
 <div class="tab-content active" id="tab-weeks">
+  <div class="week-filters">
+    <button class="week-filter-btn" data-filter="empty" onclick="toggleWeekFilter('empty')">Hide empty weeks</button>
+    <button class="week-filter-btn" data-filter="past" onclick="toggleWeekFilter('past')">Hide past weeks</button>
+    <button class="week-filter-btn" data-filter="done" onclick="toggleWeekFilter('done')">Hide weeks all done</button>
+  </div>
   <main id="weeks-container"><section class="week" id="now">
       <div class="week-header">
         <div class="week-num">Now</div>
@@ -5064,6 +5096,7 @@ async function initApp() {
   // Migrate any tasks still on the removed 'beyond' week
   state.tasks.forEach(t => { if (t.week === 'beyond') t.week = 'w15'; });
   cloudReady = true;
+  applyWeekFilterButtons();
   refreshOwnerFilters();
   renderWeeks();
   renderGantt();
@@ -5131,9 +5164,17 @@ function generateHeadline(weekTasks, fallback) {
 function renderWeeks() {
   const c = document.getElementById('weeks-container');
   c.innerHTML = '';
+  const today = todayDate();
   WEEKS.forEach(w => {
     const weekTasks = state.tasks.filter(t => t.week === w.id && matchesSearch(t));
     const done = weekTasks.filter(t => t.done).length;
+    // Apply hide filters
+    if (weekFilters.empty && weekTasks.length === 0) return;
+    if (weekFilters.past) {
+      const wEnd = new Date(w.end + 'T23:59:59');
+      if (wEnd < today) return;
+    }
+    if (weekFilters.done && weekTasks.length > 0 && done === weekTasks.length) return;
     const behind = weekTasks.filter(isBehind).length;
     const sec = document.createElement('section');
     sec.className = 'week';
@@ -5887,6 +5928,23 @@ function renderActive() {
   if (active === 'weeks') renderWeeks();
   else if (active === 'list') renderList();
   else if (active === 'budget') renderBudget();
+}
+
+let weekFilters = { empty: false, past: false, done: false };
+try {
+  const saved = localStorage.getItem('mt-week-filters');
+  if (saved) weekFilters = { ...weekFilters, ...JSON.parse(saved) };
+} catch(e) {}
+function applyWeekFilterButtons() {
+  document.querySelectorAll('.week-filter-btn').forEach(btn => {
+    btn.classList.toggle('active', !!weekFilters[btn.dataset.filter]);
+  });
+}
+function toggleWeekFilter(key) {
+  weekFilters[key] = !weekFilters[key];
+  try { localStorage.setItem('mt-week-filters', JSON.stringify(weekFilters)); } catch(e) {}
+  applyWeekFilterButtons();
+  renderActive();
 }
 
 let globalSearchQuery = '';
