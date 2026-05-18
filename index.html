@@ -1234,6 +1234,29 @@
 
 <!-- ============ SYNC PILL (top-right, always visible) ============ -->
 <style>
+  .data-loading {
+    position: fixed; inset: 0;
+    z-index: 9000;
+    background: rgba(238,243,246,0.92);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .data-loading-inner { text-align: center; }
+  .data-loading-spinner {
+    width: 38px; height: 38px;
+    border: 3px solid var(--rule);
+    border-top-color: var(--clay);
+    border-radius: 50%;
+    margin: 0 auto 14px;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .data-loading-text {
+    font-family: 'Fraunces', serif;
+    font-size: 15px;
+    font-style: italic;
+    color: var(--ink-soft);
+  }
   .sync-pill {
     position: fixed;
     bottom: 18px; right: 18px;
@@ -1274,6 +1297,12 @@
 <div id="sync-pill" class="sync-pill is-loading">
   <span class="dot"></span>
   <span id="sync-pill-text">loading…</span>
+</div>
+<div id="data-loading" class="data-loading" style="display:none;">
+  <div class="data-loading-inner">
+    <div class="data-loading-spinner"></div>
+    <div class="data-loading-text">Loading latest data…</div>
+  </div>
 </div>
 
 <!-- ============ PASSWORD GATE ============ -->
@@ -5083,6 +5112,8 @@ function unlock() {
 
 async function initApp() {
   updateSyncStatus('loading');
+  const loader = document.getElementById('data-loading');
+  if (loader) loader.style.display = 'flex';
   const cloud = await cloudLoad();
   const cloudHasTasks = cloud && Array.isArray(cloud.tasks) && cloud.tasks.length > 0;
   if (cloudHasTasks) {
@@ -5111,6 +5142,7 @@ async function initApp() {
   } else {
     updateSyncStatus('saved');
   }
+  if (loader) loader.style.display = 'none';
   setInterval(refreshFromCloud, 20000);
 }
 
