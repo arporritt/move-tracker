@@ -684,6 +684,25 @@
     opacity: 0; transition: opacity 0.15s;
   }
   .insp-tile:hover .insp-actions { opacity: 1; }
+  .insp-status-badge {
+    position: absolute; top: 6px; left: 6px;
+    z-index: 3;
+    padding: 3px 8px;
+    border-radius: 100px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    border: 1px solid transparent;
+    background: rgba(255,255,255,0.95);
+    color: var(--ink-soft);
+    transition: all 0.15s;
+  }
+  .insp-status-badge:hover { transform: translateY(-1px); }
+  .insp-status-badge.is-tobuy { background: var(--clay); color: white; }
+  .insp-status-badge.is-owned { background: var(--forest); color: white; }
+  .insp-status-badge.is-none { background: rgba(255,255,255,0.85); color: var(--ink-faint); border-color: var(--rule); }
   .insp-tile .insp-btn {
     background: rgba(255,255,255,0.9); border: none;
     border-radius: 50%; width: 24px; height: 24px;
@@ -6300,7 +6319,10 @@ function renderRoomCard(room) {
   const card = document.createElement('div');
   card.className = 'room-card';
   card.dataset.id = room.id;
-  const totalBuy = room.buyList.reduce((s, i) => s + (Number(i.price) || 0), 0);
+  const taggedToBuy = room.images.filter(i => i.status === 'tobuy');
+  const manualBuy = room.buyList;
+  const totalBuy = taggedToBuy.reduce((s, i) => s + (Number(i.price) || 0), 0)
+                + manualBuy.reduce((s, i) => s + (Number(i.price) || 0), 0);
   card.innerHTML = `
     <div class="room-card-header">
       <input type="text" class="room-card-name" value="${escapeHTML(room.name || '')}" placeholder="Room name">
@@ -6308,9 +6330,9 @@ function renderRoomCard(room) {
     </div>
     <div class="room-section-label">Inspiration</div>
     <div class="inspiration-grid"></div>
-    <div class="room-section-label" style="margin-top:14px;">To buy</div>
+    <div class="room-section-label" style="margin-top:14px;">To buy <span style="opacity:0.5;letter-spacing:0.04em;">(${taggedToBuy.length + manualBuy.length})</span></div>
     <div class="buy-list"></div>
-    <button class="add-item-btn">+ Add to-buy item</button>
+    <button class="add-item-btn">+ Add manual to-buy item</button>
     ${totalBuy > 0 ? `<div class="buy-total">Total: <strong>${fmtMoney(totalBuy)}</strong></div>` : ''}
   `;
   card.querySelector('.room-card-name').addEventListener('change', e => {
@@ -6355,9 +6377,13 @@ function renderRoomCard(room) {
   });
   grid.appendChild(addTile);
 
-  // Buy list
+  // Buy list = tagged images (tobuy) + manual buyList items
   const list = card.querySelector('.buy-list');
-  room.buyList.forEach(item => list.appendChild(renderBuyItem(room, item)));
+  if (taggedToBuy.length === 0 && manualBuy.length === 0) {
+    list.innerHTML = `<div style="font-size:11px;color:var(--ink-faint);font-style:italic;padding:4px 8px;">Tag images above as "To buy" and they appear here.</div>`;
+  }
+  taggedToBuy.forEach(img => list.appendChild(renderBuyFromImage(room, img)));
+  manualBuy.forEach(item => list.appendChild(renderBuyItem(room, item)));
   card.querySelector('.add-item-btn').addEventListener('click', () => {
     const newItem = { id: 'b_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,6), name: '', price: 0, bought: false, link: '' };
     room.buyList.push(newItem);
@@ -6379,7 +6405,10 @@ function renderInspTile(room, img) {
   const safeCaption = escapeHTML(img.caption || '');
   const safeLink = escapeHTML(img.link || '');
   const linkAttr = img.link ? `href="${safeLink}" target="_blank" rel="noopener"` : '';
+  const status = img.status || 'none';
+  const statusLabel = status === 'tobuy' ? 'To buy' : (status === 'owned' ? 'Owned' : 'Tag');
   tile.innerHTML = `
+    <button class="insp-status-badge is-${status}" data-act="tag" title="Click to tag">${statusLabel}</button>
     <img src="${safeUrl}" alt="${safeCaption}" loading="lazy" onerror="this.style.opacity=0.3">
     <div class="insp-actions">
       ${img.link ? `<a class="insp-btn" ${linkAttr} title="Open source">↗</a>` : ''}
@@ -6387,9 +6416,23 @@ function renderInspTile(room, img) {
       <button class="insp-btn del" data-act="del" title="Delete">×</button>
     </div>
     <div class="insp-overlay">
-      <div class="insp-caption">${safeCaption}</div>
+      <div class="insp-caption">${safeCaption}${img.price ? ' · ' + fmtMoney(img.price) : ''}</div>
     </div>
   `;
+  tile.querySelector('[data-act="tag"]').addEventListener('click', e => {
+    e.stopPropagation();
+    // Cycle: none → tobuy → owned → none
+    const order = ['none', 'tobuy', 'owned'];
+    const next = order[(order.indexOf(status) + 1) % order.length];
+    img.status = next === 'none' ? null : next;
+    // If switching to tobuy and no price set, prompt for price (optional)
+    if (next === 'tobuy' && !img.price) {
+      const p = prompt('Price (optional):', '');
+      if (p !== null && p.trim()) img.price = parseMoney(p);
+    }
+    persist();
+    renderInspiration();
+  });
   tile.querySelector('[data-act="del"]').addEventListener('click', e => {
     e.stopPropagation();
     if (!confirm('Remove this image?')) return;
@@ -6399,16 +6442,55 @@ function renderInspTile(room, img) {
   });
   tile.querySelector('[data-act="edit"]').addEventListener('click', e => {
     e.stopPropagation();
-    const newCap = prompt('Caption:', img.caption || '');
+    const newCap = prompt('Caption / name:', img.caption || '');
     if (newCap === null) return;
     const newLink = prompt('Source link:', img.link || '');
     if (newLink === null) return;
+    const newPrice = prompt('Price (optional):', img.price || '');
+    if (newPrice === null) return;
     img.caption = newCap.trim();
     img.link = newLink.trim();
+    img.price = parseMoney(newPrice);
     persist();
     renderInspiration();
   });
   return tile;
+}
+
+function renderBuyFromImage(room, img) {
+  const row = document.createElement('div');
+  row.className = 'buy-item';
+  const linkBtn = img.link
+    ? `<a class="buy-link" href="${escapeHTML(img.link)}" target="_blank" rel="noopener" title="${escapeHTML(img.link)}">↗</a>`
+    : '';
+  row.innerHTML = `
+    <input type="checkbox" class="buy-check" title="Check when bought (moves to Owned)">
+    <span class="buy-name" style="display:flex;align-items:center;gap:8px;">
+      <img src="${escapeHTML(img.url)}" alt="" style="width:24px;height:24px;border-radius:4px;object-fit:cover;flex-shrink:0;">
+      <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHTML(img.caption || 'Untitled')}</span>
+    </span>
+    <input type="text" class="buy-price" value="${img.price ? fmtMoney(img.price) : ''}" placeholder="$—">
+    ${linkBtn}
+    <button class="buy-del" title="Mark owned (removes from to-buy)">✓</button>
+  `;
+  row.querySelector('.buy-check').addEventListener('change', e => {
+    if (e.target.checked) {
+      img.status = 'owned';
+      persist();
+      renderInspiration();
+    }
+  });
+  row.querySelector('.buy-price').addEventListener('change', e => {
+    img.price = parseMoney(e.target.value);
+    persist();
+    renderInspiration();
+  });
+  row.querySelector('.buy-del').addEventListener('click', () => {
+    img.status = 'owned';
+    persist();
+    renderInspiration();
+  });
+  return row;
 }
 
 function renderBuyItem(room, item) {
