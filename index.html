@@ -828,6 +828,66 @@
     font-family: 'Fraunces', serif;
     font-size: 15px;
   }
+  .img-picker-overlay {
+    position: fixed; inset: 0; z-index: 9500;
+    background: rgba(30,45,60,0.55);
+    backdrop-filter: blur(4px);
+    display: none; align-items: center; justify-content: center;
+    padding: 20px;
+  }
+  .img-picker-overlay.active { display: flex; }
+  .img-picker-modal {
+    background: var(--bg-card);
+    border-radius: 14px;
+    max-width: 760px; width: 100%; max-height: 82vh;
+    overflow: hidden;
+    display: flex; flex-direction: column;
+    box-shadow: 0 20px 60px -20px rgba(30,45,60,0.4);
+  }
+  .img-picker-header {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--rule);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .img-picker-header h3 {
+    font-family: 'Fraunces', serif;
+    font-size: 17px; font-weight: 500;
+    color: var(--ink); letter-spacing: -0.01em;
+    margin: 0;
+  }
+  .img-picker-close {
+    background: transparent; border: none; cursor: pointer;
+    font-size: 20px; color: var(--ink-faint);
+    width: 28px; height: 28px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .img-picker-close:hover { background: var(--rule-soft); color: var(--ink); }
+  .img-picker-loading {
+    padding: 60px 20px;
+    text-align: center;
+    color: var(--ink-faint);
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+  }
+  .img-picker-grid {
+    flex: 1; overflow: auto;
+    padding: 14px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 8px;
+  }
+  .img-picker-tile {
+    aspect-ratio: 1;
+    border: 2px solid transparent;
+    border-radius: 8px;
+    overflow: hidden;
+    cursor: pointer;
+    background: var(--rule-soft);
+    padding: 0;
+    transition: all 0.15s;
+  }
+  .img-picker-tile img { width: 100%; height: 100%; object-fit: cover; }
+  .img-picker-tile:hover { border-color: var(--clay); }
   @media (max-width: 600px) {
     #tab-inspiration .container { padding: 16px 14px !important; }
     .rooms-container { grid-template-columns: 1fr; gap: 12px; }
@@ -6249,6 +6309,90 @@ try {
   if (savedFloor && FLOOR_LABELS[savedFloor]) currentFloor = savedFloor;
 } catch(e) {}
 
+function ensureImgPickerEl() {
+  let overlay = document.getElementById('img-picker-overlay');
+  if (overlay) return overlay;
+  overlay = document.createElement('div');
+  overlay.id = 'img-picker-overlay';
+  overlay.className = 'img-picker-overlay';
+  overlay.innerHTML = `
+    <div class="img-picker-modal" onclick="event.stopPropagation()">
+      <div class="img-picker-header">
+        <h3>Pick an image from the page</h3>
+        <button class="img-picker-close" onclick="document.getElementById('img-picker-overlay').classList.remove('active')">×</button>
+      </div>
+      <div class="img-picker-loading">Scanning page for images…</div>
+      <div class="img-picker-grid" style="display:none;"></div>
+    </div>
+  `;
+  overlay.addEventListener('click', () => overlay.classList.remove('active'));
+  document.body.appendChild(overlay);
+  return overlay;
+}
+
+function absImgUrl(u, base) {
+  try { return new URL(u, base).href; } catch(e) { return u; }
+}
+
+async function scanPageImages(sourceUrl) {
+  try {
+    const proxy = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(sourceUrl);
+    const res = await fetch(proxy);
+    if (!res.ok) return [];
+    const html = await res.text();
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const urls = [];
+    const seen = new Set();
+    function add(u) {
+      if (!u || seen.has(u)) return;
+      seen.add(u); urls.push(u);
+    }
+    doc.querySelectorAll('meta[property="og:image"],meta[name="twitter:image"],meta[property="og:image:url"],meta[name="og:image"]').forEach(m => {
+      const c = m.getAttribute('content');
+      if (c) add(absImgUrl(c, sourceUrl));
+    });
+    doc.querySelectorAll('img').forEach(img => {
+      let src = img.getAttribute('src') || img.getAttribute('data-src') || img.getAttribute('data-lazy-src') || img.getAttribute('data-original');
+      if (!src || src.startsWith('data:')) return;
+      if (/sprite|favicon|logo\.|\.svg(\?|$)/i.test(src)) return;
+      add(absImgUrl(src, sourceUrl));
+    });
+    return urls;
+  } catch(e) { console.warn('scan failed', e); return []; }
+}
+
+async function openImgPicker(sourceUrl, onPick) {
+  if (!sourceUrl) {
+    alert('No source link set on this tile. Edit the tile (✎) to add a source link first.');
+    return;
+  }
+  const overlay = ensureImgPickerEl();
+  const grid = overlay.querySelector('.img-picker-grid');
+  const loading = overlay.querySelector('.img-picker-loading');
+  grid.innerHTML = '';
+  grid.style.display = 'none';
+  loading.style.display = 'block';
+  loading.textContent = 'Scanning page for images…';
+  overlay.classList.add('active');
+  const urls = await scanPageImages(sourceUrl);
+  loading.style.display = 'none';
+  grid.style.display = 'grid';
+  if (urls.length === 0) {
+    grid.innerHTML = '<div style="padding:30px 20px;color:var(--ink-faint);text-align:center;font-style:italic;grid-column:1/-1;">No images found. The page may block scraping — try pasting a direct image URL via the ✎ edit button.</div>';
+    return;
+  }
+  urls.forEach(u => {
+    const tile = document.createElement('button');
+    tile.className = 'img-picker-tile';
+    tile.innerHTML = `<img src="${u.replace(/"/g, '&quot;')}" alt="" loading="lazy" onerror="this.parentElement.style.display='none'">`;
+    tile.addEventListener('click', () => {
+      onPick(u);
+      overlay.classList.remove('active');
+    });
+    grid.appendChild(tile);
+  });
+}
+
 async function resolveLinkToImage(url) {
   // If it's already a direct image URL, return it as-is.
   if (/\.(jpe?g|png|gif|webp|avif|svg)(\?.*)?$/i.test(url)) {
@@ -6414,6 +6558,7 @@ function renderInspTile(room, img) {
     <img src="${safeUrl}" alt="${safeCaption}" loading="lazy" onerror="this.style.opacity=0.3">
     <div class="insp-actions">
       ${img.link ? `<a class="insp-btn" ${linkAttr} title="Open source">↗</a>` : ''}
+      ${img.link ? `<button class="insp-btn" data-act="pick" title="Pick a different image from the page">🖼</button>` : ''}
       <button class="insp-btn" data-act="edit" title="Edit">✎</button>
       <button class="insp-btn del" data-act="del" title="Delete">×</button>
     </div>
@@ -6435,6 +6580,18 @@ function renderInspTile(room, img) {
     persist();
     renderInspiration();
   });
+  const pickBtn = tile.querySelector('[data-act="pick"]');
+  if (pickBtn) {
+    pickBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      e.preventDefault();
+      openImgPicker(img.link, (newUrl) => {
+        img.url = newUrl;
+        persist();
+        renderInspiration();
+      });
+    });
+  }
   tile.querySelector('[data-act="del"]').addEventListener('click', e => {
     e.stopPropagation();
     if (!confirm('Remove this image?')) return;
