@@ -828,6 +828,105 @@
     font-family: 'Fraunces', serif;
     font-size: 15px;
   }
+  .add-img-overlay {
+    position: fixed; inset: 0; z-index: 9400;
+    background: rgba(30,45,60,0.5);
+    backdrop-filter: blur(4px);
+    display: none; align-items: flex-start; justify-content: center;
+    padding: 20px;
+    overflow-y: auto;
+  }
+  .add-img-overlay.active { display: flex; }
+  .add-img-modal {
+    background: var(--bg-card);
+    border-radius: 14px;
+    max-width: 480px; width: 100%;
+    box-shadow: 0 20px 60px -20px rgba(30,45,60,0.4);
+    margin-top: 5vh;
+  }
+  .add-img-header {
+    padding: 18px 20px;
+    border-bottom: 1px solid var(--rule);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .add-img-header h3 {
+    font-family: 'Fraunces', serif; font-weight: 500;
+    font-size: 19px; color: var(--ink); letter-spacing: -0.01em;
+    margin: 0;
+  }
+  .add-img-form {
+    padding: 18px 20px 20px;
+    display: flex; flex-direction: column; gap: 14px;
+  }
+  .add-img-form .form-row { display: flex; flex-direction: column; gap: 5px; }
+  .add-img-form .form-label {
+    font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--ink-faint); font-weight: 700;
+  }
+  .add-img-form input, .add-img-form select {
+    width: 100%;
+    padding: 9px 12px;
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    background: white;
+    color: var(--ink);
+    font-family: 'Manrope', sans-serif;
+    font-size: 13.5px;
+    outline: none;
+    box-sizing: border-box;
+  }
+  .add-img-form input:focus, .add-img-form select:focus { border-color: var(--clay); }
+  .add-img-preview {
+    width: 100%;
+    aspect-ratio: 16/10;
+    background: var(--rule-soft);
+    border-radius: 8px;
+    overflow: hidden;
+    position: relative;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--ink-faint);
+    font-size: 12px;
+    font-style: italic;
+  }
+  .add-img-preview img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .add-img-preview .preview-actions {
+    position: absolute; bottom: 8px; right: 8px;
+    display: flex; gap: 6px;
+  }
+  .add-img-preview .preview-actions button {
+    background: rgba(255,255,255,0.95);
+    border: 1px solid var(--rule);
+    border-radius: 100px;
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    color: var(--ink);
+  }
+  .add-img-preview .preview-actions button:hover { background: white; border-color: var(--clay); color: var(--clay); }
+  .add-img-actions {
+    display: flex; justify-content: flex-end; gap: 8px;
+    padding-top: 4px;
+  }
+  .add-img-actions button {
+    padding: 8px 16px;
+    border-radius: 100px;
+    font-family: 'Manrope', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid var(--rule);
+    background: white;
+    color: var(--ink-soft);
+  }
+  .add-img-actions button.primary {
+    background: var(--clay);
+    color: white;
+    border-color: var(--clay);
+  }
+  .add-img-actions button:hover { transform: translateY(-1px); }
+  .add-img-actions button.primary:hover { background: var(--plum); }
+
   .img-picker-overlay {
     position: fixed; inset: 0; z-index: 9500;
     background: rgba(30,45,60,0.55);
@@ -6309,6 +6408,175 @@ try {
   if (savedFloor && FLOOR_LABELS[savedFloor]) currentFloor = savedFloor;
 } catch(e) {}
 
+let addImgRoom = null;
+let addImgState = { imageUrl: '', sourceUrl: '', caption: '' };
+function ensureAddImgEl() {
+  let overlay = document.getElementById('add-img-overlay');
+  if (overlay) return overlay;
+  overlay = document.createElement('div');
+  overlay.id = 'add-img-overlay';
+  overlay.className = 'add-img-overlay';
+  overlay.innerHTML = `
+    <div class="add-img-modal" onclick="event.stopPropagation()">
+      <div class="add-img-header">
+        <h3>Add inspiration</h3>
+        <button class="img-picker-close" onclick="closeAddImg()">×</button>
+      </div>
+      <div class="add-img-form">
+        <div class="form-row">
+          <span class="form-label">Product / Pinterest URL</span>
+          <input type="url" id="ai-source" placeholder="https://...">
+        </div>
+        <div class="form-row">
+          <span class="form-label">Preview</span>
+          <div class="add-img-preview" id="ai-preview">
+            <span id="ai-preview-empty">Paste a URL above and click Fetch</span>
+            <div class="preview-actions" id="ai-preview-actions" style="display:none;">
+              <button type="button" id="ai-pick-btn">Pick different</button>
+            </div>
+          </div>
+          <button type="button" id="ai-fetch-btn" style="margin-top:6px;padding:7px 12px;border:1px solid var(--rule);background:white;border-radius:100px;font-size:12px;font-weight:600;cursor:pointer;align-self:flex-start;">Fetch image from URL</button>
+        </div>
+        <div class="form-row">
+          <span class="form-label">Image URL (optional — overrides fetched)</span>
+          <input type="url" id="ai-image" placeholder="Paste a direct image URL to override">
+        </div>
+        <div class="form-row">
+          <span class="form-label">Caption / name</span>
+          <input type="text" id="ai-caption" placeholder="e.g., Velvet sectional, linen bedding">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div class="form-row">
+            <span class="form-label">Price</span>
+            <input type="text" id="ai-price" placeholder="$—">
+          </div>
+          <div class="form-row">
+            <span class="form-label">Tag</span>
+            <select id="ai-tag">
+              <option value="">Untagged</option>
+              <option value="tobuy">To buy</option>
+              <option value="owned">Owned</option>
+            </select>
+          </div>
+        </div>
+        <div class="add-img-actions">
+          <button type="button" onclick="closeAddImg()">Cancel</button>
+          <button type="button" class="primary" onclick="submitAddImg()">Add to room</button>
+        </div>
+      </div>
+    </div>
+  `;
+  overlay.addEventListener('click', () => closeAddImg());
+  document.body.appendChild(overlay);
+  overlay.querySelector('#ai-fetch-btn').addEventListener('click', fetchAddImgPreview);
+  overlay.querySelector('#ai-pick-btn').addEventListener('click', pickAddImgFromPage);
+  overlay.querySelector('#ai-source').addEventListener('change', e => { addImgState.sourceUrl = e.target.value.trim(); });
+  overlay.querySelector('#ai-image').addEventListener('change', e => {
+    const v = e.target.value.trim();
+    if (v) { addImgState.imageUrl = v; updateAddImgPreview(); }
+  });
+  return overlay;
+}
+
+function openAddImg(room) {
+  addImgRoom = room;
+  addImgState = { imageUrl: '', sourceUrl: '', caption: '' };
+  const overlay = ensureAddImgEl();
+  overlay.querySelector('#ai-source').value = '';
+  overlay.querySelector('#ai-image').value = '';
+  overlay.querySelector('#ai-caption').value = '';
+  overlay.querySelector('#ai-price').value = '';
+  overlay.querySelector('#ai-tag').value = '';
+  overlay.querySelector('#ai-preview').innerHTML = `
+    <span id="ai-preview-empty" style="font-style:italic;color:var(--ink-faint);font-size:12px;">Paste a URL above and click Fetch</span>
+    <div class="preview-actions" id="ai-preview-actions" style="display:none;">
+      <button type="button" id="ai-pick-btn">Pick different</button>
+    </div>
+  `;
+  overlay.querySelector('#ai-pick-btn').addEventListener('click', pickAddImgFromPage);
+  overlay.classList.add('active');
+  setTimeout(() => overlay.querySelector('#ai-source').focus(), 0);
+}
+
+function closeAddImg() {
+  const overlay = document.getElementById('add-img-overlay');
+  if (overlay) overlay.classList.remove('active');
+}
+
+async function fetchAddImgPreview() {
+  const sourceUrl = document.getElementById('ai-source').value.trim();
+  if (!sourceUrl) { alert('Paste a URL first.'); return; }
+  addImgState.sourceUrl = sourceUrl;
+  const preview = document.getElementById('ai-preview');
+  preview.innerHTML = `<span style="font-style:italic;color:var(--ink-faint);">Fetching…</span>`;
+  const result = await resolveLinkToImage(sourceUrl);
+  if (result) {
+    addImgState.imageUrl = result.imageUrl;
+    if (!document.getElementById('ai-caption').value && result.title) {
+      document.getElementById('ai-caption').value = result.title;
+    }
+    updateAddImgPreview();
+  } else {
+    preview.innerHTML = `<span style="font-style:italic;color:var(--behind);font-size:12px;">Could not fetch — try the picker, or paste a direct image URL below.</span>`;
+  }
+}
+
+function updateAddImgPreview() {
+  const preview = document.getElementById('ai-preview');
+  const url = addImgState.imageUrl;
+  if (!url) {
+    preview.innerHTML = `<span style="font-style:italic;color:var(--ink-faint);font-size:12px;">No image</span>`;
+    return;
+  }
+  preview.innerHTML = `
+    <img src="${url.replace(/"/g, '&quot;')}" alt="" onerror="this.parentElement.innerHTML='<span style=\\'color:var(--behind);font-style:italic;font-size:12px;\\'>Image failed to load</span>'">
+    <div class="preview-actions">
+      <button type="button" id="ai-pick-btn">Pick different</button>
+    </div>
+  `;
+  preview.querySelector('#ai-pick-btn').addEventListener('click', pickAddImgFromPage);
+}
+
+function pickAddImgFromPage() {
+  if (!addImgState.sourceUrl) {
+    alert('Paste a product URL first, then click "Fetch image" — then you can pick a different one.');
+    return;
+  }
+  openImgPicker(addImgState.sourceUrl, (newUrl) => {
+    addImgState.imageUrl = newUrl;
+    document.getElementById('ai-image').value = newUrl;
+    updateAddImgPreview();
+  });
+}
+
+function submitAddImg() {
+  if (!addImgRoom) { closeAddImg(); return; }
+  const sourceUrl = document.getElementById('ai-source').value.trim();
+  const imageUrl = (document.getElementById('ai-image').value.trim() || addImgState.imageUrl).trim();
+  const caption = document.getElementById('ai-caption').value.trim();
+  const priceStr = document.getElementById('ai-price').value.trim();
+  const tag = document.getElementById('ai-tag').value || null;
+  if (!imageUrl && !sourceUrl) {
+    alert('Add at least a source URL or an image URL.');
+    return;
+  }
+  if (!imageUrl) {
+    alert('No image found. Click "Fetch image from URL" first, or paste a direct image URL.');
+    return;
+  }
+  addImgRoom.images.push({
+    id: 'img_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,6),
+    url: imageUrl,
+    caption: caption,
+    link: sourceUrl,
+    price: priceStr ? parseMoney(priceStr) : 0,
+    status: tag
+  });
+  persist();
+  renderInspiration();
+  closeAddImg();
+}
+
 function ensureImgPickerEl() {
   let overlay = document.getElementById('img-picker-overlay');
   if (overlay) return overlay;
@@ -6498,29 +6766,7 @@ function renderRoomCard(room) {
   const addTile = document.createElement('button');
   addTile.className = 'add-insp-tile';
   addTile.innerHTML = `<span class="add-insp-tile-plus">+</span><span>Add image / link</span>`;
-  addTile.addEventListener('click', async () => {
-    const input = prompt('Paste any link — image URL, Pinterest pin, Wayfair product page, etc.:');
-    if (!input || !input.trim()) return;
-    const url = input.trim();
-    addTile.innerHTML = `<span class="add-insp-tile-plus">⋯</span><span>Loading…</span>`;
-    addTile.disabled = true;
-    try {
-      const preview = await resolveLinkToImage(url);
-      if (!preview) {
-        alert('Could not fetch an image from that link. Try the direct image URL instead (right-click an image → Copy image address).');
-      } else {
-        room.images.push({
-          id: 'img_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,6),
-          url: preview.imageUrl,
-          caption: preview.title || '',
-          link: preview.sourceUrl || ''
-        });
-        persist();
-      }
-    } finally {
-      renderInspiration();
-    }
-  });
+  addTile.addEventListener('click', () => openAddImg(room));
   grid.appendChild(addTile);
 
   // Buy list = tagged images (tobuy) + manual buyList items
