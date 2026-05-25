@@ -975,6 +975,23 @@
     color: var(--ink-faint);
     font-size: 12px;
     font-style: italic;
+    border: 2px dashed transparent;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .add-img-preview.drag-over {
+    border-color: var(--clay);
+    background: rgba(122,160,194,0.10);
+  }
+  .add-img-preview.drag-over::after {
+    content: 'Drop to use this image';
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(238,243,246,0.9);
+    color: var(--clay);
+    font-family: 'Fraunces', serif;
+    font-size: 14px;
+    font-style: italic;
+    pointer-events: none;
   }
   .add-img-preview img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .add-img-preview .preview-actions {
@@ -6563,7 +6580,77 @@ function ensureAddImgEl() {
     const v = e.target.value.trim();
     if (v) { addImgState.imageUrl = v; updateAddImgPreview(); }
   });
+  // Drop zone on the preview area
+  const preview = overlay.querySelector('#ai-preview');
+  preview.addEventListener('dragover', e => {
+    const types = [...e.dataTransfer.types];
+    if (!types.some(t => ['text/uri-list','text/html','text/plain','Files'].includes(t))) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    preview.classList.add('drag-over');
+  });
+  preview.addEventListener('dragleave', e => {
+    if (!preview.contains(e.relatedTarget)) preview.classList.remove('drag-over');
+  });
+  preview.addEventListener('drop', async e => {
+    e.preventDefault();
+    preview.classList.remove('drag-over');
+    await handleAddImgDrop(e.dataTransfer);
+  });
   return overlay;
+}
+
+async function handleAddImgDrop(dataTransfer) {
+  let imageUrl = '';
+  let sourceUrl = '';
+  let caption = '';
+  const uriList = dataTransfer.getData('text/uri-list');
+  if (uriList) {
+    const lines = uriList.split(/\r?\n/).filter(l => l && !l.startsWith('#'));
+    if (lines.length) imageUrl = lines[0];
+  }
+  if (!imageUrl) {
+    const html = dataTransfer.getData('text/html');
+    if (html) {
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      const imgEl = doc.querySelector('img');
+      if (imgEl) {
+        imageUrl = imgEl.getAttribute('src') || '';
+        caption = imgEl.getAttribute('alt') || '';
+      }
+      const aEl = doc.querySelector('a[href]');
+      if (aEl) sourceUrl = aEl.getAttribute('href') || '';
+    }
+  }
+  if (!imageUrl) {
+    const plain = dataTransfer.getData('text/plain');
+    if (plain && /^https?:\/\//.test(plain.trim())) imageUrl = plain.trim();
+  }
+  if (!imageUrl && dataTransfer.files && dataTransfer.files.length) {
+    const file = dataTransfer.files[0];
+    if (file.type.startsWith('image/')) {
+      if (file.size > 800 * 1024) {
+        if (!confirm(`This image is ${(file.size/1024).toFixed(0)} KB. Files this large bloat your cloud save. Continue anyway?`)) return;
+      }
+      imageUrl = await new Promise(res => {
+        const r = new FileReader();
+        r.onload = () => res(r.result);
+        r.readAsDataURL(file);
+      });
+      caption = file.name.replace(/\.[a-z]+$/i, '');
+    }
+  }
+  if (!imageUrl) { alert("Couldn't read an image from that drop."); return; }
+  addImgState.imageUrl = imageUrl;
+  document.getElementById('ai-image').value = imageUrl.length > 500 ? '(dropped image)' : imageUrl;
+  if (sourceUrl && !document.getElementById('ai-source').value.trim()) {
+    document.getElementById('ai-source').value = sourceUrl;
+    addImgState.sourceUrl = sourceUrl;
+  }
+  if (caption && !document.getElementById('ai-caption').value.trim()) {
+    document.getElementById('ai-caption').value = caption;
+  }
+  updateAddImgPreview();
 }
 
 function openAddImg(room) {
