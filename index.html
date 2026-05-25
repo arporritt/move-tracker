@@ -820,6 +820,80 @@
     transition: all 0.15s;
   }
   .add-room-btn:hover { color: var(--clay); border-color: var(--clay-soft); background: rgba(122,160,194,0.04); }
+  .furniture-library {
+    background: var(--bg-card);
+    border: 1px solid var(--rule);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 18px;
+    box-shadow: var(--shadow);
+  }
+  .furniture-library-header {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .furniture-library-title {
+    font-family: 'Fraunces', serif;
+    font-weight: 500; font-size: 15px;
+    color: var(--ink);
+    letter-spacing: -0.01em;
+  }
+  .furniture-library-sub {
+    font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--ink-faint); font-weight: 600;
+  }
+  .furniture-import-btn, .furniture-add-btn {
+    background: var(--clay); color: white;
+    border: none; border-radius: 100px;
+    padding: 5px 12px;
+    font-family: 'Manrope', sans-serif;
+    font-size: 11px; font-weight: 700;
+    letter-spacing: 0.06em; text-transform: uppercase;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .furniture-import-btn:hover, .furniture-add-btn:hover { background: var(--plum); }
+  .furniture-add-btn { background: transparent; color: var(--clay); border: 1px solid var(--clay-soft); }
+  .furniture-chips {
+    display: flex; flex-wrap: wrap; gap: 6px;
+  }
+  .furniture-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(74,142,149,0.08);
+    border: 1px solid var(--forest);
+    color: var(--forest);
+    border-radius: 100px;
+    padding: 5px 10px 5px 12px;
+    font-family: 'Manrope', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: grab;
+    user-select: none;
+    transition: all 0.1s;
+  }
+  .furniture-chip:hover { background: rgba(74,142,149,0.16); transform: translateY(-1px); }
+  .furniture-chip:active { cursor: grabbing; }
+  .furniture-chip.dragging { opacity: 0.4; }
+  .furniture-chip-del {
+    background: transparent; border: none; cursor: pointer;
+    color: var(--forest); opacity: 0.5; font-size: 14px;
+    padding: 0; line-height: 1;
+  }
+  .furniture-chip-del:hover { opacity: 1; }
+  .furniture-empty {
+    padding: 14px;
+    text-align: center;
+    color: var(--ink-faint);
+    font-style: italic;
+    font-size: 12.5px;
+    font-family: 'Fraunces', serif;
+  }
+  .room-card.drag-target {
+    border-color: var(--forest);
+    background: rgba(74,142,149,0.04);
+    box-shadow: 0 0 0 3px rgba(74,142,149,0.2);
+  }
   .floor-empty {
     text-align: center;
     padding: 40px 20px;
@@ -5103,6 +5177,7 @@
       <button class="floor-tab-btn" data-floor="ground" onclick="switchFloor('ground')">Ground floor</button>
       <button class="floor-tab-btn" data-floor="upper" onclick="switchFloor('upper')">Upper floor</button>
     </div>
+    <div class="furniture-library" id="furniture-library"></div>
     <div id="rooms-container" class="rooms-container"></div>
     <button class="add-room-btn" onclick="addRoom()">+ Add room to this floor</button>
   </div>
@@ -6683,6 +6758,154 @@ function ensureInspirationState() {
   for (const f of ['basement','ground','upper']) {
     if (!Array.isArray(state.inspiration[f])) state.inspiration[f] = [];
   }
+  if (!Array.isArray(state.furnitureLibrary)) state.furnitureLibrary = [];
+}
+
+// Seed data extracted from 3827 Greenview pamphlet
+const PAMPHLET_FURNITURE = [
+  // Living room
+  { name: 'Family sectional sofa', from: 'Living Room' },
+  { name: 'Fireplace seating chairs', from: 'Living Room' },
+  { name: 'Floor-to-ceiling ladder shelves', from: 'Living Room' },
+  { name: 'Vintage McIntosh hi-fi system', from: 'Living Room' },
+  // Kitchen / dining
+  { name: 'Dining table', from: 'Kitchen / Dining' },
+  { name: 'West Elm brass dome pendants', from: 'Kitchen island' },
+  { name: 'West Elm sculpted glass pendant', from: 'Dining table' },
+  { name: 'West Elm dining chandelier', from: 'Dining room' },
+  // Entry / corridor
+  { name: 'Herringbone entry sideboards', from: 'Entry' },
+  { name: 'West Elm globe pendants (set)', from: 'Corridor' },
+  { name: 'Oversized abstract painting', from: 'Corridor' },
+  { name: 'Layered runner rug', from: 'Corridor' },
+  // Guest bath
+  { name: 'Oak vanity with marble top', from: 'Guest Bath' },
+  // Office / third bedroom
+  { name: 'Standing desk', from: 'Office' },
+  { name: 'Peloton bike', from: 'Office' },
+  { name: 'Weight set', from: 'Office' },
+  { name: 'Deep bookcase', from: 'Office' },
+  { name: 'Hanging guitars (wall display)', from: 'Office' },
+  { name: 'West Elm globe chandelier', from: 'Office' },
+  // Nursery / second bedroom
+  { name: 'Rattan drum chandelier', from: 'Nursery' },
+  { name: 'Linen drapery', from: 'Nursery' },
+  // Primary suite
+  { name: 'Shell-strand chandelier', from: 'Primary Bedroom' },
+  { name: 'Premium sheer shades', from: 'Primary Bedroom' },
+  // Terrace
+  { name: 'All-weather outdoor sectional', from: 'Terrace' },
+  { name: 'Big Green Egg grill', from: 'Terrace' },
+  { name: 'String lights', from: 'Terrace' }
+];
+
+function importPamphletFurniture() {
+  ensureInspirationState();
+  const existing = new Set(state.furnitureLibrary.map(f => f.name.toLowerCase()));
+  // Also check pieces already assigned to rooms (we don't want to re-add)
+  ['basement','ground','upper'].forEach(floor => {
+    state.inspiration[floor].forEach(room => {
+      (room.images || []).forEach(img => {
+        if (img.fromLibrary && img.caption) existing.add(img.caption.toLowerCase());
+      });
+    });
+  });
+  let added = 0;
+  PAMPHLET_FURNITURE.forEach(p => {
+    if (existing.has(p.name.toLowerCase())) return;
+    state.furnitureLibrary.push({
+      id: 'f_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,6),
+      name: p.name,
+      from: p.from
+    });
+    added++;
+  });
+  persist();
+  renderInspiration();
+  alert(`Imported ${added} furniture piece${added===1?'':'s'} from the Greenview pamphlet. Drag them onto room cards below.`);
+}
+
+function addCustomFurniturePiece() {
+  ensureInspirationState();
+  const name = prompt('Furniture name (e.g., "Velvet armchair"):');
+  if (!name || !name.trim()) return;
+  state.furnitureLibrary.push({
+    id: 'f_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,6),
+    name: name.trim(),
+    from: ''
+  });
+  persist();
+  renderInspiration();
+}
+
+function removeFurniturePiece(id) {
+  if (!confirm('Remove this piece from the library?')) return;
+  state.furnitureLibrary = state.furnitureLibrary.filter(f => f.id !== id);
+  persist();
+  renderInspiration();
+}
+
+function renderFurnitureLibrary() {
+  const el = document.getElementById('furniture-library');
+  if (!el) return;
+  ensureInspirationState();
+  const lib = state.furnitureLibrary || [];
+  const hasItems = lib.length > 0;
+  el.innerHTML = `
+    <div class="furniture-library-header">
+      <div>
+        <div class="furniture-library-title">Owned furniture library</div>
+        <div class="furniture-library-sub">${hasItems ? lib.length + ' unassigned · drag onto a room' : 'No pieces yet'}</div>
+      </div>
+      <div style="display:flex;gap:6px;">
+        <button class="furniture-add-btn" onclick="addCustomFurniturePiece()">+ Add</button>
+        <button class="furniture-import-btn" onclick="importPamphletFurniture()">Import from Greenview pamphlet</button>
+      </div>
+    </div>
+    <div class="furniture-chips" id="furniture-chips"></div>
+  `;
+  const chipsBox = el.querySelector('#furniture-chips');
+  if (!hasItems) {
+    chipsBox.innerHTML = `<div class="furniture-empty">Click "Import from Greenview pamphlet" to load the furniture pieces extracted from your current home, or "+ Add" to add one manually.</div>`;
+    return;
+  }
+  lib.forEach(piece => {
+    const chip = document.createElement('div');
+    chip.className = 'furniture-chip';
+    chip.draggable = true;
+    chip.dataset.id = piece.id;
+    chip.innerHTML = `<span>${escapeHTML(piece.name)}${piece.from ? ` <span style="opacity:0.6;font-weight:400;font-style:italic;">· ${escapeHTML(piece.from)}</span>` : ''}</span><button class="furniture-chip-del" onclick="event.stopPropagation();removeFurniturePiece('${piece.id}')" title="Remove">×</button>`;
+    chip.addEventListener('dragstart', e => {
+      e.dataTransfer.setData('text/furniture-id', piece.id);
+      e.dataTransfer.effectAllowed = 'move';
+      chip.classList.add('dragging');
+    });
+    chip.addEventListener('dragend', () => {
+      chip.classList.remove('dragging');
+      document.querySelectorAll('.room-card.drag-target').forEach(c => c.classList.remove('drag-target'));
+    });
+    chipsBox.appendChild(chip);
+  });
+}
+
+function moveFurnitureToRoom(furnitureId, room) {
+  const idx = state.furnitureLibrary.findIndex(f => f.id === furnitureId);
+  if (idx < 0) return;
+  const piece = state.furnitureLibrary[idx];
+  state.furnitureLibrary.splice(idx, 1);
+  if (!Array.isArray(room.images)) room.images = [];
+  room.images.push({
+    id: 'img_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,6),
+    url: '',
+    caption: piece.name,
+    link: '',
+    status: 'owned',
+    price: 0,
+    fromLibrary: true,
+    originalRoom: piece.from || ''
+  });
+  persist();
+  renderInspiration();
 }
 
 function switchFloor(floor) {
@@ -6711,6 +6934,7 @@ function addRoom() {
 function renderInspiration() {
   ensureInspirationState();
   document.querySelectorAll('.floor-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.floor === currentFloor));
+  renderFurnitureLibrary();
   const c = document.getElementById('rooms-container');
   c.innerHTML = '';
   const rooms = state.inspiration[currentFloor];
@@ -6760,6 +6984,24 @@ function renderRoomCard(room) {
     renderInspiration();
   });
 
+  // Drop target for furniture chips
+  card.addEventListener('dragover', e => {
+    if (![...e.dataTransfer.types].includes('text/furniture-id')) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    card.classList.add('drag-target');
+  });
+  card.addEventListener('dragleave', e => {
+    if (!card.contains(e.relatedTarget)) card.classList.remove('drag-target');
+  });
+  card.addEventListener('drop', e => {
+    const id = e.dataTransfer.getData('text/furniture-id');
+    if (!id) return;
+    e.preventDefault();
+    card.classList.remove('drag-target');
+    moveFurnitureToRoom(id, room);
+  });
+
   // Inspiration grid
   const grid = card.querySelector('.inspiration-grid');
   room.images.forEach(img => grid.appendChild(renderInspTile(room, img)));
@@ -6799,18 +7041,18 @@ function renderInspTile(room, img) {
   const linkAttr = img.link ? `href="${safeLink}" target="_blank" rel="noopener"` : '';
   const status = img.status || 'none';
   const statusLabel = status === 'tobuy' ? 'To buy' : (status === 'owned' ? 'Owned' : 'Tag');
+  const placeholderHtml = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;padding:10px;font-family:'Fraunces',serif;font-size:13px;font-style:italic;color:var(--ink-soft);text-align:center;background:linear-gradient(135deg,rgba(74,142,149,0.08),rgba(122,160,194,0.05));">${safeCaption || 'No image'}</div>`;
+  const imgHtml = img.url ? `<img src="${safeUrl}" alt="${safeCaption}" loading="lazy" onerror="this.style.opacity=0.3">` : placeholderHtml;
   tile.innerHTML = `
     <button class="insp-status-badge is-${status}" data-act="tag" title="Click to tag">${statusLabel}</button>
-    <img src="${safeUrl}" alt="${safeCaption}" loading="lazy" onerror="this.style.opacity=0.3">
+    ${imgHtml}
     <div class="insp-actions">
       ${img.link ? `<a class="insp-btn" ${linkAttr} title="Open source">↗</a>` : ''}
       ${img.link ? `<button class="insp-btn" data-act="pick" title="Pick a different image from the page">🖼</button>` : ''}
       <button class="insp-btn" data-act="edit" title="Edit">✎</button>
       <button class="insp-btn del" data-act="del" title="Delete">×</button>
     </div>
-    <div class="insp-overlay">
-      <div class="insp-caption">${safeCaption}${img.price ? ' · ' + fmtMoney(img.price) : ''}</div>
-    </div>
+    ${img.url ? `<div class="insp-overlay"><div class="insp-caption">${safeCaption}${img.price ? ' · ' + fmtMoney(img.price) : ''}</div></div>` : ''}
   `;
   tile.querySelector('[data-act="tag"]').addEventListener('click', e => {
     e.stopPropagation();
