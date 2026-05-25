@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Greenview Photos — drag to Move Tracker</title>
+<style>
+  body { font-family: -apple-system, sans-serif; background: #EEF3F6; color: #1E2D3C; margin: 0; padding: 20px; }
+  h1 { font-family: 'Fraunces', Georgia, serif; font-weight: 300; font-size: 28px; margin: 0 0 6px; letter-spacing: -0.02em; }
+  p { color: #455868; font-size: 13.5px; margin: 0 0 18px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+  .tile {
+    background: #FAFCFD; border: 1px solid #C9D6DE; border-radius: 10px;
+    overflow: hidden; cursor: grab; transition: transform 0.15s, box-shadow 0.15s;
+    aspect-ratio: 4/3;
+    position: relative;
+  }
+  .tile:hover { transform: translateY(-2px); box-shadow: 0 8px 24px -8px rgba(30,45,60,0.18); }
+  .tile:active { cursor: grabbing; }
+  .tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .tile .name {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    padding: 4px 8px;
+    background: linear-gradient(transparent, rgba(0,0,0,0.6));
+    color: white; font-size: 11px;
+    opacity: 0; transition: opacity 0.15s;
+  }
+  .tile:hover .name { opacity: 1; }
+</style>
+</head>
+<body>
+<h1>Greenview reference photos</h1>
+<p>Drag any tile onto a room's "Current home photos" section in the move tracker.</p>
+<div class="grid" id="grid"></div>
+<script>
+const PHOTOS = ['IMG_4586','IMG_4588','IMG_4589','IMG_4593','IMG_4594','IMG_4595','IMG_4596','IMG_4599','IMG_4600','IMG_4602','IMG_4604','IMG_4605','IMG_4606','IMG_4609','IMG_4610','IMG_4612','IMG_4614','IMG_4622','IMG_4623','IMG_4625','IMG_4627'];
+const grid = document.getElementById('grid');
+PHOTOS.forEach(name => {
+  const url = name + '.jpeg';
+  const tile = document.createElement('div');
+  tile.className = 'tile';
+  tile.draggable = true;
+  tile.innerHTML = `<img src="${url}" alt="${name}" draggable="false"><div class="name">${name}</div>`;
+  tile.addEventListener('dragstart', e => {
+    const abs = new URL(url, window.location.href).href;
+    e.dataTransfer.setData('text/uri-list', abs);
+    e.dataTransfer.setData('text/plain', abs);
+    e.dataTransfer.setData('text/html', `<a href="${window.location.href}"><img src="${abs}" alt="${name}"></a>`);
+    e.dataTransfer.effectAllowed = 'copy';
+  });
+  grid.appendChild(tile);
+});
+</script>
+</body>
+</html>
