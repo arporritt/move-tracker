@@ -7205,10 +7205,16 @@ function renderInspTile(room, img) {
   const statusLabel = status === 'tobuy' ? 'To buy' : (status === 'owned' ? 'Owned' : 'Tag');
   const placeholderHtml = `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;padding:10px;font-family:'Fraunces',serif;font-size:13px;font-style:italic;color:var(--ink-soft);text-align:center;background:linear-gradient(135deg,rgba(74,142,149,0.08),rgba(122,160,194,0.05));">${safeCaption || 'No image'}</div>`;
   const imgHtml = img.url ? `<img src="${safeUrl}" alt="${safeCaption}" loading="lazy" onerror="this.style.opacity=0.3">` : placeholderHtml;
+  const posY = (typeof img.posY === 'number') ? img.posY : 50;
+  const imgHtmlWithPos = img.url
+    ? `<img src="${safeUrl}" alt="${safeCaption}" loading="lazy" style="object-position: center ${posY}%;" onerror="this.style.opacity=0.3">`
+    : placeholderHtml;
   tile.innerHTML = `
     <button class="insp-status-badge is-${status}" data-act="tag" title="Click to tag">${statusLabel}</button>
-    ${imgHtml}
+    ${imgHtmlWithPos}
     <div class="insp-actions">
+      ${img.url ? `<button class="insp-btn" data-act="up" title="Shift focus up">▲</button>` : ''}
+      ${img.url ? `<button class="insp-btn" data-act="down" title="Shift focus down">▼</button>` : ''}
       ${img.link ? `<a class="insp-btn" ${linkAttr} title="Open source">↗</a>` : ''}
       ${img.link ? `<button class="insp-btn" data-act="pick" title="Pick a different image from the page">🖼</button>` : ''}
       <button class="insp-btn" data-act="edit" title="Edit">✎</button>
@@ -7229,6 +7235,22 @@ function renderInspTile(room, img) {
     }
     persist();
     renderInspiration();
+  });
+  const upBtn = tile.querySelector('[data-act="up"]');
+  if (upBtn) upBtn.addEventListener('click', e => {
+    e.stopPropagation(); e.preventDefault();
+    img.posY = Math.max(0, ((typeof img.posY === 'number') ? img.posY : 50) - 10);
+    persist();
+    const imgEl = tile.querySelector('img');
+    if (imgEl) imgEl.style.objectPosition = `center ${img.posY}%`;
+  });
+  const downBtn = tile.querySelector('[data-act="down"]');
+  if (downBtn) downBtn.addEventListener('click', e => {
+    e.stopPropagation(); e.preventDefault();
+    img.posY = Math.min(100, ((typeof img.posY === 'number') ? img.posY : 50) + 10);
+    persist();
+    const imgEl = tile.querySelector('img');
+    if (imgEl) imgEl.style.objectPosition = `center ${img.posY}%`;
   });
   const pickBtn = tile.querySelector('[data-act="pick"]');
   if (pickBtn) {
