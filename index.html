@@ -574,6 +574,155 @@
   .task.drag-over-top { box-shadow: 0 -3px 0 0 var(--clay); }
   .task.drag-over-bottom { box-shadow: 0 3px 0 0 var(--clay); }
 
+  /* ============ INSPIRATION ============ */
+  .floor-tabs {
+    display: flex; gap: 4px;
+    margin-bottom: 24px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .floor-tab-btn {
+    background: transparent;
+    border: none;
+    padding: 10px 18px;
+    font-family: 'Manrope', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink-soft);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    letter-spacing: 0.02em;
+    transition: all 0.15s;
+  }
+  .floor-tab-btn:hover { color: var(--ink); }
+  .floor-tab-btn.active {
+    color: var(--clay);
+    border-bottom-color: var(--clay);
+  }
+  .rooms-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 18px;
+    margin-bottom: 24px;
+  }
+  .room-card {
+    background: var(--bg-card);
+    border: 1px solid var(--rule);
+    border-radius: 14px;
+    padding: 18px 20px;
+    box-shadow: var(--shadow);
+  }
+  .room-card-header {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 14px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--rule-soft);
+  }
+  .room-card-name {
+    font-family: 'Fraunces', serif;
+    font-size: 18px;
+    font-weight: 500;
+    color: var(--ink);
+    letter-spacing: -0.01em;
+    flex: 1;
+    background: transparent;
+    border: 1px solid transparent;
+    padding: 4px 6px;
+    border-radius: 6px;
+    outline: none;
+  }
+  .room-card-name:hover { border-color: var(--rule-soft); }
+  .room-card-name:focus { border-color: var(--clay); background: white; }
+  .room-card-del {
+    background: transparent; border: none; cursor: pointer;
+    color: var(--ink-faint); font-size: 16px;
+    padding: 4px 8px; border-radius: 4px;
+    transition: color 0.15s, background 0.15s;
+  }
+  .room-card-del:hover { color: var(--behind); background: rgba(214,85,62,0.08); }
+  .room-items {
+    display: flex; flex-direction: column; gap: 8px;
+    margin-bottom: 12px;
+  }
+  .room-item {
+    display: flex; align-items: flex-start; gap: 8px;
+    padding: 8px 10px;
+    background: rgba(122,160,194,0.06);
+    border-radius: 6px;
+    transition: background 0.1s;
+  }
+  .room-item:hover { background: rgba(122,160,194,0.12); }
+  .room-item-text {
+    flex: 1;
+    background: transparent;
+    border: 1px solid transparent;
+    font-family: 'Manrope', sans-serif;
+    font-size: 13px;
+    color: var(--ink);
+    outline: none;
+    padding: 2px 4px;
+    border-radius: 4px;
+    min-width: 0;
+    word-break: break-word;
+  }
+  .room-item-text:focus { border-color: var(--clay); background: white; }
+  .room-item-link {
+    color: var(--clay);
+    text-decoration: none;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+  .room-item-del {
+    background: transparent; border: none; cursor: pointer;
+    color: var(--ink-faint); font-size: 14px;
+    padding: 2px 6px; border-radius: 4px;
+    opacity: 0.5; transition: opacity 0.15s;
+    flex-shrink: 0;
+  }
+  .room-item:hover .room-item-del { opacity: 1; }
+  .room-item-del:hover { color: var(--behind); }
+  .add-item-btn {
+    background: transparent;
+    border: 1px dashed var(--rule);
+    border-radius: 6px;
+    padding: 8px;
+    width: 100%;
+    font-family: 'Manrope', sans-serif;
+    font-size: 12px;
+    color: var(--ink-faint);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .add-item-btn:hover { color: var(--clay); border-color: var(--clay-soft); }
+  .add-room-btn {
+    background: var(--bg-card);
+    border: 1px dashed var(--rule);
+    border-radius: 12px;
+    padding: 16px;
+    width: 100%;
+    font-family: 'Manrope', sans-serif;
+    font-size: 14px;
+    color: var(--ink-soft);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .add-room-btn:hover { color: var(--clay); border-color: var(--clay-soft); background: rgba(122,160,194,0.04); }
+  .floor-empty {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--ink-faint);
+    font-style: italic;
+    font-family: 'Fraunces', serif;
+    font-size: 15px;
+  }
+  @media (max-width: 600px) {
+    #tab-inspiration .container { padding: 16px 14px !important; }
+    .rooms-container { grid-template-columns: 1fr; gap: 12px; }
+    .floor-tab-btn { padding: 8px 12px; font-size: 12px; }
+    .room-card { padding: 14px 16px; }
+    .room-card-name { font-size: 16px; }
+  }
+
   /* ============ BUDGET ============ */
   .budget-summary {
     background: var(--bg-card);
@@ -1494,6 +1643,7 @@
     <button class="tab-btn active" data-tab="weeks">Week-by-week</button>
     <button class="tab-btn" data-tab="list">Task list</button>
     <button class="tab-btn" data-tab="budget">Budget</button>
+    <button class="tab-btn" data-tab="inspiration">Inspiration</button>
   </div>
 </div>
 
@@ -4673,6 +4823,19 @@
   </div>
 </div>
 
+<!-- ============ INSPIRATION TAB ============ -->
+<div class="tab-content" id="tab-inspiration">
+  <div class="container" style="max-width: 1240px; margin: 0 auto; padding: 24px 40px;">
+    <div class="floor-tabs">
+      <button class="floor-tab-btn active" data-floor="basement" onclick="switchFloor('basement')">Basement</button>
+      <button class="floor-tab-btn" data-floor="ground" onclick="switchFloor('ground')">Ground floor</button>
+      <button class="floor-tab-btn" data-floor="upper" onclick="switchFloor('upper')">Upper floor</button>
+    </div>
+    <div id="rooms-container" class="rooms-container"></div>
+    <button class="add-room-btn" onclick="addRoom()">+ Add room to this floor</button>
+  </div>
+</div>
+
 <!-- ============ BUDGET TAB ============ -->
 <div class="tab-content" id="tab-budget">
   <div class="container" style="max-width: 1240px; margin: 0 auto; padding: 32px 40px;">
@@ -5960,6 +6123,142 @@ function renderActive() {
   if (active === 'weeks') renderWeeks();
   else if (active === 'list') renderList();
   else if (active === 'budget') renderBudget();
+  else if (active === 'inspiration') renderInspiration();
+}
+
+// ============================================================
+// INSPIRATION
+// ============================================================
+const FLOOR_LABELS = { basement: 'Basement', ground: 'Ground floor', upper: 'Upper floor' };
+let currentFloor = 'basement';
+try {
+  const savedFloor = localStorage.getItem('mt-floor');
+  if (savedFloor && FLOOR_LABELS[savedFloor]) currentFloor = savedFloor;
+} catch(e) {}
+
+function ensureInspirationState() {
+  if (!state.inspiration) state.inspiration = { basement: [], ground: [], upper: [] };
+  for (const f of ['basement','ground','upper']) {
+    if (!Array.isArray(state.inspiration[f])) state.inspiration[f] = [];
+  }
+}
+
+function switchFloor(floor) {
+  currentFloor = floor;
+  try { localStorage.setItem('mt-floor', floor); } catch(e) {}
+  document.querySelectorAll('.floor-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.floor === floor));
+  renderInspiration();
+}
+
+function addRoom() {
+  ensureInspirationState();
+  state.inspiration[currentFloor].push({
+    id: 'r_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,6),
+    name: 'New room',
+    items: []
+  });
+  persist();
+  renderInspiration();
+  setTimeout(() => {
+    const cards = document.querySelectorAll('.room-card-name');
+    const last = cards[cards.length - 1];
+    if (last) { last.focus(); last.select(); }
+  }, 0);
+}
+
+function renderInspiration() {
+  ensureInspirationState();
+  document.querySelectorAll('.floor-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.floor === currentFloor));
+  const c = document.getElementById('rooms-container');
+  c.innerHTML = '';
+  const rooms = state.inspiration[currentFloor];
+  if (rooms.length === 0) {
+    c.innerHTML = `<div class="floor-empty">No rooms yet on the ${FLOOR_LABELS[currentFloor].toLowerCase()}.<br>Click "+ Add room" below to start.</div>`;
+    return;
+  }
+  rooms.forEach(room => c.appendChild(renderRoomCard(room)));
+}
+
+function renderRoomCard(room) {
+  const card = document.createElement('div');
+  card.className = 'room-card';
+  card.dataset.id = room.id;
+  card.innerHTML = `
+    <div class="room-card-header">
+      <input type="text" class="room-card-name" value="${escapeHTML(room.name || '')}" placeholder="Room name">
+      <button class="room-card-del" title="Delete room">×</button>
+    </div>
+    <div class="room-items"></div>
+    <button class="add-item-btn">+ Add item</button>
+  `;
+  card.querySelector('.room-card-name').addEventListener('change', e => {
+    room.name = e.target.value.trim();
+    persist();
+  });
+  card.querySelector('.room-card-del').addEventListener('click', () => {
+    if (!confirm('Delete this room and all its items?')) return;
+    state.inspiration[currentFloor] = state.inspiration[currentFloor].filter(r => r.id !== room.id);
+    persist();
+    renderInspiration();
+  });
+  const itemsBox = card.querySelector('.room-items');
+  (room.items || []).forEach(item => itemsBox.appendChild(renderRoomItem(room, item)));
+  card.querySelector('.add-item-btn').addEventListener('click', () => {
+    if (!room.items) room.items = [];
+    const newItem = { id: 'i_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,6), text: '', link: '' };
+    room.items.push(newItem);
+    persist();
+    renderInspiration();
+    setTimeout(() => {
+      const els = card.querySelectorAll('.room-item-text');
+      const last = els[els.length - 1];
+      if (last) last.focus();
+    }, 0);
+  });
+  return card;
+}
+
+function renderRoomItem(room, item) {
+  const row = document.createElement('div');
+  row.className = 'room-item';
+  const linkHtml = item.link
+    ? `<a class="room-item-link" href="${escapeHTML(item.link)}" target="_blank" rel="noopener" title="${escapeHTML(item.link)}">↗</a>`
+    : `<button class="room-item-link" style="background:transparent;border:none;cursor:pointer;" title="Add link">🔗</button>`;
+  row.innerHTML = `
+    <input type="text" class="room-item-text" value="${escapeHTML(item.text || '')}" placeholder="Item / furniture / inspiration">
+    ${linkHtml}
+    <button class="room-item-del" title="Delete">×</button>
+  `;
+  row.querySelector('.room-item-text').addEventListener('change', e => {
+    item.text = e.target.value.trim();
+    persist();
+  });
+  const linkEl = row.querySelector('.room-item-link');
+  if (linkEl.tagName === 'BUTTON') {
+    linkEl.addEventListener('click', e => {
+      e.preventDefault();
+      const url = prompt('Link URL:', item.link || '');
+      if (url === null) return;
+      item.link = url.trim();
+      persist();
+      renderInspiration();
+    });
+  } else {
+    linkEl.addEventListener('contextmenu', e => {
+      e.preventDefault();
+      const url = prompt('Edit link (empty to remove):', item.link || '');
+      if (url === null) return;
+      item.link = url.trim();
+      persist();
+      renderInspiration();
+    });
+  }
+  row.querySelector('.room-item-del').addEventListener('click', () => {
+    room.items = room.items.filter(i => i.id !== item.id);
+    persist();
+    renderInspiration();
+  });
+  return row;
 }
 
 let weekFilters = { empty: false, past: false, done: false };
