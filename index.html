@@ -807,6 +807,33 @@
     transition: all 0.15s;
   }
   .add-item-btn:hover { color: var(--clay); border-color: var(--clay-soft); }
+  .current-photos-toggle {
+    background: transparent;
+    border: 1px solid var(--rule);
+    border-radius: 100px;
+    padding: 5px 12px;
+    font-family: 'Manrope', sans-serif;
+    font-size: 11px; font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--ink-soft);
+    cursor: pointer;
+    margin-top: 14px;
+    transition: all 0.15s;
+  }
+  .current-photos-toggle:hover { border-color: var(--clay); color: var(--clay); }
+  .current-photos-toggle.is-open { background: var(--clay); color: white; border-color: var(--clay); }
+  .current-photos-section {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px dashed var(--rule);
+    display: none;
+  }
+  .current-photos-section.is-open { display: block; }
+  .current-photos-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
   .add-room-btn {
     background: var(--bg-card);
     border: 1px dashed var(--rule);
@@ -6836,6 +6863,101 @@ async function openImgPicker(sourceUrl, onPick) {
   });
 }
 
+async function extractDropImage(dataTransfer) {
+  let imageUrl = '', sourceUrl = '', caption = '';
+  const uriList = dataTransfer.getData('text/uri-list');
+  if (uriList) {
+    const lines = uriList.split(/\r?\n/).filter(l => l && !l.startsWith('#'));
+    if (lines.length) imageUrl = lines[0];
+  }
+  if (!imageUrl) {
+    const html = dataTransfer.getData('text/html');
+    if (html) {
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      const imgEl = doc.querySelector('img');
+      if (imgEl) {
+        imageUrl = imgEl.getAttribute('src') || '';
+        caption = imgEl.getAttribute('alt') || '';
+      }
+      const aEl = doc.querySelector('a[href]');
+      if (aEl) sourceUrl = aEl.getAttribute('href') || '';
+    }
+  }
+  if (!imageUrl) {
+    const plain = dataTransfer.getData('text/plain');
+    if (plain && /^https?:\/\//.test(plain.trim())) imageUrl = plain.trim();
+  }
+  if (!imageUrl && dataTransfer.files && dataTransfer.files.length) {
+    const file = dataTransfer.files[0];
+    if (file.type.startsWith('image/')) {
+      if (file.size > 800 * 1024) {
+        if (!confirm(`This image is ${(file.size/1024).toFixed(0)} KB. Continue?`)) return null;
+      }
+      imageUrl = await new Promise(res => {
+        const r = new FileReader();
+        r.onload = () => res(r.result);
+        r.readAsDataURL(file);
+      });
+      caption = file.name.replace(/\.[a-z]+$/i, '');
+    }
+  }
+  if (!imageUrl) return null;
+  return { url: imageUrl, caption, link: sourceUrl };
+}
+
+function addCurrentPhoto(room, photo) {
+  if (!Array.isArray(room.currentPhotos)) room.currentPhotos = [];
+  room.currentPhotos.push({
+    id: 'cp_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,6),
+    url: photo.url,
+    caption: photo.caption || '',
+    link: photo.link || '',
+    posY: 50
+  });
+  room._currentOpen = true;
+  persist();
+  renderInspiration();
+}
+
+function renderCurrentPhotoTile(room, photo) {
+  const tile = document.createElement('div');
+  tile.className = 'insp-tile';
+  const posY = (typeof photo.posY === 'number') ? photo.posY : 50;
+  const safeUrl = (photo.url || '').replace(/"/g, '&quot;');
+  const safeCaption = escapeHTML(photo.caption || '');
+  const linkAttr = photo.link ? `href="${escapeHTML(photo.link)}" target="_blank" rel="noopener"` : '';
+  tile.innerHTML = `
+    <img src="${safeUrl}" alt="${safeCaption}" loading="lazy" style="object-position: center ${posY}%;" onerror="this.style.opacity=0.3">
+    <div class="insp-actions">
+      <button class="insp-btn" data-act="cp-up" title="Shift up">▲</button>
+      <button class="insp-btn" data-act="cp-down" title="Shift down">▼</button>
+      ${photo.link ? `<a class="insp-btn" ${linkAttr} title="Open source">↗</a>` : ''}
+      <button class="insp-btn del" data-act="cp-del" title="Delete">×</button>
+    </div>
+    ${photo.caption ? `<div class="insp-overlay"><div class="insp-caption">${safeCaption}</div></div>` : ''}
+  `;
+  tile.querySelector('[data-act="cp-up"]').addEventListener('click', e => {
+    e.stopPropagation();
+    photo.posY = Math.max(0, ((typeof photo.posY === 'number') ? photo.posY : 50) - 10);
+    persist();
+    tile.querySelector('img').style.objectPosition = `center ${photo.posY}%`;
+  });
+  tile.querySelector('[data-act="cp-down"]').addEventListener('click', e => {
+    e.stopPropagation();
+    photo.posY = Math.min(100, ((typeof photo.posY === 'number') ? photo.posY : 50) + 10);
+    persist();
+    tile.querySelector('img').style.objectPosition = `center ${photo.posY}%`;
+  });
+  tile.querySelector('[data-act="cp-del"]').addEventListener('click', e => {
+    e.stopPropagation();
+    if (!confirm('Remove this current-home photo?')) return;
+    room.currentPhotos = room.currentPhotos.filter(p => p.id !== photo.id);
+    persist();
+    renderInspiration();
+  });
+  return tile;
+}
+
 async function handleImageDrop(dataTransfer, room) {
   let imageUrl = '';
   let sourceUrl = '';
@@ -7121,6 +7243,8 @@ function renderRoomCard(room) {
   const manualBuy = room.buyList;
   const totalBuy = taggedToBuy.reduce((s, i) => s + (Number(i.price) || 0), 0)
                 + manualBuy.reduce((s, i) => s + (Number(i.price) || 0), 0);
+  if (!Array.isArray(room.currentPhotos)) room.currentPhotos = [];
+  const currentOpen = !!room._currentOpen;
   card.innerHTML = `
     <div class="room-card-header">
       <input type="text" class="room-card-name" value="${escapeHTML(room.name || '')}" placeholder="Room name">
@@ -7132,6 +7256,10 @@ function renderRoomCard(room) {
     <div class="buy-list"></div>
     <button class="add-item-btn">+ Add manual to-buy item</button>
     ${totalBuy > 0 ? `<div class="buy-total">Total: <strong>${fmtMoney(totalBuy)}</strong></div>` : ''}
+    <button class="current-photos-toggle ${currentOpen ? 'is-open' : ''}" data-act="toggle-current">${currentOpen ? '▾' : '▸'} Current home photos${room.currentPhotos.length ? ` (${room.currentPhotos.length})` : ''}</button>
+    <div class="current-photos-section ${currentOpen ? 'is-open' : ''}">
+      <div class="current-photos-grid"></div>
+    </div>
   `;
   card.querySelector('.room-card-name').addEventListener('change', e => {
     room.name = e.target.value.trim();
@@ -7143,6 +7271,43 @@ function renderRoomCard(room) {
     persist();
     renderInspiration();
   });
+
+  // Current home photos section
+  const currentToggle = card.querySelector('[data-act="toggle-current"]');
+  if (currentToggle) {
+    currentToggle.addEventListener('click', () => {
+      room._currentOpen = !room._currentOpen;
+      renderInspiration();
+    });
+  }
+  const currentGrid = card.querySelector('.current-photos-grid');
+  if (currentGrid) {
+    room.currentPhotos.forEach(photo => currentGrid.appendChild(renderCurrentPhotoTile(room, photo)));
+    const addTile = document.createElement('button');
+    addTile.className = 'add-insp-tile';
+    addTile.innerHTML = `<span class="add-insp-tile-plus">+</span><span>Add photo / drop here</span>`;
+    addTile.addEventListener('click', () => {
+      const url = prompt('Image URL or page URL:');
+      if (!url || !url.trim()) return;
+      addCurrentPhoto(room, { url: url.trim(), caption: '', link: '' });
+    });
+    addTile.addEventListener('dragover', e => {
+      const types = [...e.dataTransfer.types];
+      if (!types.some(t => ['text/uri-list','text/html','text/plain','Files'].includes(t))) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+      addTile.style.background = 'rgba(122,160,194,0.18)';
+    });
+    addTile.addEventListener('dragleave', () => { addTile.style.background = ''; });
+    addTile.addEventListener('drop', async e => {
+      e.preventDefault();
+      e.stopPropagation();
+      addTile.style.background = '';
+      const extracted = await extractDropImage(e.dataTransfer);
+      if (extracted) addCurrentPhoto(room, extracted);
+    });
+    currentGrid.appendChild(addTile);
+  }
 
   // Accept dropped images from the browser (drag-from-website)
   card.addEventListener('dragover', e => {
