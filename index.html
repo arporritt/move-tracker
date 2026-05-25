@@ -6228,6 +6228,23 @@ try {
   if (savedFloor && FLOOR_LABELS[savedFloor]) currentFloor = savedFloor;
 } catch(e) {}
 
+async function resolveLinkToImage(url) {
+  // If it's already a direct image URL, return it as-is.
+  if (/\.(jpe?g|png|gif|webp|avif|svg)(\?.*)?$/i.test(url)) {
+    return { imageUrl: url, title: '', sourceUrl: '' };
+  }
+  // Otherwise, ask microlink.io to extract OG metadata.
+  try {
+    const res = await fetch('https://api.microlink.io/?url=' + encodeURIComponent(url));
+    if (!res.ok) return null;
+    const json = await res.json();
+    if (json.status === 'success' && json.data && json.data.image && json.data.image.url) {
+      return { imageUrl: json.data.image.url, title: json.data.title || '', sourceUrl: url };
+    }
+  } catch (e) { console.warn('microlink fail', e); }
+  return null;
+}
+
 function ensureInspirationState() {
   if (!state.inspiration) state.inspiration = { basement: [], ground: [], upper: [] };
   for (const f of ['basement','ground','upper']) {
@@ -6312,20 +6329,29 @@ function renderRoomCard(room) {
   room.images.forEach(img => grid.appendChild(renderInspTile(room, img)));
   const addTile = document.createElement('button');
   addTile.className = 'add-insp-tile';
-  addTile.innerHTML = `<span class="add-insp-tile-plus">+</span><span>Add image</span>`;
-  addTile.addEventListener('click', () => {
-    const url = prompt('Image URL (paste an image link from Pinterest, Wayfair, etc.):');
-    if (!url || !url.trim()) return;
-    const cap = prompt('Caption (optional):', '');
-    const src = prompt('Source link (optional — where to buy / pin URL):', '');
-    room.images.push({
-      id: 'img_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,6),
-      url: url.trim(),
-      caption: (cap || '').trim(),
-      link: (src || '').trim()
-    });
-    persist();
-    renderInspiration();
+  addTile.innerHTML = `<span class="add-insp-tile-plus">+</span><span>Add image / link</span>`;
+  addTile.addEventListener('click', async () => {
+    const input = prompt('Paste any link — image URL, Pinterest pin, Wayfair product page, etc.:');
+    if (!input || !input.trim()) return;
+    const url = input.trim();
+    addTile.innerHTML = `<span class="add-insp-tile-plus">⋯</span><span>Loading…</span>`;
+    addTile.disabled = true;
+    try {
+      const preview = await resolveLinkToImage(url);
+      if (!preview) {
+        alert('Could not fetch an image from that link. Try the direct image URL instead (right-click an image → Copy image address).');
+      } else {
+        room.images.push({
+          id: 'img_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,6),
+          url: preview.imageUrl,
+          caption: preview.title || '',
+          link: preview.sourceUrl || ''
+        });
+        persist();
+      }
+    } finally {
+      renderInspiration();
+    }
   });
   grid.appendChild(addTile);
 
