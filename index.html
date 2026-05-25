@@ -890,9 +890,23 @@
     font-family: 'Fraunces', serif;
   }
   .room-card.drag-target {
-    border-color: var(--forest);
-    background: rgba(74,142,149,0.04);
-    box-shadow: 0 0 0 3px rgba(74,142,149,0.2);
+    border-color: var(--clay);
+    background: rgba(122,160,194,0.04);
+    box-shadow: 0 0 0 3px rgba(122,160,194,0.25);
+    position: relative;
+  }
+  .room-card.drag-target::after {
+    content: 'Drop image to add';
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(238,243,246,0.85);
+    color: var(--clay);
+    font-family: 'Fraunces', serif;
+    font-size: 17px;
+    font-style: italic;
+    border-radius: 14px;
+    pointer-events: none;
+    z-index: 10;
   }
   .floor-empty {
     text-align: center;
@@ -6735,6 +6749,67 @@ async function openImgPicker(sourceUrl, onPick) {
   });
 }
 
+async function handleImageDrop(dataTransfer, room) {
+  let imageUrl = '';
+  let sourceUrl = '';
+  let caption = '';
+  // 1. text/uri-list — usually the image URL
+  const uriList = dataTransfer.getData('text/uri-list');
+  if (uriList) {
+    const lines = uriList.split(/\r?\n/).filter(l => l && !l.startsWith('#'));
+    if (lines.length) imageUrl = lines[0];
+  }
+  // 2. text/html — parse <img src=...>
+  if (!imageUrl) {
+    const html = dataTransfer.getData('text/html');
+    if (html) {
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      const imgEl = doc.querySelector('img');
+      if (imgEl) {
+        imageUrl = imgEl.getAttribute('src') || '';
+        caption = imgEl.getAttribute('alt') || '';
+      }
+      const aEl = doc.querySelector('a[href]');
+      if (aEl) sourceUrl = aEl.getAttribute('href') || '';
+    }
+  }
+  // 3. text/plain fallback
+  if (!imageUrl) {
+    const plain = dataTransfer.getData('text/plain');
+    if (plain && /^https?:\/\//.test(plain.trim())) imageUrl = plain.trim();
+  }
+  // 4. Files (local drag)
+  if (!imageUrl && dataTransfer.files && dataTransfer.files.length) {
+    const file = dataTransfer.files[0];
+    if (file.type.startsWith('image/')) {
+      if (file.size > 800 * 1024) {
+        if (!confirm(`This image is ${(file.size/1024).toFixed(0)} KB. Files this large bloat your cloud save. Continue anyway?`)) return;
+      }
+      imageUrl = await new Promise(res => {
+        const r = new FileReader();
+        r.onload = () => res(r.result);
+        r.readAsDataURL(file);
+      });
+      caption = file.name.replace(/\.[a-z]+$/i, '');
+    }
+  }
+  if (!imageUrl) {
+    alert("Couldn't read an image from that drop.");
+    return;
+  }
+  if (!Array.isArray(room.images)) room.images = [];
+  room.images.push({
+    id: 'img_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,6),
+    url: imageUrl,
+    caption: caption,
+    link: sourceUrl,
+    price: 0,
+    status: null
+  });
+  persist();
+  renderInspiration();
+}
+
 async function resolveLinkToImage(url) {
   // If it's already a direct image URL, return it as-is.
   if (/\.(jpe?g|png|gif|webp|avif|svg)(\?.*)?$/i.test(url)) {
@@ -6980,6 +7055,25 @@ function renderRoomCard(room) {
     state.inspiration[currentFloor] = state.inspiration[currentFloor].filter(r => r.id !== room.id);
     persist();
     renderInspiration();
+  });
+
+  // Accept dropped images from the browser (drag-from-website)
+  card.addEventListener('dragover', e => {
+    const types = [...e.dataTransfer.types];
+    if (!types.some(t => ['text/uri-list','text/html','text/plain','Files'].includes(t))) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    card.classList.add('drag-target');
+  });
+  card.addEventListener('dragleave', e => {
+    if (!card.contains(e.relatedTarget)) card.classList.remove('drag-target');
+  });
+  card.addEventListener('drop', async e => {
+    const types = [...e.dataTransfer.types];
+    if (!types.some(t => ['text/uri-list','text/html','text/plain','Files'].includes(t))) return;
+    e.preventDefault();
+    card.classList.remove('drag-target');
+    await handleImageDrop(e.dataTransfer, room);
   });
 
 
