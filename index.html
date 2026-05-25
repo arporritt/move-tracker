@@ -672,6 +672,7 @@
     background: linear-gradient(180deg, transparent 50%, rgba(30,45,60,0.7));
     opacity: 0; transition: opacity 0.15s;
     display: flex; align-items: flex-end; padding: 8px;
+    pointer-events: none;
   }
   .insp-tile:hover .insp-overlay { opacity: 1; }
   .insp-tile .insp-caption {
@@ -682,6 +683,7 @@
     position: absolute; top: 6px; right: 6px;
     display: flex; gap: 4px;
     opacity: 0; transition: opacity 0.15s;
+    z-index: 4;
   }
   .insp-tile:hover .insp-actions { opacity: 1; }
   .insp-status-badge {
