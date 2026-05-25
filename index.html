@@ -574,6 +574,136 @@
   .task.drag-over-top { box-shadow: 0 -3px 0 0 var(--clay); }
   .task.drag-over-bottom { box-shadow: 0 3px 0 0 var(--clay); }
 
+  /* ============ GREENVIEW ============ */
+  .greenview-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 12px;
+  }
+  .gv-tile {
+    position: relative;
+    aspect-ratio: 4/3;
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--rule-soft);
+    cursor: pointer;
+    box-shadow: var(--shadow);
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .gv-tile:hover { transform: translateY(-2px); box-shadow: 0 12px 32px -10px rgba(30,45,60,0.25); }
+  .gv-tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .gv-tile-rooms {
+    position: absolute; top: 8px; left: 8px;
+    display: flex; flex-wrap: wrap; gap: 4px;
+    max-width: calc(100% - 16px);
+  }
+  .gv-room-chip {
+    background: var(--clay);
+    color: white;
+    border-radius: 100px;
+    padding: 2px 8px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    box-shadow: 0 1px 4px rgba(30,45,60,0.2);
+  }
+  .gv-tile-action {
+    position: absolute; bottom: 8px; right: 8px;
+    background: rgba(255,255,255,0.95);
+    color: var(--ink);
+    border: 1px solid var(--rule);
+    border-radius: 100px;
+    padding: 5px 12px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    opacity: 0; transition: opacity 0.15s;
+  }
+  .gv-tile:hover .gv-tile-action { opacity: 1; }
+  .gv-tile-action:hover { background: var(--clay); color: white; border-color: var(--clay); }
+
+  .gv-assign-overlay {
+    position: fixed; inset: 0; z-index: 9300;
+    background: rgba(30,45,60,0.55);
+    backdrop-filter: blur(4px);
+    display: none; align-items: flex-start; justify-content: center;
+    padding: 20px;
+    overflow-y: auto;
+  }
+  .gv-assign-overlay.active { display: flex; }
+  .gv-assign-modal {
+    background: var(--bg-card);
+    border-radius: 14px;
+    max-width: 460px; width: 100%;
+    margin-top: 4vh;
+    box-shadow: 0 20px 60px -20px rgba(30,45,60,0.4);
+    overflow: hidden;
+  }
+  .gv-assign-header {
+    padding: 16px 18px;
+    border-bottom: 1px solid var(--rule);
+    display: flex; align-items: center; gap: 12px;
+  }
+  .gv-assign-header img {
+    width: 60px; height: 45px; object-fit: cover; border-radius: 6px;
+  }
+  .gv-assign-header h3 {
+    font-family: 'Fraunces', serif; font-weight: 500;
+    font-size: 17px; margin: 0;
+  }
+  .gv-assign-body {
+    padding: 14px 18px;
+    max-height: 60vh;
+    overflow-y: auto;
+  }
+  .gv-floor-group { margin-bottom: 14px; }
+  .gv-floor-label {
+    font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--ink-faint); font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .gv-room-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+  .gv-room-row:hover { background: rgba(122,160,194,0.10); }
+  .gv-room-row input { width: 18px; height: 18px; cursor: pointer; accent-color: var(--clay); }
+  .gv-room-row-name { font-size: 14px; color: var(--ink); }
+  .gv-no-rooms {
+    padding: 20px; text-align: center;
+    color: var(--ink-faint); font-style: italic; font-size: 13px;
+  }
+  .gv-assign-actions {
+    padding: 14px 18px;
+    border-top: 1px solid var(--rule);
+    display: flex; justify-content: flex-end; gap: 8px;
+  }
+  .gv-assign-actions button {
+    padding: 8px 16px;
+    border-radius: 100px;
+    font-family: 'Manrope', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid var(--rule);
+    background: white;
+    color: var(--ink-soft);
+  }
+  .gv-assign-actions button.primary {
+    background: var(--clay); color: white; border-color: var(--clay);
+  }
+  .gv-assign-actions button.primary:hover { background: var(--plum); }
+  @media (max-width: 600px) {
+    #tab-greenview .container { padding: 16px 14px !important; }
+    .greenview-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .gv-tile-action { opacity: 1; padding: 3px 8px; font-size: 10px; }
+  }
+
   /* ============ INSPIRATION ============ */
   .floor-tabs {
     display: flex; gap: 4px;
@@ -2048,6 +2178,7 @@
     <button class="tab-btn" data-tab="list">Task list</button>
     <button class="tab-btn" data-tab="budget">Budget</button>
     <button class="tab-btn" data-tab="inspiration">Inspiration</button>
+    <button class="tab-btn" data-tab="greenview">Greenview</button>
   </div>
 </div>
 
@@ -5227,6 +5358,17 @@
   </div>
 </div>
 
+<!-- ============ GREENVIEW TAB ============ -->
+<div class="tab-content" id="tab-greenview">
+  <div class="container" style="max-width: 1240px; margin: 0 auto; padding: 24px 40px;">
+    <div style="margin-bottom:18px;">
+      <h2 style="font-family:'Fraunces',serif;font-weight:400;font-size:24px;letter-spacing:-0.01em;margin:0 0 6px;">Greenview reference photos</h2>
+      <p style="color:var(--ink-soft);font-size:13.5px;margin:0;">Click a photo to assign it to one or more rooms. The photo will appear in those rooms' "Current home photos" sections.</p>
+    </div>
+    <div id="greenview-grid" class="greenview-grid"></div>
+  </div>
+</div>
+
 <!-- ============ INSPIRATION TAB ============ -->
 <div class="tab-content" id="tab-inspiration">
   <div class="container" style="max-width: 1240px; margin: 0 auto; padding: 24px 40px;">
@@ -6528,6 +6670,147 @@ function renderActive() {
   else if (active === 'list') renderList();
   else if (active === 'budget') renderBudget();
   else if (active === 'inspiration') renderInspiration();
+  else if (active === 'greenview') renderGreenview();
+}
+
+// ============================================================
+// GREENVIEW REFERENCE PHOTOS
+// ============================================================
+const GREENVIEW_PHOTOS = ['IMG_4586','IMG_4588','IMG_4589','IMG_4593','IMG_4594','IMG_4595','IMG_4596','IMG_4599','IMG_4600','IMG_4602','IMG_4604','IMG_4605','IMG_4606','IMG_4609','IMG_4610','IMG_4612','IMG_4614','IMG_4622','IMG_4623','IMG_4625','IMG_4627'];
+
+function greenviewPhotoUrl(name) {
+  return 'photos/greenview/' + name + '.jpeg';
+}
+
+function allRoomsWithFloor() {
+  ensureInspirationState();
+  const out = [];
+  ['basement','ground','upper'].forEach(floor => {
+    (state.inspiration[floor] || []).forEach(room => {
+      out.push({ floor, room });
+    });
+  });
+  return out;
+}
+
+function roomsWithPhoto(photoUrl) {
+  const matches = [];
+  allRoomsWithFloor().forEach(({ floor, room }) => {
+    if (Array.isArray(room.currentPhotos) && room.currentPhotos.some(p => (p.url || '').endsWith(photoUrl) || p.url === photoUrl)) {
+      matches.push({ floor, room });
+    }
+  });
+  return matches;
+}
+
+function renderGreenview() {
+  const grid = document.getElementById('greenview-grid');
+  grid.innerHTML = '';
+  GREENVIEW_PHOTOS.forEach(name => {
+    const relUrl = greenviewPhotoUrl(name);
+    const assigned = roomsWithPhoto(relUrl);
+    const tile = document.createElement('div');
+    tile.className = 'gv-tile';
+    const chipsHtml = assigned.map(a => `<span class="gv-room-chip" title="${escapeHTML(FLOOR_LABELS[a.floor])}">${escapeHTML(a.room.name || 'Unnamed')}</span>`).join('');
+    tile.innerHTML = `
+      <img src="${relUrl}" alt="${name}" loading="lazy">
+      <div class="gv-tile-rooms">${chipsHtml}</div>
+      <button class="gv-tile-action">${assigned.length ? 'Edit rooms' : 'Assign to rooms'}</button>
+    `;
+    tile.addEventListener('click', () => openGvAssign(name, relUrl));
+    grid.appendChild(tile);
+  });
+}
+
+function ensureGvAssignEl() {
+  let overlay = document.getElementById('gv-assign-overlay');
+  if (overlay) return overlay;
+  overlay = document.createElement('div');
+  overlay.id = 'gv-assign-overlay';
+  overlay.className = 'gv-assign-overlay';
+  overlay.innerHTML = `
+    <div class="gv-assign-modal" onclick="event.stopPropagation()">
+      <div class="gv-assign-header">
+        <img id="gv-assign-thumb" alt="">
+        <h3>Assign to rooms</h3>
+      </div>
+      <div class="gv-assign-body" id="gv-assign-body"></div>
+      <div class="gv-assign-actions">
+        <button onclick="closeGvAssign()">Cancel</button>
+        <button class="primary" onclick="saveGvAssign()">Save</button>
+      </div>
+    </div>
+  `;
+  overlay.addEventListener('click', () => closeGvAssign());
+  document.body.appendChild(overlay);
+  return overlay;
+}
+
+let gvAssignContext = null;
+function openGvAssign(name, relUrl) {
+  ensureInspirationState();
+  gvAssignContext = { name, relUrl };
+  const overlay = ensureGvAssignEl();
+  overlay.querySelector('#gv-assign-thumb').src = relUrl;
+  const body = overlay.querySelector('#gv-assign-body');
+  body.innerHTML = '';
+  const allRooms = allRoomsWithFloor();
+  if (allRooms.length === 0) {
+    body.innerHTML = '<div class="gv-no-rooms">No rooms created yet. Go to the Inspiration tab and add rooms first, then come back here to assign photos.</div>';
+  } else {
+    const assigned = new Set(roomsWithPhoto(relUrl).map(a => a.room.id));
+    ['basement','ground','upper'].forEach(floor => {
+      const rooms = (state.inspiration[floor] || []);
+      if (rooms.length === 0) return;
+      const group = document.createElement('div');
+      group.className = 'gv-floor-group';
+      group.innerHTML = `<div class="gv-floor-label">${FLOOR_LABELS[floor]}</div>`;
+      rooms.forEach(room => {
+        const row = document.createElement('label');
+        row.className = 'gv-room-row';
+        row.innerHTML = `
+          <input type="checkbox" data-room-id="${room.id}" data-floor="${floor}" ${assigned.has(room.id) ? 'checked' : ''}>
+          <span class="gv-room-row-name">${escapeHTML(room.name || 'Unnamed room')}</span>
+        `;
+        group.appendChild(row);
+      });
+      body.appendChild(group);
+    });
+  }
+  overlay.classList.add('active');
+}
+
+function closeGvAssign() {
+  const overlay = document.getElementById('gv-assign-overlay');
+  if (overlay) overlay.classList.remove('active');
+  gvAssignContext = null;
+}
+
+function saveGvAssign() {
+  if (!gvAssignContext) { closeGvAssign(); return; }
+  const { name, relUrl } = gvAssignContext;
+  const overlay = document.getElementById('gv-assign-overlay');
+  const checks = overlay.querySelectorAll('input[type="checkbox"]');
+  const selectedRoomIds = new Set();
+  checks.forEach(c => { if (c.checked) selectedRoomIds.add(c.dataset.roomId); });
+  allRoomsWithFloor().forEach(({ floor, room }) => {
+    if (!Array.isArray(room.currentPhotos)) room.currentPhotos = [];
+    const has = room.currentPhotos.some(p => (p.url || '').endsWith(relUrl) || p.url === relUrl);
+    if (selectedRoomIds.has(room.id) && !has) {
+      room.currentPhotos.push({
+        id: 'cp_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,6),
+        url: relUrl,
+        caption: 'Greenview · ' + name,
+        link: '',
+        posY: 50
+      });
+    } else if (!selectedRoomIds.has(room.id) && has) {
+      room.currentPhotos = room.currentPhotos.filter(p => !((p.url || '').endsWith(relUrl) || p.url === relUrl));
+    }
+  });
+  persist();
+  renderGreenview();
+  closeGvAssign();
 }
 
 // ============================================================
