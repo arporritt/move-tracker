@@ -609,18 +609,18 @@
     background: var(--bg-card);
     border: 1px solid var(--rule);
     border-radius: 14px;
-    padding: 18px 20px;
+    padding: 20px 22px;
     box-shadow: var(--shadow);
   }
   .room-card-header {
     display: flex; align-items: center; gap: 10px;
-    margin-bottom: 14px;
-    padding-bottom: 10px;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
     border-bottom: 1px solid var(--rule-soft);
   }
   .room-card-name {
     font-family: 'Fraunces', serif;
-    font-size: 18px;
+    font-size: 20px;
     font-weight: 500;
     color: var(--ink);
     letter-spacing: -0.01em;
@@ -640,20 +640,91 @@
     transition: color 0.15s, background 0.15s;
   }
   .room-card-del:hover { color: var(--behind); background: rgba(214,85,62,0.08); }
-  .room-items {
-    display: flex; flex-direction: column; gap: 8px;
+
+  .room-section-label {
+    font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--ink-faint); font-weight: 700;
+    margin-bottom: 8px; margin-top: 4px;
+  }
+  .inspiration-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
     margin-bottom: 12px;
   }
-  .room-item {
-    display: flex; align-items: flex-start; gap: 8px;
-    padding: 8px 10px;
+  .insp-tile {
+    position: relative;
+    aspect-ratio: 1;
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--rule-soft);
+    cursor: pointer;
+  }
+  .insp-tile img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: transform 0.2s;
+  }
+  .insp-tile:hover img { transform: scale(1.04); }
+  .insp-tile .insp-overlay {
+    position: absolute; inset: 0;
+    background: linear-gradient(180deg, transparent 50%, rgba(30,45,60,0.7));
+    opacity: 0; transition: opacity 0.15s;
+    display: flex; align-items: flex-end; padding: 8px;
+  }
+  .insp-tile:hover .insp-overlay { opacity: 1; }
+  .insp-tile .insp-caption {
+    color: white; font-size: 11px; line-height: 1.3;
+    flex: 1; word-break: break-word;
+  }
+  .insp-tile .insp-actions {
+    position: absolute; top: 6px; right: 6px;
+    display: flex; gap: 4px;
+    opacity: 0; transition: opacity 0.15s;
+  }
+  .insp-tile:hover .insp-actions { opacity: 1; }
+  .insp-tile .insp-btn {
+    background: rgba(255,255,255,0.9); border: none;
+    border-radius: 50%; width: 24px; height: 24px;
+    cursor: pointer; font-size: 12px;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--ink);
+    text-decoration: none;
+  }
+  .insp-tile .insp-btn:hover { background: white; }
+  .insp-tile .insp-btn.del { color: var(--behind); }
+  .add-insp-tile {
+    aspect-ratio: 1;
     background: rgba(122,160,194,0.06);
+    border: 2px dashed var(--rule);
+    border-radius: 8px;
+    color: var(--ink-faint);
+    font-family: 'Manrope', sans-serif;
+    font-size: 11px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    flex-direction: column; gap: 4px;
+    transition: all 0.15s;
+  }
+  .add-insp-tile:hover { color: var(--clay); border-color: var(--clay-soft); background: rgba(122,160,194,0.10); }
+  .add-insp-tile-plus { font-size: 22px; font-weight: 300; line-height: 1; }
+
+  .buy-list {
+    display: flex; flex-direction: column; gap: 4px;
+    margin-bottom: 10px;
+  }
+  .buy-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 8px;
     border-radius: 6px;
     transition: background 0.1s;
   }
-  .room-item:hover { background: rgba(122,160,194,0.12); }
-  .room-item-text {
-    flex: 1;
+  .buy-item:hover { background: rgba(122,160,194,0.06); }
+  .buy-item.is-bought .buy-name { text-decoration: line-through; color: var(--ink-faint); }
+  .buy-check { width: 16px; height: 16px; cursor: pointer; accent-color: var(--forest); flex-shrink: 0; }
+  .buy-name {
+    flex: 1; min-width: 0;
     background: transparent;
     border: 1px solid transparent;
     font-family: 'Manrope', sans-serif;
@@ -662,25 +733,46 @@
     outline: none;
     padding: 2px 4px;
     border-radius: 4px;
-    min-width: 0;
-    word-break: break-word;
   }
-  .room-item-text:focus { border-color: var(--clay); background: white; }
-  .room-item-link {
-    color: var(--clay);
-    text-decoration: none;
-    font-size: 14px;
+  .buy-name:focus { border-color: var(--clay); background: white; }
+  .buy-price {
+    width: 64px;
+    background: transparent;
+    border: 1px solid transparent;
+    font-family: 'Manrope', sans-serif;
+    font-size: 12px;
+    color: var(--ink-soft);
+    outline: none;
+    text-align: right;
+    padding: 2px 4px;
+    border-radius: 4px;
+    font-variant-numeric: tabular-nums;
+  }
+  .buy-price:focus { border-color: var(--clay); background: white; }
+  .buy-link {
+    color: var(--clay); text-decoration: none;
+    font-size: 13px; padding: 2px 4px;
     flex-shrink: 0;
+    background: transparent; border: none; cursor: pointer;
   }
-  .room-item-del {
+  .buy-link:hover { color: var(--plum); }
+  .buy-del {
     background: transparent; border: none; cursor: pointer;
     color: var(--ink-faint); font-size: 14px;
     padding: 2px 6px; border-radius: 4px;
-    opacity: 0.5; transition: opacity 0.15s;
+    opacity: 0; transition: opacity 0.15s;
     flex-shrink: 0;
   }
-  .room-item:hover .room-item-del { opacity: 1; }
-  .room-item-del:hover { color: var(--behind); }
+  .buy-item:hover .buy-del { opacity: 1; }
+  .buy-del:hover { color: var(--behind); }
+  .buy-total {
+    text-align: right; padding: 6px 10px;
+    font-size: 12px; color: var(--ink-soft);
+    font-variant-numeric: tabular-nums;
+    border-top: 1px solid var(--rule-soft);
+    margin-top: 4px;
+  }
+  .buy-total strong { color: var(--ink); font-weight: 700; }
   .add-item-btn {
     background: transparent;
     border: 1px dashed var(--rule);
@@ -6180,37 +6272,73 @@ function renderInspiration() {
 }
 
 function renderRoomCard(room) {
+  // Migrate any legacy `items` to buyList
+  if (room.items && !room.buyList) {
+    room.buyList = room.items.map(it => ({ id: it.id, name: it.text || '', price: 0, bought: false, link: it.link || '' }));
+    delete room.items;
+  }
+  if (!Array.isArray(room.images)) room.images = [];
+  if (!Array.isArray(room.buyList)) room.buyList = [];
+
   const card = document.createElement('div');
   card.className = 'room-card';
   card.dataset.id = room.id;
+  const totalBuy = room.buyList.reduce((s, i) => s + (Number(i.price) || 0), 0);
   card.innerHTML = `
     <div class="room-card-header">
       <input type="text" class="room-card-name" value="${escapeHTML(room.name || '')}" placeholder="Room name">
       <button class="room-card-del" title="Delete room">×</button>
     </div>
-    <div class="room-items"></div>
-    <button class="add-item-btn">+ Add item</button>
+    <div class="room-section-label">Inspiration</div>
+    <div class="inspiration-grid"></div>
+    <div class="room-section-label" style="margin-top:14px;">To buy</div>
+    <div class="buy-list"></div>
+    <button class="add-item-btn">+ Add to-buy item</button>
+    ${totalBuy > 0 ? `<div class="buy-total">Total: <strong>${fmtMoney(totalBuy)}</strong></div>` : ''}
   `;
   card.querySelector('.room-card-name').addEventListener('change', e => {
     room.name = e.target.value.trim();
     persist();
   });
   card.querySelector('.room-card-del').addEventListener('click', () => {
-    if (!confirm('Delete this room and all its items?')) return;
+    if (!confirm('Delete this room and all its content?')) return;
     state.inspiration[currentFloor] = state.inspiration[currentFloor].filter(r => r.id !== room.id);
     persist();
     renderInspiration();
   });
-  const itemsBox = card.querySelector('.room-items');
-  (room.items || []).forEach(item => itemsBox.appendChild(renderRoomItem(room, item)));
+
+  // Inspiration grid
+  const grid = card.querySelector('.inspiration-grid');
+  room.images.forEach(img => grid.appendChild(renderInspTile(room, img)));
+  const addTile = document.createElement('button');
+  addTile.className = 'add-insp-tile';
+  addTile.innerHTML = `<span class="add-insp-tile-plus">+</span><span>Add image</span>`;
+  addTile.addEventListener('click', () => {
+    const url = prompt('Image URL (paste an image link from Pinterest, Wayfair, etc.):');
+    if (!url || !url.trim()) return;
+    const cap = prompt('Caption (optional):', '');
+    const src = prompt('Source link (optional — where to buy / pin URL):', '');
+    room.images.push({
+      id: 'img_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,6),
+      url: url.trim(),
+      caption: (cap || '').trim(),
+      link: (src || '').trim()
+    });
+    persist();
+    renderInspiration();
+  });
+  grid.appendChild(addTile);
+
+  // Buy list
+  const list = card.querySelector('.buy-list');
+  room.buyList.forEach(item => list.appendChild(renderBuyItem(room, item)));
   card.querySelector('.add-item-btn').addEventListener('click', () => {
-    if (!room.items) room.items = [];
-    const newItem = { id: 'i_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,6), text: '', link: '' };
-    room.items.push(newItem);
+    const newItem = { id: 'b_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,6), name: '', price: 0, bought: false, link: '' };
+    room.buyList.push(newItem);
     persist();
     renderInspiration();
     setTimeout(() => {
-      const els = card.querySelectorAll('.room-item-text');
+      const els = card.querySelectorAll('.buy-name');
       const last = els[els.length - 1];
       if (last) last.focus();
     }, 0);
@@ -6218,33 +6346,84 @@ function renderRoomCard(room) {
   return card;
 }
 
-function renderRoomItem(room, item) {
-  const row = document.createElement('div');
-  row.className = 'room-item';
-  const linkHtml = item.link
-    ? `<a class="room-item-link" href="${escapeHTML(item.link)}" target="_blank" rel="noopener" title="${escapeHTML(item.link)}">↗</a>`
-    : `<button class="room-item-link" style="background:transparent;border:none;cursor:pointer;" title="Add link">🔗</button>`;
-  row.innerHTML = `
-    <input type="text" class="room-item-text" value="${escapeHTML(item.text || '')}" placeholder="Item / furniture / inspiration">
-    ${linkHtml}
-    <button class="room-item-del" title="Delete">×</button>
+function renderInspTile(room, img) {
+  const tile = document.createElement('div');
+  tile.className = 'insp-tile';
+  const safeUrl = escapeHTML(img.url || '');
+  const safeCaption = escapeHTML(img.caption || '');
+  const safeLink = escapeHTML(img.link || '');
+  const linkAttr = img.link ? `href="${safeLink}" target="_blank" rel="noopener"` : '';
+  tile.innerHTML = `
+    <img src="${safeUrl}" alt="${safeCaption}" loading="lazy" onerror="this.style.opacity=0.3">
+    <div class="insp-actions">
+      ${img.link ? `<a class="insp-btn" ${linkAttr} title="Open source">↗</a>` : ''}
+      <button class="insp-btn" data-act="edit" title="Edit">✎</button>
+      <button class="insp-btn del" data-act="del" title="Delete">×</button>
+    </div>
+    <div class="insp-overlay">
+      <div class="insp-caption">${safeCaption}</div>
+    </div>
   `;
-  row.querySelector('.room-item-text').addEventListener('change', e => {
-    item.text = e.target.value.trim();
+  tile.querySelector('[data-act="del"]').addEventListener('click', e => {
+    e.stopPropagation();
+    if (!confirm('Remove this image?')) return;
+    room.images = room.images.filter(i => i.id !== img.id);
+    persist();
+    renderInspiration();
+  });
+  tile.querySelector('[data-act="edit"]').addEventListener('click', e => {
+    e.stopPropagation();
+    const newCap = prompt('Caption:', img.caption || '');
+    if (newCap === null) return;
+    const newLink = prompt('Source link:', img.link || '');
+    if (newLink === null) return;
+    img.caption = newCap.trim();
+    img.link = newLink.trim();
+    persist();
+    renderInspiration();
+  });
+  return tile;
+}
+
+function renderBuyItem(room, item) {
+  const row = document.createElement('div');
+  row.className = 'buy-item' + (item.bought ? ' is-bought' : '');
+  const linkBtn = item.link
+    ? `<a class="buy-link" href="${escapeHTML(item.link)}" target="_blank" rel="noopener" title="${escapeHTML(item.link)}">↗</a>`
+    : `<button class="buy-link" data-act="addlink" title="Add link">🔗</button>`;
+  row.innerHTML = `
+    <input type="checkbox" class="buy-check" ${item.bought ? 'checked' : ''}>
+    <input type="text" class="buy-name" value="${escapeHTML(item.name || '')}" placeholder="Item name">
+    <input type="text" class="buy-price" value="${item.price ? fmtMoney(item.price) : ''}" placeholder="$—">
+    ${linkBtn}
+    <button class="buy-del" title="Delete">×</button>
+  `;
+  row.querySelector('.buy-check').addEventListener('change', e => {
+    item.bought = e.target.checked;
+    persist();
+    renderInspiration();
+  });
+  row.querySelector('.buy-name').addEventListener('change', e => {
+    item.name = e.target.value.trim();
     persist();
   });
-  const linkEl = row.querySelector('.room-item-link');
-  if (linkEl.tagName === 'BUTTON') {
-    linkEl.addEventListener('click', e => {
+  row.querySelector('.buy-price').addEventListener('change', e => {
+    item.price = parseMoney(e.target.value);
+    persist();
+    renderInspiration();
+  });
+  const link = row.querySelector('.buy-link');
+  if (link.tagName === 'BUTTON') {
+    link.addEventListener('click', e => {
       e.preventDefault();
-      const url = prompt('Link URL:', item.link || '');
+      const url = prompt('Link URL (where to buy):', item.link || '');
       if (url === null) return;
       item.link = url.trim();
       persist();
       renderInspiration();
     });
   } else {
-    linkEl.addEventListener('contextmenu', e => {
+    link.addEventListener('contextmenu', e => {
       e.preventDefault();
       const url = prompt('Edit link (empty to remove):', item.link || '');
       if (url === null) return;
@@ -6253,8 +6432,8 @@ function renderRoomItem(room, item) {
       renderInspiration();
     });
   }
-  row.querySelector('.room-item-del').addEventListener('click', () => {
-    room.items = room.items.filter(i => i.id !== item.id);
+  row.querySelector('.buy-del').addEventListener('click', () => {
+    room.buyList = room.buyList.filter(i => i.id !== item.id);
     persist();
     renderInspiration();
   });
