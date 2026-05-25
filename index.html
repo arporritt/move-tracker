@@ -5177,7 +5177,6 @@
       <button class="floor-tab-btn" data-floor="ground" onclick="switchFloor('ground')">Ground floor</button>
       <button class="floor-tab-btn" data-floor="upper" onclick="switchFloor('upper')">Upper floor</button>
     </div>
-    <div class="furniture-library" id="furniture-library"></div>
     <div id="rooms-container" class="rooms-container"></div>
     <button class="add-room-btn" onclick="addRoom()">+ Add room to this floor</button>
   </div>
@@ -6761,8 +6760,8 @@ function ensureInspirationState() {
   if (!Array.isArray(state.furnitureLibrary)) state.furnitureLibrary = [];
 }
 
-// Seed data extracted from 3827 Greenview pamphlet
-const PAMPHLET_FURNITURE = [
+// (Removed: furniture library / pamphlet import — replaced by simpler workflow)
+const PAMPHLET_FURNITURE_DISABLED = [
   // Living room
   { name: 'Family sectional sofa', from: 'Living Room' },
   { name: 'Fireplace seating chairs', from: 'Living Room' },
@@ -6934,7 +6933,6 @@ function addRoom() {
 function renderInspiration() {
   ensureInspirationState();
   document.querySelectorAll('.floor-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.floor === currentFloor));
-  renderFurnitureLibrary();
   const c = document.getElementById('rooms-container');
   c.innerHTML = '';
   const rooms = state.inspiration[currentFloor];
@@ -6984,23 +6982,6 @@ function renderRoomCard(room) {
     renderInspiration();
   });
 
-  // Drop target for furniture chips
-  card.addEventListener('dragover', e => {
-    if (![...e.dataTransfer.types].includes('text/furniture-id')) return;
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    card.classList.add('drag-target');
-  });
-  card.addEventListener('dragleave', e => {
-    if (!card.contains(e.relatedTarget)) card.classList.remove('drag-target');
-  });
-  card.addEventListener('drop', e => {
-    const id = e.dataTransfer.getData('text/furniture-id');
-    if (!id) return;
-    e.preventDefault();
-    card.classList.remove('drag-target');
-    moveFurnitureToRoom(id, room);
-  });
 
   // Inspiration grid
   const grid = card.querySelector('.inspiration-grid');
