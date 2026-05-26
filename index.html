@@ -867,6 +867,35 @@
     .gv-tile-action { opacity: 1; padding: 3px 8px; font-size: 10px; }
   }
 
+  /* ============ FLOOR SEGMENT (pill-style for sub-sub level) ============ */
+  .floor-segment {
+    display: inline-flex;
+    background: var(--rule-soft);
+    border-radius: 100px;
+    padding: 3px;
+    gap: 0;
+    align-items: center;
+  }
+  .floor-segment-btn {
+    background: transparent;
+    border: none;
+    padding: 6px 16px;
+    border-radius: 100px;
+    font-family: 'Manrope', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--ink-soft);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .floor-segment-btn:hover { color: var(--ink); }
+  .floor-segment-btn.active {
+    background: white;
+    color: var(--ink);
+    box-shadow: 0 1px 3px rgba(30,45,60,0.10);
+  }
+
   /* ============ INSPIRATION ============ */
   .floor-tabs {
     display: flex; gap: 4px;
@@ -5541,10 +5570,10 @@
 <div class="design-subtab-content" id="tab-layout">
   <div class="container" style="max-width: 1240px; margin: 0 auto; padding: 16px 40px;">
     <div class="layout-controls">
-      <div class="floor-tabs" style="margin-bottom:0;flex:0 0 auto;">
-        <button class="floor-tab-btn active" data-layout-floor="basement" onclick="switchLayoutFloor('basement')">Basement</button>
-        <button class="floor-tab-btn" data-layout-floor="ground" onclick="switchLayoutFloor('ground')">Ground floor</button>
-        <button class="floor-tab-btn" data-layout-floor="upper" onclick="switchLayoutFloor('upper')">Upper floor</button>
+      <div class="floor-segment" style="margin-bottom:0;flex:0 0 auto;">
+        <button class="floor-segment-btn active" data-layout-floor="basement" onclick="switchLayoutFloor('basement')">Basement</button>
+        <button class="floor-segment-btn" data-layout-floor="ground" onclick="switchLayoutFloor('ground')">Ground floor</button>
+        <button class="floor-segment-btn" data-layout-floor="upper" onclick="switchLayoutFloor('upper')">Upper floor</button>
       </div>
       <div class="layout-dims">
         <label>W <input type="number" id="layout-w" min="5" max="200" step="1" value="40"> ft</label>
@@ -5583,10 +5612,10 @@
 <!-- ============ DESIGN VISION (inside Design) ============ -->
 <div class="design-subtab-content active" id="tab-inspiration">
   <div class="container" style="max-width: 1240px; margin: 0 auto; padding: 24px 40px;">
-    <div class="floor-tabs">
-      <button class="floor-tab-btn active" data-floor="basement" onclick="switchFloor('basement')">Basement</button>
-      <button class="floor-tab-btn" data-floor="ground" onclick="switchFloor('ground')">Ground floor</button>
-      <button class="floor-tab-btn" data-floor="upper" onclick="switchFloor('upper')">Upper floor</button>
+    <div class="floor-segment" style="margin-bottom:18px;">
+      <button class="floor-segment-btn active" data-floor="basement" onclick="switchFloor('basement')">Basement</button>
+      <button class="floor-segment-btn" data-floor="ground" onclick="switchFloor('ground')">Ground floor</button>
+      <button class="floor-segment-btn" data-floor="upper" onclick="switchFloor('upper')">Upper floor</button>
     </div>
     <div id="rooms-container" class="rooms-container"></div>
     <button class="add-room-btn" onclick="addRoom()">+ Add room to this floor</button>
@@ -6976,7 +7005,7 @@ function uidShape() { return 's_' + Date.now().toString(36) + '_' + Math.random(
 function renderLayout() {
   ensureLayoutState();
   const fl = state.layouts[layoutFloor];
-  document.querySelectorAll('.floor-tab-btn[data-layout-floor]').forEach(b => b.classList.toggle('active', b.dataset.layoutFloor === layoutFloor));
+  document.querySelectorAll('.floor-segment-btn[data-layout-floor]').forEach(b => b.classList.toggle('active', b.dataset.layoutFloor === layoutFloor));
   document.getElementById('layout-w').value = fl.width;
   document.getElementById('layout-h').value = fl.height;
   const svg = document.getElementById('layout-svg');
@@ -8053,7 +8082,7 @@ function moveFurnitureToRoom(furnitureId, room) {
 function switchFloor(floor) {
   currentFloor = floor;
   try { localStorage.setItem('mt-floor', floor); } catch(e) {}
-  document.querySelectorAll('.floor-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.floor === floor));
+  document.querySelectorAll('.floor-segment-btn[data-floor]').forEach(b => b.classList.toggle('active', b.dataset.floor === floor));
   renderInspiration();
 }
 
@@ -8075,7 +8104,7 @@ function addRoom() {
 
 function renderInspiration() {
   ensureInspirationState();
-  document.querySelectorAll('.floor-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.floor === currentFloor));
+  document.querySelectorAll('.floor-segment-btn[data-floor]').forEach(b => b.classList.toggle('active', b.dataset.floor === currentFloor));
   const c = document.getElementById('rooms-container');
   c.innerHTML = '';
   const rooms = state.inspiration[currentFloor];
