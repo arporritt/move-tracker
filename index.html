@@ -345,6 +345,8 @@
   .tab-content.active { display: block; }
   .project-subtab-content { display: none; }
   .project-subtab-content.active { display: block; }
+  .design-subtab-content { display: none; }
+  .design-subtab-content.active { display: block; }
 
   /* ============ WEEK VIEW ============ */
   main { max-width: 1240px; margin: 0 auto; padding: 36px 40px 80px; }
@@ -2337,9 +2339,7 @@
   <div class="tab-bar-inner">
     <button class="tab-btn active" data-tab="project">Project plan</button>
     <button class="tab-btn" data-tab="budget">Budget</button>
-    <button class="tab-btn" data-tab="inspiration">Inspiration</button>
-    <button class="tab-btn" data-tab="greenview">Listing images</button>
-    <button class="tab-btn" data-tab="layout">Layout</button>
+    <button class="tab-btn" data-tab="design">Design</button>
   </div>
 </div>
 
@@ -5528,8 +5528,17 @@
   </div>
 </div>
 
-<!-- ============ LAYOUT TAB ============ -->
-<div class="tab-content" id="tab-layout">
+<!-- ============ DESIGN PARENT TAB (Design Vision + Listing images + Layout) ============ -->
+<div class="tab-content" id="tab-design">
+  <div class="project-subtabs" style="max-width: 1240px; margin: 14px auto 0; padding: 0 40px;">
+    <div class="floor-tabs" style="margin-bottom:0;">
+      <button class="floor-tab-btn active" data-design-subtab="inspiration" onclick="switchDesignSubtab('inspiration')">Design Vision</button>
+      <button class="floor-tab-btn" data-design-subtab="greenview" onclick="switchDesignSubtab('greenview')">Listing images</button>
+      <button class="floor-tab-btn" data-design-subtab="layout" onclick="switchDesignSubtab('layout')">Layout</button>
+    </div>
+  </div>
+<!-- ============ LAYOUT (inside Design) ============ -->
+<div class="design-subtab-content" id="tab-layout">
   <div class="container" style="max-width: 1240px; margin: 0 auto; padding: 16px 40px;">
     <div class="layout-controls">
       <div class="floor-tabs" style="margin-bottom:0;flex:0 0 auto;">
@@ -5560,8 +5569,8 @@
   </div>
 </div>
 
-<!-- ============ GREENVIEW TAB ============ -->
-<div class="tab-content" id="tab-greenview">
+<!-- ============ LISTING IMAGES (inside Design) ============ -->
+<div class="design-subtab-content" id="tab-greenview">
   <div class="container" style="max-width: 1240px; margin: 0 auto; padding: 24px 40px;">
     <div style="margin-bottom:18px;">
       <h2 style="font-family:'Fraunces',serif;font-weight:400;font-size:24px;letter-spacing:-0.01em;margin:0 0 6px;">565 N Boulder Ridge — listing photos</h2>
@@ -5571,8 +5580,8 @@
   </div>
 </div>
 
-<!-- ============ INSPIRATION TAB ============ -->
-<div class="tab-content" id="tab-inspiration">
+<!-- ============ DESIGN VISION (inside Design) ============ -->
+<div class="design-subtab-content active" id="tab-inspiration">
   <div class="container" style="max-width: 1240px; margin: 0 auto; padding: 24px 40px;">
     <div class="floor-tabs">
       <button class="floor-tab-btn active" data-floor="basement" onclick="switchFloor('basement')">Basement</button>
@@ -5583,6 +5592,8 @@
     <button class="add-room-btn" onclick="addRoom()">+ Add room to this floor</button>
   </div>
 </div>
+
+</div><!-- /tab-design -->
 
 <!-- ============ BUDGET TAB ============ -->
 <div class="tab-content" id="tab-budget">
@@ -6881,20 +6892,37 @@ function switchProjectSubtab(name) {
   if (name === 'weeks') renderWeeks(); else renderList();
 }
 
+let designSubtab = 'inspiration';
+try {
+  const saved = localStorage.getItem('mt-design-subtab');
+  if (['inspiration','greenview','layout'].includes(saved)) designSubtab = saved;
+} catch(e) {}
+
+function switchDesignSubtab(name) {
+  designSubtab = name;
+  try { localStorage.setItem('mt-design-subtab', name); } catch(e) {}
+  document.querySelectorAll('.floor-tab-btn[data-design-subtab]').forEach(b => b.classList.toggle('active', b.dataset.designSubtab === name));
+  document.querySelectorAll('.design-subtab-content').forEach(c => c.classList.remove('active'));
+  const inner = document.getElementById('tab-' + name);
+  if (inner) inner.classList.add('active');
+  if (name === 'inspiration') renderInspiration();
+  else if (name === 'greenview') renderGreenview();
+  else if (name === 'layout') renderLayout();
+}
+
 function renderActive() {
   const active = document.querySelector('.tab-btn.active').dataset.tab;
   if (active === 'project') {
-    // sync sub-tab UI then render the active sub-view
     document.querySelectorAll('.floor-tab-btn[data-subtab]').forEach(b => b.classList.toggle('active', b.dataset.subtab === projectSubtab));
     document.querySelectorAll('.project-subtab-content').forEach(c => c.classList.remove('active'));
     const inner = document.getElementById('tab-' + projectSubtab);
     if (inner) inner.classList.add('active');
     if (projectSubtab === 'weeks') renderWeeks(); else renderList();
   }
+  else if (active === 'design') {
+    switchDesignSubtab(designSubtab);
+  }
   else if (active === 'budget') renderBudget();
-  else if (active === 'inspiration') renderInspiration();
-  else if (active === 'greenview') renderGreenview();
-  else if (active === 'layout') renderLayout();
 }
 
 // ============================================================
