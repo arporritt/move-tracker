@@ -574,6 +574,164 @@
   .task.drag-over-top { box-shadow: 0 -3px 0 0 var(--clay); }
   .task.drag-over-bottom { box-shadow: 0 3px 0 0 var(--clay); }
 
+  /* ============ LAYOUT ============ */
+  .layout-controls {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 16px;
+    padding: 14px 16px;
+    background: var(--bg-card);
+    border: 1px solid var(--rule);
+    border-radius: 12px;
+    margin-bottom: 14px;
+  }
+  .layout-dims { display: flex; gap: 12px; }
+  .layout-dims label {
+    font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--ink-soft); font-weight: 700;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .layout-dims input {
+    width: 56px;
+    padding: 5px 8px;
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    font-family: 'Manrope', sans-serif;
+    font-size: 13px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    outline: none;
+  }
+  .layout-dims input:focus { border-color: var(--clay); }
+  .layout-tools { display: flex; gap: 4px; padding-left: 8px; border-left: 1px solid var(--rule); }
+  .layout-tool-btn {
+    width: 36px; height: 36px;
+    border: 1px solid var(--rule);
+    background: white;
+    border-radius: 8px;
+    font-size: 18px;
+    cursor: pointer;
+    color: var(--ink-soft);
+    transition: all 0.15s;
+  }
+  .layout-tool-btn:hover { border-color: var(--clay-soft); color: var(--clay); }
+  .layout-tool-btn.active {
+    background: var(--clay); color: white; border-color: var(--clay);
+  }
+  .layout-del-btn {
+    margin-left: auto;
+    padding: 8px 14px;
+    background: white;
+    border: 1px solid var(--rule);
+    border-radius: 100px;
+    font-family: 'Manrope', sans-serif;
+    font-size: 12px; font-weight: 600;
+    color: var(--ink-soft);
+    cursor: pointer;
+  }
+  .layout-del-btn:not(:disabled):hover { border-color: var(--behind); color: var(--behind); }
+  .layout-del-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .layout-canvas-wrap {
+    background: var(--bg-card);
+    border: 1px solid var(--rule);
+    border-radius: 12px;
+    overflow: hidden;
+    position: relative;
+  }
+  .layout-svg {
+    display: block;
+    width: 100%;
+    height: 70vh;
+    min-height: 400px;
+    background: linear-gradient(135deg, #FBFCFD 0%, #F4F8FA 100%);
+    cursor: crosshair;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .layout-svg.tool-select { cursor: default; }
+
+  .layout-svg .floor-outline {
+    fill: white;
+    stroke: var(--ink);
+    stroke-width: 0.15;
+    vector-effect: non-scaling-stroke;
+  }
+  .layout-svg .grid-line {
+    stroke: rgba(122,160,194,0.18);
+    stroke-width: 0.04;
+    vector-effect: non-scaling-stroke;
+  }
+  .layout-svg .grid-line.major {
+    stroke: rgba(122,160,194,0.35);
+    stroke-width: 0.06;
+  }
+  .layout-svg .shape {
+    fill: rgba(122,160,194,0.35);
+    stroke: var(--clay);
+    stroke-width: 0.1;
+    vector-effect: non-scaling-stroke;
+    cursor: move;
+  }
+  .layout-svg .shape.is-wall {
+    fill: var(--ink);
+    stroke: var(--ink);
+    stroke-width: 0.15;
+  }
+  .layout-svg .shape:hover { fill: rgba(122,160,194,0.55); }
+  .layout-svg .shape.selected {
+    fill: rgba(122,160,194,0.55);
+    stroke: var(--plum);
+    stroke-width: 0.2;
+  }
+  .layout-svg .shape-label {
+    font-family: 'Manrope', sans-serif;
+    font-size: 0.9px;
+    fill: var(--ink);
+    font-weight: 600;
+    text-anchor: middle;
+    dominant-baseline: middle;
+    pointer-events: none;
+  }
+  .layout-svg .shape-dim {
+    font-family: 'Manrope', sans-serif;
+    font-size: 0.7px;
+    fill: var(--ink-faint);
+    font-style: italic;
+    text-anchor: middle;
+    dominant-baseline: middle;
+    pointer-events: none;
+  }
+  .layout-svg .resize-handle {
+    fill: white;
+    stroke: var(--plum);
+    stroke-width: 0.15;
+    vector-effect: non-scaling-stroke;
+    cursor: nwse-resize;
+  }
+  .layout-svg .drawing-preview {
+    fill: rgba(122,160,194,0.20);
+    stroke: var(--clay);
+    stroke-width: 0.12;
+    stroke-dasharray: 0.4 0.3;
+    vector-effect: non-scaling-stroke;
+    pointer-events: none;
+  }
+  .layout-hint {
+    text-align: center;
+    padding: 10px 14px;
+    font-size: 12px;
+    color: var(--ink-soft);
+    font-style: italic;
+    font-family: 'Fraunces', serif;
+  }
+  @media (max-width: 600px) {
+    #tab-layout .container { padding: 12px 14px !important; }
+    .layout-controls { padding: 10px 12px; gap: 10px; }
+    .layout-tool-btn { width: 32px; height: 32px; font-size: 16px; }
+    .layout-dims input { width: 48px; }
+    .layout-svg { height: 60vh; min-height: 320px; }
+    .layout-del-btn { margin-left: 0; }
+  }
+
   /* ============ GREENVIEW ============ */
   .greenview-grid {
     display: grid;
@@ -2179,6 +2337,7 @@
     <button class="tab-btn" data-tab="budget">Budget</button>
     <button class="tab-btn" data-tab="inspiration">Inspiration</button>
     <button class="tab-btn" data-tab="greenview">Greenview</button>
+    <button class="tab-btn" data-tab="layout">Layout</button>
   </div>
 </div>
 
@@ -5358,6 +5517,35 @@
   </div>
 </div>
 
+<!-- ============ LAYOUT TAB ============ -->
+<div class="tab-content" id="tab-layout">
+  <div class="container" style="max-width: 1240px; margin: 0 auto; padding: 16px 40px;">
+    <div class="layout-controls">
+      <div class="floor-tabs" style="margin-bottom:0;flex:0 0 auto;">
+        <button class="floor-tab-btn active" data-layout-floor="basement" onclick="switchLayoutFloor('basement')">Basement</button>
+        <button class="floor-tab-btn" data-layout-floor="ground" onclick="switchLayoutFloor('ground')">Ground</button>
+        <button class="floor-tab-btn" data-layout-floor="upper" onclick="switchLayoutFloor('upper')">Upper</button>
+      </div>
+      <div class="layout-dims">
+        <label>W <input type="number" id="layout-w" min="5" max="200" step="1" value="40"> ft</label>
+        <label>H <input type="number" id="layout-h" min="5" max="200" step="1" value="30"> ft</label>
+      </div>
+      <div class="layout-tools">
+        <button class="layout-tool-btn" data-tool="select" title="Select / move">↔</button>
+        <button class="layout-tool-btn" data-tool="rect" title="Draw rectangle">▭</button>
+        <button class="layout-tool-btn" data-tool="circle" title="Draw circle">○</button>
+        <button class="layout-tool-btn" data-tool="oval" title="Draw oval">⬭</button>
+        <button class="layout-tool-btn" data-tool="wall" title="Draw wall">┃</button>
+      </div>
+      <button class="layout-del-btn" id="layout-del" disabled>Delete selected</button>
+    </div>
+    <div class="layout-canvas-wrap">
+      <svg id="layout-svg" class="layout-svg" preserveAspectRatio="xMidYMid meet"></svg>
+    </div>
+    <div class="layout-hint" id="layout-hint">Pick a shape tool above and drag on the canvas to draw. Switch to ↔ to move shapes around. Click a shape to select; double-click to rename.</div>
+  </div>
+</div>
+
 <!-- ============ GREENVIEW TAB ============ -->
 <div class="tab-content" id="tab-greenview">
   <div class="container" style="max-width: 1240px; margin: 0 auto; padding: 24px 40px;">
@@ -6671,7 +6859,308 @@ function renderActive() {
   else if (active === 'budget') renderBudget();
   else if (active === 'inspiration') renderInspiration();
   else if (active === 'greenview') renderGreenview();
+  else if (active === 'layout') renderLayout();
 }
+
+// ============================================================
+// LAYOUT (interior planner)
+// ============================================================
+let layoutFloor = 'basement';
+let layoutTool = 'select';
+let layoutSelectedId = null;
+let layoutDrawing = null; // {type, startX, startY, currentX, currentY, el}
+let layoutDragging = null; // {id, offsetX, offsetY}
+let layoutResizing = null; // {id, anchorX, anchorY}
+
+try {
+  const saved = localStorage.getItem('mt-layout-floor');
+  if (saved && ['basement','ground','upper'].includes(saved)) layoutFloor = saved;
+} catch(e) {}
+
+function ensureLayoutState() {
+  if (!state.layouts) state.layouts = {};
+  for (const f of ['basement','ground','upper']) {
+    if (!state.layouts[f]) state.layouts[f] = { width: 40, height: 30, shapes: [] };
+    if (!Array.isArray(state.layouts[f].shapes)) state.layouts[f].shapes = [];
+  }
+}
+
+function switchLayoutFloor(f) {
+  layoutFloor = f;
+  layoutSelectedId = null;
+  try { localStorage.setItem('mt-layout-floor', f); } catch(e) {}
+  renderLayout();
+}
+
+function setLayoutTool(tool) {
+  layoutTool = tool;
+  layoutSelectedId = null;
+  document.querySelectorAll('.layout-tool-btn').forEach(b => b.classList.toggle('active', b.dataset.tool === tool));
+  const svg = document.getElementById('layout-svg');
+  if (svg) svg.classList.toggle('tool-select', tool === 'select');
+  renderLayout();
+}
+
+function uidShape() { return 's_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,6); }
+
+function renderLayout() {
+  ensureLayoutState();
+  const fl = state.layouts[layoutFloor];
+  document.querySelectorAll('.floor-tab-btn[data-layout-floor]').forEach(b => b.classList.toggle('active', b.dataset.layoutFloor === layoutFloor));
+  document.getElementById('layout-w').value = fl.width;
+  document.getElementById('layout-h').value = fl.height;
+  const svg = document.getElementById('layout-svg');
+  const W = fl.width, H = fl.height;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.classList.toggle('tool-select', layoutTool === 'select');
+  document.querySelectorAll('.layout-tool-btn').forEach(b => b.classList.toggle('active', b.dataset.tool === layoutTool));
+  document.getElementById('layout-del').disabled = !layoutSelectedId;
+  // Build SVG content
+  let svgContent = '';
+  // Floor outline
+  svgContent += `<rect class="floor-outline" x="0" y="0" width="${W}" height="${H}"/>`;
+  // Grid
+  for (let x = 1; x < W; x++) {
+    svgContent += `<line class="grid-line ${x % 5 === 0 ? 'major' : ''}" x1="${x}" y1="0" x2="${x}" y2="${H}"/>`;
+  }
+  for (let y = 1; y < H; y++) {
+    svgContent += `<line class="grid-line ${y % 5 === 0 ? 'major' : ''}" x1="0" y1="${y}" x2="${W}" y2="${y}"/>`;
+  }
+  // Shapes
+  fl.shapes.forEach(s => {
+    svgContent += renderShapeSvg(s);
+  });
+  svg.innerHTML = svgContent;
+  attachLayoutHandlers();
+}
+
+function renderShapeSvg(s) {
+  const selected = s.id === layoutSelectedId ? ' selected' : '';
+  const wall = s.type === 'wall' ? ' is-wall' : '';
+  const fmtNum = n => Math.round(n * 10) / 10;
+  let shapeEl = '';
+  if (s.type === 'rect' || s.type === 'wall') {
+    shapeEl = `<rect class="shape${selected}${wall}" data-shape-id="${s.id}" x="${s.x}" y="${s.y}" width="${s.w}" height="${s.h}"/>`;
+  } else if (s.type === 'circle') {
+    const r = Math.min(s.w, s.h) / 2;
+    shapeEl = `<circle class="shape${selected}" data-shape-id="${s.id}" cx="${s.x + s.w/2}" cy="${s.y + s.h/2}" r="${r}"/>`;
+  } else if (s.type === 'oval') {
+    shapeEl = `<ellipse class="shape${selected}" data-shape-id="${s.id}" cx="${s.x + s.w/2}" cy="${s.y + s.h/2}" rx="${s.w/2}" ry="${s.h/2}"/>`;
+  }
+  const cx = s.x + s.w/2, cy = s.y + s.h/2;
+  const labelText = s.label || '';
+  const dimText = `${fmtNum(s.w)}' × ${fmtNum(s.h)}'`;
+  let labelHtml = '';
+  if (labelText) {
+    labelHtml += `<text class="shape-label" x="${cx}" y="${cy - 0.3}">${escapeHTML(labelText)}</text>`;
+    labelHtml += `<text class="shape-dim" x="${cx}" y="${cy + 0.7}">${dimText}</text>`;
+  } else {
+    labelHtml += `<text class="shape-dim" x="${cx}" y="${cy}">${dimText}</text>`;
+  }
+  let handle = '';
+  if (s.id === layoutSelectedId && s.type !== 'wall') {
+    const hs = 0.6;
+    handle = `<rect class="resize-handle" data-resize="${s.id}" x="${s.x + s.w - hs/2}" y="${s.y + s.h - hs/2}" width="${hs}" height="${hs}"/>`;
+  }
+  return shapeEl + labelHtml + handle;
+}
+
+function svgPointFromEvent(e) {
+  const svg = document.getElementById('layout-svg');
+  const pt = svg.createSVGPoint();
+  if (e.touches && e.touches.length) {
+    pt.x = e.touches[0].clientX; pt.y = e.touches[0].clientY;
+  } else {
+    pt.x = e.clientX; pt.y = e.clientY;
+  }
+  const ctm = svg.getScreenCTM();
+  if (!ctm) return { x: 0, y: 0 };
+  const inv = pt.matrixTransform(ctm.inverse());
+  return { x: inv.x, y: inv.y };
+}
+
+function attachLayoutHandlers() {
+  const svg = document.getElementById('layout-svg');
+  if (!svg) return;
+  // Replace any previous listeners by cloning the svg? Simpler: use named handler set once.
+  if (svg._handlersAttached) return;
+  svg._handlersAttached = true;
+  svg.addEventListener('pointerdown', onLayoutPointerDown);
+  svg.addEventListener('pointermove', onLayoutPointerMove);
+  svg.addEventListener('pointerup', onLayoutPointerUp);
+  svg.addEventListener('pointercancel', onLayoutPointerUp);
+  svg.addEventListener('dblclick', onLayoutDoubleClick);
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      if (layoutSelectedId && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+        deleteSelectedShape();
+        e.preventDefault();
+      }
+    } else if (e.key === 'Escape') {
+      layoutSelectedId = null;
+      renderLayout();
+    }
+  });
+  document.getElementById('layout-del').addEventListener('click', deleteSelectedShape);
+  document.getElementById('layout-w').addEventListener('change', e => {
+    const v = Math.max(5, Math.min(200, parseInt(e.target.value) || 40));
+    state.layouts[layoutFloor].width = v;
+    persist(); renderLayout();
+  });
+  document.getElementById('layout-h').addEventListener('change', e => {
+    const v = Math.max(5, Math.min(200, parseInt(e.target.value) || 30));
+    state.layouts[layoutFloor].height = v;
+    persist(); renderLayout();
+  });
+  document.querySelectorAll('.layout-tool-btn').forEach(b => {
+    b.addEventListener('click', () => setLayoutTool(b.dataset.tool));
+  });
+}
+
+function onLayoutPointerDown(e) {
+  if (e.button !== undefined && e.button !== 0) return;
+  const target = e.target;
+  const shapeId = target.getAttribute('data-shape-id');
+  const resizeId = target.getAttribute('data-resize');
+  if (resizeId) {
+    e.preventDefault();
+    const s = currentShape(resizeId);
+    if (s) {
+      layoutResizing = { id: resizeId, anchorX: s.x, anchorY: s.y };
+      e.target.setPointerCapture?.(e.pointerId);
+    }
+    return;
+  }
+  if (layoutTool === 'select' && shapeId) {
+    e.preventDefault();
+    layoutSelectedId = shapeId;
+    const s = currentShape(shapeId);
+    const pt = svgPointFromEvent(e);
+    if (s) layoutDragging = { id: shapeId, offsetX: pt.x - s.x, offsetY: pt.y - s.y };
+    renderLayout();
+    return;
+  }
+  if (layoutTool === 'select') {
+    // Click empty area: deselect
+    layoutSelectedId = null;
+    renderLayout();
+    return;
+  }
+  // Draw mode
+  e.preventDefault();
+  const pt = svgPointFromEvent(e);
+  layoutDrawing = { type: layoutTool, startX: pt.x, startY: pt.y, currentX: pt.x, currentY: pt.y };
+  renderDrawingPreview();
+}
+
+function onLayoutPointerMove(e) {
+  if (layoutDragging) {
+    const pt = svgPointFromEvent(e);
+    const s = currentShape(layoutDragging.id);
+    if (!s) return;
+    s.x = clamp(pt.x - layoutDragging.offsetX, 0, state.layouts[layoutFloor].width - s.w);
+    s.y = clamp(pt.y - layoutDragging.offsetY, 0, state.layouts[layoutFloor].height - s.h);
+    renderLayout();
+  } else if (layoutResizing) {
+    const pt = svgPointFromEvent(e);
+    const s = currentShape(layoutResizing.id);
+    if (!s) return;
+    s.w = Math.max(0.5, pt.x - layoutResizing.anchorX);
+    s.h = Math.max(0.5, pt.y - layoutResizing.anchorY);
+    const fl = state.layouts[layoutFloor];
+    if (s.x + s.w > fl.width) s.w = fl.width - s.x;
+    if (s.y + s.h > fl.height) s.h = fl.height - s.y;
+    renderLayout();
+  } else if (layoutDrawing) {
+    const pt = svgPointFromEvent(e);
+    layoutDrawing.currentX = pt.x;
+    layoutDrawing.currentY = pt.y;
+    renderDrawingPreview();
+  }
+}
+
+function onLayoutPointerUp(e) {
+  if (layoutDragging) {
+    layoutDragging = null;
+    persist();
+  } else if (layoutResizing) {
+    layoutResizing = null;
+    persist();
+  } else if (layoutDrawing) {
+    const d = layoutDrawing;
+    const x = Math.min(d.startX, d.currentX);
+    const y = Math.min(d.startY, d.currentY);
+    const w = Math.abs(d.currentX - d.startX);
+    const h = Math.abs(d.currentY - d.startY);
+    layoutDrawing = null;
+    document.querySelectorAll('.drawing-preview').forEach(el => el.remove());
+    if (w >= 0.5 && h >= 0.5) {
+      const label = (d.type === 'wall') ? '' : (prompt('Label this shape (e.g., "Sofa", "Bed", "Dining table"):', '') || '');
+      const newShape = {
+        id: uidShape(), type: d.type,
+        x: Math.round(x*10)/10, y: Math.round(y*10)/10,
+        w: Math.round(w*10)/10, h: Math.round(h*10)/10,
+        label: label.trim()
+      };
+      state.layouts[layoutFloor].shapes.push(newShape);
+      layoutSelectedId = newShape.id;
+      persist();
+      setLayoutTool('select');
+    } else {
+      renderLayout();
+    }
+  }
+}
+
+function onLayoutDoubleClick(e) {
+  const id = e.target.getAttribute('data-shape-id');
+  if (!id) return;
+  const s = currentShape(id);
+  if (!s) return;
+  const newLabel = prompt('Label:', s.label || '');
+  if (newLabel === null) return;
+  s.label = newLabel.trim();
+  persist();
+  renderLayout();
+}
+
+function renderDrawingPreview() {
+  const svg = document.getElementById('layout-svg');
+  if (!svg) return;
+  const d = layoutDrawing;
+  document.querySelectorAll('.drawing-preview, .drawing-dim').forEach(el => el.remove());
+  if (!d) return;
+  const x = Math.min(d.startX, d.currentX);
+  const y = Math.min(d.startY, d.currentY);
+  const w = Math.abs(d.currentX - d.startX);
+  const h = Math.abs(d.currentY - d.startY);
+  const fmtNum = n => Math.round(n * 10) / 10;
+  let shape = '';
+  if (d.type === 'rect' || d.type === 'wall') {
+    shape = `<rect class="drawing-preview" x="${x}" y="${y}" width="${w}" height="${h}"/>`;
+  } else if (d.type === 'circle') {
+    const r = Math.min(w, h) / 2;
+    shape = `<circle class="drawing-preview" cx="${x + w/2}" cy="${y + h/2}" r="${r}"/>`;
+  } else if (d.type === 'oval') {
+    shape = `<ellipse class="drawing-preview" cx="${x + w/2}" cy="${y + h/2}" rx="${w/2}" ry="${h/2}"/>`;
+  }
+  const dim = `<text class="shape-dim drawing-dim" x="${x + w/2}" y="${y + h/2}">${fmtNum(w)}' × ${fmtNum(h)}'</text>`;
+  svg.insertAdjacentHTML('beforeend', shape + dim);
+}
+
+function currentShape(id) {
+  return state.layouts[layoutFloor].shapes.find(s => s.id === id);
+}
+
+function deleteSelectedShape() {
+  if (!layoutSelectedId) return;
+  state.layouts[layoutFloor].shapes = state.layouts[layoutFloor].shapes.filter(s => s.id !== layoutSelectedId);
+  layoutSelectedId = null;
+  persist();
+  renderLayout();
+}
+
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
 // ============================================================
 // GREENVIEW REFERENCE PHOTOS
