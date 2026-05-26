@@ -657,6 +657,7 @@
     stroke-width: 0.15;
     vector-effect: non-scaling-stroke;
   }
+  .layout-svg .floor-plan-bg { pointer-events: none; }
   .layout-svg .grid-line {
     stroke: rgba(122,160,194,0.18);
     stroke-width: 0.04;
@@ -5547,6 +5548,9 @@
         <button class="layout-tool-btn" data-tool="oval" title="Draw oval">⬭</button>
         <button class="layout-tool-btn" data-tool="wall" title="Draw wall">┃</button>
       </div>
+      <label style="display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:var(--ink-soft);letter-spacing:0.04em;cursor:pointer;">
+        <input type="checkbox" id="layout-show-plan" checked> Show floor plan
+      </label>
       <button class="layout-del-btn" id="layout-del" disabled>Delete selected</button>
     </div>
     <div class="layout-canvas-wrap">
@@ -6908,17 +6912,18 @@ try {
   if (saved && ['basement','ground','upper'].includes(saved)) layoutFloor = saved;
 } catch(e) {}
 
-// 565 N Boulder Ridge actual floor dimensions (approximate, from listing floor plans)
+// 565 N Boulder Ridge actual floor dimensions + reference floor-plan images
 const FLOOR_DEFAULT_DIMS = {
-  basement: { width: 50, height: 40 }, // Floor 1: Rec 41'4"×38'1" + Bath. 1259 sq ft.
-  ground:   { width: 60, height: 45 }, // Floor 2: Family/Kitchen/Dining/Living/Bedroom/Garage/Deck. 1358 sq ft.
-  upper:    { width: 48, height: 35 }  // Floor 3: 4 bedrooms + 3 baths + WICs + laundry. 1304 sq ft.
+  basement: { width: 56, height: 70, plan: 'photos/listing/LIS_068.jpeg' }, // includes patio
+  ground:   { width: 60, height: 55, plan: 'photos/listing/LIS_069.jpeg' }, // includes deck + garage
+  upper:    { width: 56, height: 45, plan: 'photos/listing/LIS_071.jpeg' }
 };
 function ensureLayoutState() {
   if (!state.layouts) state.layouts = {};
   for (const f of ['basement','ground','upper']) {
-    if (!state.layouts[f]) state.layouts[f] = { ...FLOOR_DEFAULT_DIMS[f], shapes: [] };
+    if (!state.layouts[f]) state.layouts[f] = { ...FLOOR_DEFAULT_DIMS[f], shapes: [], showPlan: true };
     if (!Array.isArray(state.layouts[f].shapes)) state.layouts[f].shapes = [];
+    if (typeof state.layouts[f].showPlan !== 'boolean') state.layouts[f].showPlan = true;
   }
 }
 
@@ -6956,6 +6961,11 @@ function renderLayout() {
   let svgContent = '';
   // Floor outline
   svgContent += `<rect class="floor-outline" x="0" y="0" width="${W}" height="${H}"/>`;
+  // Floor plan background image (if enabled)
+  const planUrl = FLOOR_DEFAULT_DIMS[layoutFloor]?.plan;
+  if (planUrl && fl.showPlan !== false) {
+    svgContent += `<image class="floor-plan-bg" href="${planUrl}" x="0" y="0" width="${W}" height="${H}" preserveAspectRatio="xMidYMid meet" opacity="0.55"/>`;
+  }
   // Grid
   for (let x = 1; x < W; x++) {
     svgContent += `<line class="grid-line ${x % 5 === 0 ? 'major' : ''}" x1="${x}" y1="0" x2="${x}" y2="${H}"/>`;
@@ -7049,6 +7059,14 @@ function attachLayoutHandlers() {
     state.layouts[layoutFloor].height = v;
     persist(); renderLayout();
   });
+  const showPlan = document.getElementById('layout-show-plan');
+  if (showPlan) {
+    showPlan.checked = state.layouts[layoutFloor].showPlan !== false;
+    showPlan.addEventListener('change', e => {
+      state.layouts[layoutFloor].showPlan = e.target.checked;
+      persist(); renderLayout();
+    });
+  }
   document.querySelectorAll('.layout-tool-btn').forEach(b => {
     b.addEventListener('click', () => setLayoutTool(b.dataset.tool));
   });
