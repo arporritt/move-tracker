@@ -343,6 +343,8 @@
   /* ============ TAB CONTENT ============ */
   .tab-content { display: none; }
   .tab-content.active { display: block; }
+  .project-subtab-content { display: none; }
+  .project-subtab-content.active { display: block; }
 
   /* ============ WEEK VIEW ============ */
   main { max-width: 1240px; margin: 0 auto; padding: 36px 40px 80px; }
@@ -2332,8 +2334,7 @@
 <!-- ============ TABS ============ -->
 <div class="tab-bar">
   <div class="tab-bar-inner">
-    <button class="tab-btn active" data-tab="weeks">Week-by-week</button>
-    <button class="tab-btn" data-tab="list">Task list</button>
+    <button class="tab-btn active" data-tab="project">Project plan</button>
     <button class="tab-btn" data-tab="budget">Budget</button>
     <button class="tab-btn" data-tab="inspiration">Inspiration</button>
     <button class="tab-btn" data-tab="greenview">Greenview</button>
@@ -2341,8 +2342,16 @@
   </div>
 </div>
 
+<!-- ============ PROJECT PLAN (wraps weeks + list) ============ -->
+<div class="tab-content active" id="tab-project">
+  <div class="project-subtabs" style="max-width: 1240px; margin: 14px auto 0; padding: 0 40px;">
+    <div class="floor-tabs" style="margin-bottom:0;">
+      <button class="floor-tab-btn active" data-subtab="weeks" onclick="switchProjectSubtab('weeks')">Week-by-week</button>
+      <button class="floor-tab-btn" data-subtab="list" onclick="switchProjectSubtab('list')">Task list</button>
+    </div>
+  </div>
 <!-- ============ WEEK VIEW ============ -->
-<div class="tab-content active" id="tab-weeks">
+<div class="project-subtab-content active" id="tab-weeks">
   <div class="week-filters">
     <button class="week-filter-btn" data-filter="empty" onclick="toggleWeekFilter('empty')">Hide empty weeks</button>
     <button class="week-filter-btn" data-filter="past" onclick="toggleWeekFilter('past')">Hide past weeks</button>
@@ -5413,7 +5422,7 @@
 </div>
 
 <!-- ============ LIST VIEW ============ -->
-<div class="tab-content" id="tab-list">
+<div class="project-subtab-content" id="tab-list">
   <div class="list-controls">
     <input type="search" id="list-search" placeholder="Search tasks &amp; notes…">
     <select id="filter-week"><option value="">All weeks</option><option value="now">Now · May 15 → May 17</option><option value="w1">Week 1 · May 18 → May 24</option><option value="w2">Week 2 · May 25 → May 31</option><option value="w3">Week 3 · Jun 1 → Jun 7</option><option value="w4">Week 4 · Jun 8 → Jun 14</option><option value="w5">Week 5 · Jun 15 → Jun 21</option><option value="w6">Week 6 · Jun 22 → Jun 28</option><option value="w7">Week 7 · Jun 29 → Jul 5</option><option value="w8">Week 8 · Jul 6 → Jul 12</option><option value="w9">Week 9 · Jul 13 → Jul 19</option><option value="w10">Week 10 · Jul 20 → Jul 26</option><option value="w11">Week 11 · Jul 27 → Aug 2</option><option value="w12">Week 12 · Aug 3 → Aug 9</option><option value="w13">Week 13 · Aug 10 → Aug 16</option><option value="w14">Week 14 · Aug 17 → Aug 23</option><option value="w15">Week 15 · Aug 24 → Aug 30</option></select>
@@ -5459,6 +5468,7 @@
     </table>
   </div>
 </div>
+</div><!-- /tab-project -->
 
 <!-- ============ MODAL ============ -->
 <div class="modal-overlay" id="task-modal">
@@ -6026,7 +6036,7 @@ async function initApp() {
   cloudReady = true;
   applyWeekFilterButtons();
   refreshOwnerFilters();
-  renderWeeks();
+  switchProjectSubtab(projectSubtab);
   renderGantt();
   updateAllCounters();
   updateLastSaved();
@@ -6607,7 +6617,7 @@ function renderGantt() {
     `;
     cell.title = `${w.label} · ${w.dateLabel} · ${done}/${tasks.length}${behind ? ' · ' + behind + ' behind' : ''}`;
     cell.onclick = () => {
-      document.querySelector('.tab-btn[data-tab="weeks"]').click();
+      document.querySelector('.tab-btn[data-tab="project"]').click(); switchProjectSubtab('weeks');
       setTimeout(() => {
         const sec = document.getElementById(w.id);
         if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -6852,10 +6862,31 @@ document.addEventListener('keydown', e => {
 // ============================================================
 // TABS
 // ============================================================
+let projectSubtab = 'weeks';
+try {
+  const saved = localStorage.getItem('mt-project-subtab');
+  if (saved === 'weeks' || saved === 'list') projectSubtab = saved;
+} catch(e) {}
+
+function switchProjectSubtab(name) {
+  projectSubtab = name;
+  try { localStorage.setItem('mt-project-subtab', name); } catch(e) {}
+  document.querySelectorAll('.floor-tab-btn[data-subtab]').forEach(b => b.classList.toggle('active', b.dataset.subtab === name));
+  document.querySelectorAll('.project-subtab-content').forEach(c => c.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  if (name === 'weeks') renderWeeks(); else renderList();
+}
+
 function renderActive() {
   const active = document.querySelector('.tab-btn.active').dataset.tab;
-  if (active === 'weeks') renderWeeks();
-  else if (active === 'list') renderList();
+  if (active === 'project') {
+    // sync sub-tab UI then render the active sub-view
+    document.querySelectorAll('.floor-tab-btn[data-subtab]').forEach(b => b.classList.toggle('active', b.dataset.subtab === projectSubtab));
+    document.querySelectorAll('.project-subtab-content').forEach(c => c.classList.remove('active'));
+    const inner = document.getElementById('tab-' + projectSubtab);
+    if (inner) inner.classList.add('active');
+    if (projectSubtab === 'weeks') renderWeeks(); else renderList();
+  }
   else if (active === 'budget') renderBudget();
   else if (active === 'inspiration') renderInspiration();
   else if (active === 'greenview') renderGreenview();
