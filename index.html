@@ -2337,7 +2337,7 @@
     <button class="tab-btn active" data-tab="project">Project plan</button>
     <button class="tab-btn" data-tab="budget">Budget</button>
     <button class="tab-btn" data-tab="inspiration">Inspiration</button>
-    <button class="tab-btn" data-tab="greenview">Greenview</button>
+    <button class="tab-btn" data-tab="greenview">Listing images</button>
     <button class="tab-btn" data-tab="layout">Layout</button>
   </div>
 </div>
@@ -5533,8 +5533,8 @@
     <div class="layout-controls">
       <div class="floor-tabs" style="margin-bottom:0;flex:0 0 auto;">
         <button class="floor-tab-btn active" data-layout-floor="basement" onclick="switchLayoutFloor('basement')">Basement</button>
-        <button class="floor-tab-btn" data-layout-floor="ground" onclick="switchLayoutFloor('ground')">Ground</button>
-        <button class="floor-tab-btn" data-layout-floor="upper" onclick="switchLayoutFloor('upper')">Upper</button>
+        <button class="floor-tab-btn" data-layout-floor="ground" onclick="switchLayoutFloor('ground')">Ground floor</button>
+        <button class="floor-tab-btn" data-layout-floor="upper" onclick="switchLayoutFloor('upper')">Upper floor</button>
       </div>
       <div class="layout-dims">
         <label>W <input type="number" id="layout-w" min="5" max="200" step="1" value="40"> ft</label>
@@ -5560,7 +5560,7 @@
 <div class="tab-content" id="tab-greenview">
   <div class="container" style="max-width: 1240px; margin: 0 auto; padding: 24px 40px;">
     <div style="margin-bottom:18px;">
-      <h2 style="font-family:'Fraunces',serif;font-weight:400;font-size:24px;letter-spacing:-0.01em;margin:0 0 6px;">Greenview reference photos</h2>
+      <h2 style="font-family:'Fraunces',serif;font-weight:400;font-size:24px;letter-spacing:-0.01em;margin:0 0 6px;">565 N Boulder Ridge — listing photos</h2>
       <p style="color:var(--ink-soft);font-size:13.5px;margin:0;">Click a photo to assign it to one or more rooms. The photo will appear in those rooms' "Current home photos" sections.</p>
     </div>
     <div id="greenview-grid" class="greenview-grid"></div>
@@ -6908,10 +6908,16 @@ try {
   if (saved && ['basement','ground','upper'].includes(saved)) layoutFloor = saved;
 } catch(e) {}
 
+// 565 N Boulder Ridge actual floor dimensions (approximate, from listing floor plans)
+const FLOOR_DEFAULT_DIMS = {
+  basement: { width: 50, height: 40 }, // Floor 1: Rec 41'4"×38'1" + Bath. 1259 sq ft.
+  ground:   { width: 60, height: 45 }, // Floor 2: Family/Kitchen/Dining/Living/Bedroom/Garage/Deck. 1358 sq ft.
+  upper:    { width: 48, height: 35 }  // Floor 3: 4 bedrooms + 3 baths + WICs + laundry. 1304 sq ft.
+};
 function ensureLayoutState() {
   if (!state.layouts) state.layouts = {};
   for (const f of ['basement','ground','upper']) {
-    if (!state.layouts[f]) state.layouts[f] = { width: 40, height: 30, shapes: [] };
+    if (!state.layouts[f]) state.layouts[f] = { ...FLOOR_DEFAULT_DIMS[f], shapes: [] };
     if (!Array.isArray(state.layouts[f].shapes)) state.layouts[f].shapes = [];
   }
 }
@@ -7196,10 +7202,14 @@ function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 // ============================================================
 // GREENVIEW REFERENCE PHOTOS
 // ============================================================
-const GREENVIEW_PHOTOS = ['IMG_4586','IMG_4588','IMG_4589','IMG_4593','IMG_4594','IMG_4595','IMG_4596','IMG_4599','IMG_4600','IMG_4602','IMG_4604','IMG_4605','IMG_4606','IMG_4609','IMG_4610','IMG_4612','IMG_4614','IMG_4622','IMG_4623','IMG_4625','IMG_4627'];
+const GREENVIEW_PHOTOS = (() => {
+  const out = [];
+  for (let i = 1; i <= 72; i++) out.push('LIS_' + String(i).padStart(3,'0'));
+  return out;
+})();
 
 function greenviewPhotoUrl(name) {
-  return 'photos/greenview/' + name + '.jpeg';
+  return 'photos/listing/' + name + '.jpeg';
 }
 
 function allRoomsWithFloor() {
