@@ -5575,10 +5575,6 @@
         <button class="floor-segment-btn" data-layout-floor="ground" onclick="switchLayoutFloor('ground')">Ground floor</button>
         <button class="floor-segment-btn" data-layout-floor="upper" onclick="switchLayoutFloor('upper')">Upper floor</button>
       </div>
-      <div class="layout-dims">
-        <label>W <input type="number" id="layout-w" min="5" max="200" step="1" value="40"> ft</label>
-        <label>H <input type="number" id="layout-h" min="5" max="200" step="1" value="30"> ft</label>
-      </div>
       <div class="layout-tools">
         <button class="layout-tool-btn" data-tool="select" title="Select / move">↔</button>
         <button class="layout-tool-btn" data-tool="rect" title="Draw rectangle">▭</button>
@@ -7019,8 +7015,6 @@ function renderLayout() {
   ensureLayoutState();
   const fl = state.layouts[layoutFloor];
   document.querySelectorAll('.floor-segment-btn[data-layout-floor]').forEach(b => b.classList.toggle('active', b.dataset.layoutFloor === layoutFloor));
-  document.getElementById('layout-w').value = fl.width;
-  document.getElementById('layout-h').value = fl.height;
   const svg = document.getElementById('layout-svg');
   const W = fl.width, H = fl.height;
   if (!layoutViewBox) layoutViewBox = { x: 0, y: 0, w: W, h: H };
@@ -7123,16 +7117,6 @@ function attachLayoutHandlers() {
     }
   });
   document.getElementById('layout-del').addEventListener('click', deleteSelectedShape);
-  document.getElementById('layout-w').addEventListener('change', e => {
-    const v = Math.max(5, Math.min(200, parseInt(e.target.value) || 40));
-    state.layouts[layoutFloor].width = v;
-    persist(); renderLayout();
-  });
-  document.getElementById('layout-h').addEventListener('change', e => {
-    const v = Math.max(5, Math.min(200, parseInt(e.target.value) || 30));
-    state.layouts[layoutFloor].height = v;
-    persist(); renderLayout();
-  });
   const showPlan = document.getElementById('layout-show-plan');
   if (showPlan) {
     showPlan.checked = state.layouts[layoutFloor].showPlan !== false;
