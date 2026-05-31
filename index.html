@@ -7142,6 +7142,10 @@ function attachLayoutHandlers() {
       zoomLayoutBy(factor, svgPointFromEvent(e));
     }
   }, { passive: false });
+  document.querySelectorAll('.layout-tool-btn').forEach(b => {
+    if (!b.dataset.tool) return;
+    b.addEventListener('click', () => setLayoutTool(b.dataset.tool));
+  });
 }
 
 function zoomLayoutBy(factor, anchor) {
@@ -7196,10 +7200,6 @@ function applyCalibration(p2) {
   layoutCalibrating = null;
   persist();
   renderLayout();
-}
-  document.querySelectorAll('.layout-tool-btn').forEach(b => {
-    b.addEventListener('click', () => setLayoutTool(b.dataset.tool));
-  });
 }
 
 function onLayoutPointerDown(e) {
