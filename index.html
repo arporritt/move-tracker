@@ -1112,6 +1112,68 @@
     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
   }
   .insp-manage-add:hover { color: var(--clay); border-color: var(--clay-soft); background: rgba(122,160,194,0.14); }
+
+  /* Photo lightbox */
+  .photo-lightbox {
+    position: fixed; inset: 0; z-index: 9800;
+    background: rgba(0,0,0,0.92);
+    display: none;
+    align-items: center; justify-content: center;
+  }
+  .photo-lightbox.active { display: flex; }
+  .photo-lightbox img {
+    max-width: 92vw; max-height: 88vh;
+    object-fit: contain;
+    border-radius: 8px;
+    box-shadow: 0 30px 80px -20px rgba(0,0,0,0.5);
+  }
+  .photo-lightbox .nav {
+    position: absolute;
+    top: 50%; transform: translateY(-50%);
+    background: rgba(255,255,255,0.15);
+    border: none;
+    width: 48px; height: 48px;
+    border-radius: 50%;
+    color: white; font-size: 28px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s;
+  }
+  .photo-lightbox .nav:hover { background: rgba(255,255,255,0.30); }
+  .photo-lightbox .nav-prev { left: 20px; }
+  .photo-lightbox .nav-next { right: 20px; }
+  .photo-lightbox .lb-close {
+    position: absolute; top: 20px; right: 20px;
+    background: rgba(255,255,255,0.15);
+    border: none;
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    color: white; font-size: 22px;
+    cursor: pointer;
+  }
+  .photo-lightbox .lb-close:hover { background: rgba(255,255,255,0.30); }
+  .photo-lightbox .lb-caption {
+    position: absolute; bottom: 20px; left: 60px; right: 60px;
+    text-align: center;
+    color: white;
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-size: 14px;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.6);
+  }
+  .photo-lightbox .lb-counter {
+    position: absolute; top: 26px; left: 50%; transform: translateX(-50%);
+    color: rgba(255,255,255,0.7);
+    font-family: 'Manrope', sans-serif;
+    font-size: 12px; letter-spacing: 0.08em;
+  }
+  @media (max-width: 600px) {
+    .photo-lightbox .nav { width: 38px; height: 38px; font-size: 22px; }
+    .photo-lightbox .nav-prev { left: 8px; }
+    .photo-lightbox .nav-next { right: 8px; }
+    .photo-lightbox .lb-close { top: 12px; right: 12px; width: 36px; height: 36px; font-size: 18px; }
+    .photo-lightbox .lb-counter { top: 18px; font-size: 11px; }
+  }
   .insp-tile {
     position: relative;
     aspect-ratio: 1;
@@ -8619,15 +8681,20 @@ function renderInspirationCollage(room) {
   const layout = n === 1 ? 'layout-1' : n === 2 ? 'layout-2' : n === 3 ? 'layout-3' : n === 4 ? 'layout-4' : 'layout-many';
   const collage = document.createElement('div');
   collage.className = 'insp-collage ' + layout;
+  collage.style.cursor = 'zoom-in';
   const visible = photos.slice(0, 5);
   visible.forEach((p, i) => {
     const tile = document.createElement('div');
     tile.className = 'insp-collage-tile';
     const isLast = i === visible.length - 1 && n > 5;
     tile.innerHTML = `<img src="${escapeHTML(p.url)}" alt="${escapeHTML(p.caption || '')}" loading="lazy" style="object-position:center ${p.posY ?? 50}%;" onerror="this.style.opacity=0.3">${isLast ? `<div class="more-badge">+${n - 4}</div>` : ''}`;
+    tile.addEventListener('click', e => {
+      e.stopPropagation();
+      // Open lightbox starting at this photo (or photo #4 if it's the +more tile)
+      openLightbox(photos, i);
+    });
     collage.appendChild(tile);
   });
-  collage.addEventListener('click', () => openInspirationUpload(room));
   attachInspDrop(collage, room);
   wrap.appendChild(collage);
   const actions = document.createElement('div');
@@ -8640,6 +8707,67 @@ function renderInspirationCollage(room) {
   actions.querySelector('[data-act="add"]').addEventListener('click', e => { e.stopPropagation(); openInspirationUpload(room); });
   wrap.appendChild(actions);
   return wrap;
+}
+
+// ============ PHOTO LIGHTBOX ============
+let lightboxState = null;
+function openLightbox(photos, index) {
+  if (!Array.isArray(photos) || photos.length === 0) return;
+  let overlay = document.getElementById('photo-lightbox');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'photo-lightbox';
+    overlay.className = 'photo-lightbox';
+    overlay.innerHTML = `
+      <button class="lb-close" title="Close (Esc)">×</button>
+      <button class="nav nav-prev" title="Previous (←)">‹</button>
+      <img alt="">
+      <button class="nav nav-next" title="Next (→)">›</button>
+      <div class="lb-counter"></div>
+      <div class="lb-caption"></div>
+    `;
+    overlay.addEventListener('click', e => {
+      if (e.target === overlay || e.target.classList.contains('lb-close')) {
+        overlay.classList.remove('active');
+      }
+    });
+    overlay.querySelector('.nav-prev').addEventListener('click', e => {
+      e.stopPropagation();
+      if (!lightboxState) return;
+      lightboxState.index = (lightboxState.index - 1 + lightboxState.photos.length) % lightboxState.photos.length;
+      updateLightbox();
+    });
+    overlay.querySelector('.nav-next').addEventListener('click', e => {
+      e.stopPropagation();
+      if (!lightboxState) return;
+      lightboxState.index = (lightboxState.index + 1) % lightboxState.photos.length;
+      updateLightbox();
+    });
+    document.addEventListener('keydown', e => {
+      if (!overlay.classList.contains('active')) return;
+      if (e.key === 'Escape') overlay.classList.remove('active');
+      else if (e.key === 'ArrowLeft') overlay.querySelector('.nav-prev').click();
+      else if (e.key === 'ArrowRight') overlay.querySelector('.nav-next').click();
+    });
+    document.body.appendChild(overlay);
+  }
+  lightboxState = { photos, index: Math.max(0, Math.min(index || 0, photos.length - 1)) };
+  updateLightbox();
+  overlay.classList.add('active');
+}
+
+function updateLightbox() {
+  if (!lightboxState) return;
+  const overlay = document.getElementById('photo-lightbox');
+  const { photos, index } = lightboxState;
+  const p = photos[index];
+  if (!p) return;
+  overlay.querySelector('img').src = p.url;
+  overlay.querySelector('img').alt = p.caption || '';
+  overlay.querySelector('.lb-caption').textContent = p.caption || '';
+  overlay.querySelector('.lb-counter').textContent = photos.length > 1 ? `${index + 1} / ${photos.length}` : '';
+  overlay.querySelector('.nav-prev').style.display = photos.length > 1 ? 'flex' : 'none';
+  overlay.querySelector('.nav-next').style.display = photos.length > 1 ? 'flex' : 'none';
 }
 
 function attachInspDrop(el, room) {
@@ -8824,16 +8952,22 @@ function openInspirationManage(room) {
   }
   const grid = overlay.querySelector('#insp-manage-grid');
   grid.innerHTML = '';
-  (room.inspirationPhotos || []).forEach(p => {
+  (room.inspirationPhotos || []).forEach((p, idx) => {
     const tile = document.createElement('div');
     tile.className = 'insp-manage-tile';
+    tile.style.cursor = 'zoom-in';
     tile.innerHTML = `<img src="${escapeHTML(p.url)}" alt="" style="object-position:center ${p.posY ?? 50}%"><button class="del" title="Remove">×</button>`;
-    tile.querySelector('.del').addEventListener('click', () => {
+    tile.addEventListener('click', e => {
+      if (e.target.classList.contains('del')) return;
+      openLightbox(room.inspirationPhotos, idx);
+    });
+    tile.querySelector('.del').addEventListener('click', e => {
+      e.stopPropagation();
       if (!confirm('Remove this photo?')) return;
       room.inspirationPhotos = room.inspirationPhotos.filter(x => x.id !== p.id);
       persist();
       renderInspiration();
-      openInspirationManage(room); // refresh modal
+      openInspirationManage(room);
     });
     grid.appendChild(tile);
   });
