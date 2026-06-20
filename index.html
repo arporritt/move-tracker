@@ -8728,10 +8728,15 @@ async function uploadImageToDrive(file) {
       })
     });
     const text = await resp.text();
+    console.log('[upload] response status:', resp.status, 'body first 300:', text.slice(0, 300));
     let json;
-    try { json = JSON.parse(text); } catch (e) { return { ok: false, reason: 'parse', fallback: dataUrl }; }
+    try { json = JSON.parse(text); }
+    catch (e) {
+      console.warn('[upload] not JSON. Server may not have new code deployed or returned an HTML error.');
+      return { ok: false, reason: 'response was HTML, not JSON. Re-deploy Apps Script (Manage deployments → New version).', fallback: dataUrl };
+    }
     if (json && json.ok && json.url) return { ok: true, url: json.url };
-    return { ok: false, reason: json && json.error ? json.error : 'unknown', fallback: dataUrl };
+    return { ok: false, reason: json && json.error ? json.error : 'no url in response', fallback: dataUrl };
   } catch (e) {
     console.warn('upload to Drive failed', e);
     return { ok: false, reason: String(e), fallback: dataUrl };
