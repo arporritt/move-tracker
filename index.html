@@ -6134,19 +6134,77 @@ async function cloudLoad() {
   }
 }
 
+function isDataUrl(u) { return typeof u === 'string' && u.startsWith('data:'); }
+
+function stripLocalOnlyPhotos(payload) {
+  // Deep-ish clone and strip any inspirationPhoto / currentPhoto with a data: URL.
+  // Those are kept ONLY in localStorage so we don't bloat the shared Sheets cell.
+  const clone = JSON.parse(JSON.stringify(payload));
+  if (clone.inspiration) {
+    for (const f of ['basement','ground','upper']) {
+      (clone.inspiration[f] || []).forEach(room => {
+        if (Array.isArray(room.inspirationPhotos)) {
+          room.inspirationPhotos = room.inspirationPhotos.filter(p => !isDataUrl(p.url));
+        }
+        if (Array.isArray(room.currentPhotos)) {
+          room.currentPhotos = room.currentPhotos.filter(p => !isDataUrl(p.url));
+        }
+      });
+    }
+  }
+  return clone;
+}
+
+function persistLocalOnlyPhotos() {
+  // Save data-URL photos to localStorage keyed by roomId
+  const out = {};
+  if (state.inspiration) {
+    for (const f of ['basement','ground','upper']) {
+      (state.inspiration[f] || []).forEach(room => {
+        const insp = (room.inspirationPhotos || []).filter(p => isDataUrl(p.url));
+        const cur = (room.currentPhotos || []).filter(p => isDataUrl(p.url));
+        if (insp.length || cur.length) out[room.id] = { inspirationPhotos: insp, currentPhotos: cur };
+      });
+    }
+  }
+  try { localStorage.setItem('mt-local-photos', JSON.stringify(out)); } catch (e) { console.warn('local photo persist failed', e); }
+}
+
+function mergeLocalOnlyPhotos() {
+  let map;
+  try { map = JSON.parse(localStorage.getItem('mt-local-photos') || '{}'); } catch (e) { return; }
+  if (!state.inspiration) return;
+  for (const f of ['basement','ground','upper']) {
+    (state.inspiration[f] || []).forEach(room => {
+      const local = map[room.id];
+      if (!local) return;
+      if (!Array.isArray(room.inspirationPhotos)) room.inspirationPhotos = [];
+      if (!Array.isArray(room.currentPhotos)) room.currentPhotos = [];
+      (local.inspirationPhotos || []).forEach(p => {
+        if (!room.inspirationPhotos.some(x => x.id === p.id)) room.inspirationPhotos.push(p);
+      });
+      (local.currentPhotos || []).forEach(p => {
+        if (!room.currentPhotos.some(x => x.id === p.id)) room.currentPhotos.push(p);
+      });
+    });
+  }
+}
+
 async function cloudSave(payload) {
   if (!SCRIPT_URL) { updateSyncStatus('nocloud'); return; }
   try {
-    const body = JSON.stringify({ p: APP_PASSWORD, data: payload });
+    // Always preserve local-only data-URL photos in localStorage first
+    persistLocalOnlyPhotos();
+    const stripped = stripLocalOnlyPhotos(payload);
+    const body = JSON.stringify({ p: APP_PASSWORD, data: stripped });
     if (body === lastSyncedJSON) { updateSyncStatus('saved'); return; }
-    // Google Sheets cell holds max ~50,000 characters. data is stringified separately inside, ~38K hard limit for safety.
-    const dataSize = JSON.stringify(payload).length;
+    const dataSize = JSON.stringify(stripped).length;
     if (dataSize > 45000) {
-      console.warn('state size', dataSize, '— too big for one Sheet cell. Cloud save will likely fail.');
+      console.warn('state size', dataSize, '— still over 45KB after stripping data URLs.');
       updateSyncStatus('error');
       if (!cloudSave._warnedSize || (Date.now() - cloudSave._warnedSize) > 60000) {
         cloudSave._warnedSize = Date.now();
-        alert(`Heads up: your tracker state is now ${(dataSize/1024).toFixed(0)} KB which is too big for the shared Google Sheets cell (50 KB limit).\n\nUploaded images won't sync to Tom. Drag URLs from websites instead of uploading local files.`);
+        alert(`State is ${(dataSize/1024).toFixed(0)} KB — over the 45 KB Sheet cell limit even after stripping local photos. Tasks, budget, etc. won't sync.`);
       }
       return;
     }
@@ -6172,22 +6230,21 @@ function scheduleCloudSave() {
 
 async function refreshFromCloud() {
   if (!cloudReady) return;
-  // Don't overwrite local with cloud if a save is pending/failed
   if (saveTimer) return;
   const cloud = await cloudLoad();
   if (!cloud || !cloud.tasks) return;
+  // Compare AFTER stripping local-only photos from current state (they're not in cloud by design)
+  const localForCompare = stripLocalOnlyPhotos(state);
   const cloudStr = JSON.stringify(cloud);
-  if (cloudStr === JSON.stringify(state)) return;
-  // Safety guard: if local state has substantially MORE data than cloud (e.g., we couldn't save large state),
-  // don't let cloud silently delete it.
-  const localBytes = JSON.stringify(state).length;
-  const cloudBytes = cloudStr.length;
-  if (localBytes > cloudBytes + 5000) {
-    console.warn('Skipping cloud refresh: local state is', localBytes, 'vs cloud', cloudBytes, '— local has more data');
+  if (cloudStr === JSON.stringify(localForCompare)) return;
+  // Safety: if local (stripped) has substantially more synced data, don't overwrite
+  if (JSON.stringify(localForCompare).length > cloudStr.length + 5000) {
+    console.warn('Skipping cloud refresh: local has more synced data than cloud');
     return;
   }
   state = cloud;
-  lastSyncedJSON = JSON.stringify({ p: APP_PASSWORD, data: state });
+  mergeLocalOnlyPhotos(); // re-attach our data-URL photos
+  lastSyncedJSON = JSON.stringify({ p: APP_PASSWORD, data: stripLocalOnlyPhotos(state) });
   refreshOwnerFilters();
   renderActive();
   renderGantt();
@@ -6239,6 +6296,9 @@ async function initApp() {
   // Migrate any tasks still on the removed 'beyond' week
   state.tasks.forEach(t => { if (t.week === 'beyond') t.week = 'w15'; });
   cloudReady = true;
+  // Merge in any data-URL photos kept in localStorage (don't sync but stick locally)
+  if (!state.inspiration) state.inspiration = { basement: [], ground: [], upper: [] };
+  mergeLocalOnlyPhotos();
   applyWeekFilterButtons();
   refreshOwnerFilters();
   switchProjectSubtab(projectSubtab);
