@@ -974,6 +974,142 @@
     gap: 8px;
     margin-bottom: 12px;
   }
+  .insp-collage-wrap { margin-bottom: 16px; }
+  .insp-collage {
+    display: grid;
+    gap: 4px;
+    border-radius: 12px;
+    overflow: hidden;
+    aspect-ratio: 16/10;
+    background: var(--rule-soft);
+  }
+  .insp-collage.layout-1 { grid-template-columns: 1fr; }
+  .insp-collage.layout-2 { grid-template-columns: 1fr 1fr; }
+  .insp-collage.layout-3 { grid-template-columns: 2fr 1fr; grid-template-rows: 1fr 1fr; }
+  .insp-collage.layout-3 > :nth-child(1) { grid-row: 1 / span 2; }
+  .insp-collage.layout-4 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
+  .insp-collage.layout-many { grid-template-columns: 2fr 1fr 1fr; grid-template-rows: 1fr 1fr; }
+  .insp-collage.layout-many > :nth-child(1) { grid-row: 1 / span 2; }
+  .insp-collage .insp-collage-tile {
+    overflow: hidden;
+    position: relative;
+    background: var(--rule-soft);
+  }
+  .insp-collage img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: transform 0.25s ease;
+  }
+  .insp-collage:hover img { transform: scale(1.02); }
+  .insp-collage-tile .more-badge {
+    position: absolute; inset: 0;
+    background: rgba(30,45,60,0.55);
+    color: white;
+    font-family: 'Fraunces', serif;
+    font-size: 20px;
+    font-weight: 500;
+    display: flex; align-items: center; justify-content: center;
+    backdrop-filter: blur(2px);
+  }
+  .insp-collage-empty {
+    aspect-ratio: 16/10;
+    background: linear-gradient(135deg, rgba(122,160,194,0.10), rgba(94,170,191,0.10));
+    border: 2px dashed var(--rule);
+    border-radius: 12px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+    color: var(--ink-soft);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .insp-collage-empty:hover { border-color: var(--clay); color: var(--clay); background: rgba(122,160,194,0.16); }
+  .insp-collage-empty .plus { font-size: 32px; font-weight: 200; line-height: 1; }
+  .insp-collage-empty .lbl { font-family: 'Fraunces', serif; font-style: italic; font-size: 14px; }
+  .insp-collage-empty .hint { font-size: 11px; color: var(--ink-faint); margin-top: 2px; }
+  .insp-collage-actions {
+    display: flex; gap: 8px;
+    margin-top: 6px;
+  }
+  .insp-action-btn {
+    background: transparent;
+    border: 1px solid var(--rule);
+    border-radius: 100px;
+    padding: 4px 12px;
+    font-family: 'Manrope', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--ink-soft);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .insp-action-btn:hover { border-color: var(--clay); color: var(--clay); }
+  .insp-collage.dragover, .insp-collage-empty.dragover {
+    box-shadow: 0 0 0 3px var(--clay);
+    transform: scale(0.995);
+  }
+
+  /* Manage inspiration modal */
+  .insp-manage-overlay {
+    position: fixed; inset: 0; z-index: 9300;
+    background: rgba(30,45,60,0.55);
+    backdrop-filter: blur(4px);
+    display: none; align-items: flex-start; justify-content: center;
+    padding: 20px;
+    overflow-y: auto;
+  }
+  .insp-manage-overlay.active { display: flex; }
+  .insp-manage-modal {
+    background: var(--bg-card);
+    border-radius: 14px;
+    max-width: 640px; width: 100%;
+    margin-top: 4vh;
+    box-shadow: 0 20px 60px -20px rgba(30,45,60,0.4);
+    overflow: hidden;
+  }
+  .insp-manage-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--rule);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .insp-manage-header h3 { font-family: 'Fraunces', serif; font-weight: 500; font-size: 18px; margin: 0; }
+  .insp-manage-grid {
+    padding: 16px 20px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 10px;
+    max-height: 70vh;
+    overflow-y: auto;
+  }
+  .insp-manage-tile {
+    position: relative;
+    aspect-ratio: 4/3;
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--rule-soft);
+  }
+  .insp-manage-tile img { width: 100%; height: 100%; object-fit: cover; }
+  .insp-manage-tile .del {
+    position: absolute; top: 4px; right: 4px;
+    background: rgba(255,255,255,0.95);
+    border: none; border-radius: 50%;
+    width: 24px; height: 24px;
+    color: var(--behind); cursor: pointer; font-size: 14px;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; transition: opacity 0.15s;
+  }
+  .insp-manage-tile:hover .del { opacity: 1; }
+  .insp-manage-add {
+    aspect-ratio: 4/3;
+    background: rgba(122,160,194,0.08);
+    border: 2px dashed var(--rule);
+    border-radius: 8px;
+    color: var(--ink-faint);
+    font-family: 'Manrope', sans-serif;
+    font-size: 12px;
+    cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  }
+  .insp-manage-add:hover { color: var(--clay); border-color: var(--clay-soft); background: rgba(122,160,194,0.14); }
   .insp-tile {
     position: relative;
     aspect-ratio: 1;
@@ -8234,33 +8370,57 @@ function renderInspiration() {
 }
 
 function renderRoomCard(room) {
-  // Migrate any legacy `items` to buyList
+  // Migrations
   if (room.items && !room.buyList) {
     room.buyList = room.items.map(it => ({ id: it.id, name: it.text || '', price: 0, bought: false, link: it.link || '' }));
     delete room.items;
   }
   if (!Array.isArray(room.images)) room.images = [];
   if (!Array.isArray(room.buyList)) room.buyList = [];
+  if (!Array.isArray(room.inspirationPhotos)) room.inspirationPhotos = [];
+  if (!Array.isArray(room.currentPhotos)) room.currentPhotos = [];
+
+  // One-time migrate existing images → inspirationPhotos and (if tagged tobuy) → buyList
+  if (room.images.length > 0 && !room._migratedToV2) {
+    room.images.forEach(img => {
+      if (!room.inspirationPhotos.some(p => p.url === img.url)) {
+        room.inspirationPhotos.push({
+          id: (img.id || 'p_' + Date.now().toString(36)) + '_m',
+          url: img.url,
+          caption: img.caption || '',
+          link: img.link || '',
+          posY: img.posY || 50
+        });
+      }
+      if (img.status === 'tobuy' && !room.buyList.some(b => b.imageUrl === img.url)) {
+        room.buyList.push({
+          id: 'b_' + (img.id || Date.now().toString(36)),
+          name: img.caption || 'From inspiration',
+          price: Number(img.price) || 0,
+          bought: false,
+          link: img.link || '',
+          imageUrl: img.url
+        });
+      }
+    });
+    room._migratedToV2 = true;
+    room.images = []; // clear out the legacy field
+  }
 
   const card = document.createElement('div');
   card.className = 'room-card';
   card.dataset.id = room.id;
-  const taggedToBuy = room.images.filter(i => i.status === 'tobuy');
-  const manualBuy = room.buyList;
-  const totalBuy = taggedToBuy.reduce((s, i) => s + (Number(i.price) || 0), 0)
-                + manualBuy.reduce((s, i) => s + (Number(i.price) || 0), 0);
-  if (!Array.isArray(room.currentPhotos)) room.currentPhotos = [];
+  const totalBuy = room.buyList.reduce((s, i) => s + (Number(i.price) || 0), 0);
   const currentOpen = !!room._currentOpen;
   card.innerHTML = `
     <div class="room-card-header">
       <input type="text" class="room-card-name" value="${escapeHTML(room.name || '')}" placeholder="Room name">
       <button class="room-card-del" title="Delete room">×</button>
     </div>
-    <div class="room-section-label">Inspiration</div>
-    <div class="inspiration-grid"></div>
-    <div class="room-section-label" style="margin-top:14px;">To buy <span style="opacity:0.5;letter-spacing:0.04em;">(${taggedToBuy.length + manualBuy.length})</span></div>
+    <div class="inspiration-host"></div>
+    <div class="room-section-label" style="margin-top:14px;">To buy <span style="opacity:0.5;letter-spacing:0.04em;">(${room.buyList.length})</span></div>
     <div class="buy-list"></div>
-    <button class="add-item-btn">+ Add manual to-buy item</button>
+    <button class="add-item-btn">+ Add to-buy item</button>
     ${totalBuy > 0 ? `<div class="buy-total">Total: <strong>${fmtMoney(totalBuy)}</strong></div>` : ''}
     <button class="current-photos-toggle ${currentOpen ? 'is-open' : ''}" data-act="toggle-current">${currentOpen ? '▾' : '▸'} Current home photos${room.currentPhotos.length ? ` (${room.currentPhotos.length})` : ''}</button>
     <div class="current-photos-section ${currentOpen ? 'is-open' : ''}">
@@ -8335,22 +8495,16 @@ function renderRoomCard(room) {
   });
 
 
-  // Inspiration grid
-  const grid = card.querySelector('.inspiration-grid');
-  room.images.forEach(img => grid.appendChild(renderInspTile(room, img)));
-  const addTile = document.createElement('button');
-  addTile.className = 'add-insp-tile';
-  addTile.innerHTML = `<span class="add-insp-tile-plus">+</span><span>Add image / link</span>`;
-  addTile.addEventListener('click', () => openAddImg(room));
-  grid.appendChild(addTile);
+  // Inspiration collage at the top
+  const inspHost = card.querySelector('.inspiration-host');
+  inspHost.appendChild(renderInspirationCollage(room));
 
-  // Buy list = tagged images (tobuy) + manual buyList items
+  // Buy list = manual buyList items only
   const list = card.querySelector('.buy-list');
-  if (taggedToBuy.length === 0 && manualBuy.length === 0) {
-    list.innerHTML = `<div style="font-size:11px;color:var(--ink-faint);font-style:italic;padding:4px 8px;">Tag images above as "To buy" and they appear here.</div>`;
+  if (room.buyList.length === 0) {
+    list.innerHTML = `<div style="font-size:11px;color:var(--ink-faint);font-style:italic;padding:4px 8px;">No items yet. Click below to add what you need to buy for this room.</div>`;
   }
-  taggedToBuy.forEach(img => list.appendChild(renderBuyFromImage(room, img)));
-  manualBuy.forEach(item => list.appendChild(renderBuyItem(room, item)));
+  room.buyList.forEach(item => list.appendChild(renderBuyItem(room, item)));
   card.querySelector('.add-item-btn').addEventListener('click', () => {
     const newItem = { id: 'b_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,6), name: '', price: 0, bought: false, link: '' };
     room.buyList.push(newItem);
@@ -8363,6 +8517,183 @@ function renderRoomCard(room) {
     }, 0);
   });
   return card;
+}
+
+function renderInspirationCollage(room) {
+  const photos = room.inspirationPhotos || [];
+  const wrap = document.createElement('div');
+  wrap.className = 'insp-collage-wrap';
+  if (photos.length === 0) {
+    const empty = document.createElement('button');
+    empty.className = 'insp-collage-empty';
+    empty.innerHTML = `<span class="plus">+</span><span class="lbl">Add inspiration photos</span><span class="hint">Click to pick from your computer, drop here, or paste URLs</span>`;
+    empty.addEventListener('click', () => openInspirationUpload(room));
+    attachInspDrop(empty, room);
+    wrap.appendChild(empty);
+    return wrap;
+  }
+  const n = photos.length;
+  const layout = n === 1 ? 'layout-1' : n === 2 ? 'layout-2' : n === 3 ? 'layout-3' : n === 4 ? 'layout-4' : 'layout-many';
+  const collage = document.createElement('div');
+  collage.className = 'insp-collage ' + layout;
+  const visible = photos.slice(0, 5);
+  visible.forEach((p, i) => {
+    const tile = document.createElement('div');
+    tile.className = 'insp-collage-tile';
+    const isLast = i === visible.length - 1 && n > 5;
+    tile.innerHTML = `<img src="${escapeHTML(p.url)}" alt="${escapeHTML(p.caption || '')}" loading="lazy" style="object-position:center ${p.posY ?? 50}%;" onerror="this.style.opacity=0.3">${isLast ? `<div class="more-badge">+${n - 4}</div>` : ''}`;
+    collage.appendChild(tile);
+  });
+  collage.addEventListener('click', () => openInspirationUpload(room));
+  attachInspDrop(collage, room);
+  wrap.appendChild(collage);
+  const actions = document.createElement('div');
+  actions.className = 'insp-collage-actions';
+  actions.innerHTML = `
+    <button class="insp-action-btn" data-act="manage">Manage ${n} photo${n>1?'s':''}</button>
+    <button class="insp-action-btn" data-act="add">+ Add more</button>
+  `;
+  actions.querySelector('[data-act="manage"]').addEventListener('click', e => { e.stopPropagation(); openInspirationManage(room); });
+  actions.querySelector('[data-act="add"]').addEventListener('click', e => { e.stopPropagation(); openInspirationUpload(room); });
+  wrap.appendChild(actions);
+  return wrap;
+}
+
+function attachInspDrop(el, room) {
+  el.addEventListener('dragover', e => {
+    const types = [...e.dataTransfer.types];
+    if (!types.some(t => ['text/uri-list','text/html','text/plain','Files'].includes(t))) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'copy';
+    el.classList.add('dragover');
+  });
+  el.addEventListener('dragleave', e => {
+    if (!el.contains(e.relatedTarget)) el.classList.remove('dragover');
+  });
+  el.addEventListener('drop', async e => {
+    e.preventDefault();
+    e.stopPropagation();
+    el.classList.remove('dragover');
+    // Multi-file drop
+    if (e.dataTransfer.files && e.dataTransfer.files.length) {
+      for (const file of e.dataTransfer.files) {
+        if (!file.type.startsWith('image/')) continue;
+        const dataUrl = await fileToDataUrl(file);
+        if (!dataUrl) continue;
+        addInspirationPhoto(room, { url: dataUrl, caption: file.name.replace(/\.[a-z]+$/i, ''), link: '' }, false);
+      }
+      persist();
+      renderInspiration();
+      return;
+    }
+    const extracted = await extractDropImage(e.dataTransfer);
+    if (extracted) addInspirationPhoto(room, extracted);
+  });
+}
+
+async function fileToDataUrl(file) {
+  // Resize large images to keep state-cell size manageable
+  return new Promise(res => {
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onload = e => {
+      img.onload = () => {
+        const MAX = 1200;
+        let { width, height } = img;
+        if (width > MAX || height > MAX) {
+          const r = Math.min(MAX / width, MAX / height);
+          width = Math.round(width * r);
+          height = Math.round(height * r);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        res(canvas.toDataURL('image/jpeg', 0.78));
+      };
+      img.onerror = () => res(null);
+      img.src = e.target.result;
+    };
+    reader.onerror = () => res(null);
+    reader.readAsDataURL(file);
+  });
+}
+
+function addInspirationPhoto(room, photo, doRender = true) {
+  if (!Array.isArray(room.inspirationPhotos)) room.inspirationPhotos = [];
+  room.inspirationPhotos.push({
+    id: 'ip_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,6),
+    url: photo.url,
+    caption: photo.caption || '',
+    link: photo.link || '',
+    posY: 50
+  });
+  if (doRender) {
+    persist();
+    renderInspiration();
+  }
+}
+
+function openInspirationUpload(room) {
+  // File picker (multi-select)
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.multiple = true;
+  input.onchange = async () => {
+    if (!input.files || input.files.length === 0) return;
+    for (const file of input.files) {
+      const dataUrl = await fileToDataUrl(file);
+      if (!dataUrl) continue;
+      addInspirationPhoto(room, { url: dataUrl, caption: file.name.replace(/\.[a-z]+$/i, ''), link: '' }, false);
+    }
+    persist();
+    renderInspiration();
+  };
+  input.click();
+}
+
+function openInspirationManage(room) {
+  let overlay = document.getElementById('insp-manage-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'insp-manage-overlay';
+    overlay.className = 'insp-manage-overlay';
+    overlay.innerHTML = `
+      <div class="insp-manage-modal" onclick="event.stopPropagation()">
+        <div class="insp-manage-header">
+          <h3 id="insp-manage-title">Manage inspiration photos</h3>
+          <button class="img-picker-close" onclick="document.getElementById('insp-manage-overlay').classList.remove('active')">×</button>
+        </div>
+        <div class="insp-manage-grid" id="insp-manage-grid"></div>
+      </div>
+    `;
+    overlay.addEventListener('click', () => overlay.classList.remove('active'));
+    document.body.appendChild(overlay);
+  }
+  const grid = overlay.querySelector('#insp-manage-grid');
+  grid.innerHTML = '';
+  (room.inspirationPhotos || []).forEach(p => {
+    const tile = document.createElement('div');
+    tile.className = 'insp-manage-tile';
+    tile.innerHTML = `<img src="${escapeHTML(p.url)}" alt="" style="object-position:center ${p.posY ?? 50}%"><button class="del" title="Remove">×</button>`;
+    tile.querySelector('.del').addEventListener('click', () => {
+      if (!confirm('Remove this photo?')) return;
+      room.inspirationPhotos = room.inspirationPhotos.filter(x => x.id !== p.id);
+      persist();
+      renderInspiration();
+      openInspirationManage(room); // refresh modal
+    });
+    grid.appendChild(tile);
+  });
+  // Add tile
+  const addEl = document.createElement('button');
+  addEl.className = 'insp-manage-add';
+  addEl.innerHTML = `<span style="font-size:24px;font-weight:200;line-height:1;">+</span><span>Add more</span>`;
+  addEl.addEventListener('click', () => openInspirationUpload(room));
+  grid.appendChild(addEl);
+  overlay.classList.add('active');
 }
 
 function renderInspTile(room, img) {
