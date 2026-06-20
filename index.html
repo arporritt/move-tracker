@@ -8658,16 +8658,9 @@ function attachInspDrop(el, room) {
     e.preventDefault();
     e.stopPropagation();
     el.classList.remove('dragover');
-    // Multi-file drop
+    // Multi-file drop → use Drive upload flow
     if (e.dataTransfer.files && e.dataTransfer.files.length) {
-      for (const file of e.dataTransfer.files) {
-        if (!file.type.startsWith('image/')) continue;
-        const dataUrl = await fileToDataUrl(file);
-        if (!dataUrl) continue;
-        addInspirationPhoto(room, { url: dataUrl, caption: file.name.replace(/\.[a-z]+$/i, ''), link: '' }, false);
-      }
-      persist();
-      renderInspiration();
+      await processUploadFiles(room, [...e.dataTransfer.files]);
       return;
     }
     const extracted = await extractDropImage(e.dataTransfer);
@@ -8719,6 +8712,76 @@ function addInspirationPhoto(room, photo, doRender = true) {
   }
 }
 
+async function uploadImageToDrive(file) {
+  const dataUrl = await fileToDataUrl(file);
+  if (!dataUrl) return { ok: false, reason: 'decode' };
+  try {
+    const resp = await fetch(SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        p: APP_PASSWORD,
+        action: 'upload',
+        filename: (file.name || 'upload').replace(/\.[a-z0-9]+$/i, ''),
+        mimeType: 'image/jpeg',
+        imageData: dataUrl
+      })
+    });
+    const text = await resp.text();
+    let json;
+    try { json = JSON.parse(text); } catch (e) { return { ok: false, reason: 'parse', fallback: dataUrl }; }
+    if (json && json.ok && json.url) return { ok: true, url: json.url };
+    return { ok: false, reason: json && json.error ? json.error : 'unknown', fallback: dataUrl };
+  } catch (e) {
+    console.warn('upload to Drive failed', e);
+    return { ok: false, reason: String(e), fallback: dataUrl };
+  }
+}
+
+function showUploadProgress(text) {
+  let el = document.getElementById('mt-upload-toast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'mt-upload-toast';
+    el.style.cssText = 'position:fixed;bottom:70px;right:18px;background:var(--ink);color:white;padding:10px 16px;border-radius:100px;font-family:Manrope,sans-serif;font-size:13px;z-index:9999;box-shadow:0 8px 24px -8px rgba(0,0,0,0.3);';
+    document.body.appendChild(el);
+  }
+  el.textContent = text;
+  el.style.display = 'block';
+}
+function hideUploadProgress() {
+  const el = document.getElementById('mt-upload-toast');
+  if (el) el.style.display = 'none';
+}
+
+async function processUploadFiles(room, files) {
+  const total = files.length;
+  let driveOk = 0, localFallback = 0, failed = [];
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    if (!file.type || !file.type.startsWith('image/')) { failed.push(file.name); continue; }
+    showUploadProgress(`Uploading ${i+1} of ${total}…`);
+    const result = await uploadImageToDrive(file);
+    if (result.ok) {
+      addInspirationPhoto(room, { url: result.url, caption: file.name.replace(/\.[a-z]+$/i, ''), link: '' }, false);
+      driveOk++;
+    } else if (result.fallback) {
+      addInspirationPhoto(room, { url: result.fallback, caption: file.name.replace(/\.[a-z]+$/i, ''), link: '' }, false);
+      localFallback++;
+    } else {
+      failed.push(file.name);
+    }
+  }
+  hideUploadProgress();
+  persist();
+  renderInspiration();
+  let msg = '';
+  if (driveOk) msg += `${driveOk} uploaded to Drive (syncs to Tom). `;
+  if (localFallback) msg += `${localFallback} saved locally only (Drive upload failed — Apps Script may need re-deploy). `;
+  if (failed.length) msg += `\nCouldn't read: ${failed.join(', ')}.`;
+  if (failed.length || localFallback) alert(msg.trim());
+}
+
 function openInspirationUpload(room) {
   const input = document.createElement('input');
   input.type = 'file';
@@ -8728,21 +8791,10 @@ function openInspirationUpload(room) {
   input.style.left = '-9999px';
   document.body.appendChild(input);
   input.addEventListener('change', async () => {
-    if (!input.files || input.files.length === 0) { document.body.removeChild(input); return; }
-    const total = input.files.length;
-    let ok = 0, failed = [];
-    for (const file of input.files) {
-      const dataUrl = await fileToDataUrl(file);
-      if (!dataUrl) { failed.push(file.name); continue; }
-      addInspirationPhoto(room, { url: dataUrl, caption: file.name.replace(/\.[a-z]+$/i, ''), link: '' }, false);
-      ok++;
-    }
+    const files = [...(input.files || [])];
     document.body.removeChild(input);
-    persist();
-    renderInspiration();
-    if (failed.length) {
-      alert(`${ok} of ${total} uploaded.\n\nThese couldn't be read (often HEIC from iPhone — export as JPEG first):\n• ${failed.join('\n• ')}`);
-    }
+    if (!files.length) return;
+    await processUploadFiles(room, files);
   });
   input.click();
 }
