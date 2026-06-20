@@ -974,7 +974,7 @@
     gap: 8px;
     margin-bottom: 12px;
   }
-  .insp-collage-wrap { margin-bottom: 16px; }
+  .insp-collage-wrap { margin-bottom: 16px; width: 100%; box-sizing: border-box; }
   .insp-collage {
     display: grid;
     gap: 4px;
@@ -982,6 +982,8 @@
     overflow: hidden;
     aspect-ratio: 16/10;
     background: var(--rule-soft);
+    width: 100%;
+    box-sizing: border-box;
   }
   .insp-collage.layout-1 { grid-template-columns: 1fr; }
   .insp-collage.layout-2 { grid-template-columns: 1fr 1fr; }
@@ -6170,10 +6172,20 @@ function scheduleCloudSave() {
 
 async function refreshFromCloud() {
   if (!cloudReady) return;
+  // Don't overwrite local with cloud if a save is pending/failed
+  if (saveTimer) return;
   const cloud = await cloudLoad();
   if (!cloud || !cloud.tasks) return;
   const cloudStr = JSON.stringify(cloud);
   if (cloudStr === JSON.stringify(state)) return;
+  // Safety guard: if local state has substantially MORE data than cloud (e.g., we couldn't save large state),
+  // don't let cloud silently delete it.
+  const localBytes = JSON.stringify(state).length;
+  const cloudBytes = cloudStr.length;
+  if (localBytes > cloudBytes + 5000) {
+    console.warn('Skipping cloud refresh: local state is', localBytes, 'vs cloud', cloudBytes, '— local has more data');
+    return;
+  }
   state = cloud;
   lastSyncedJSON = JSON.stringify({ p: APP_PASSWORD, data: state });
   refreshOwnerFilters();
