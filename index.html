@@ -6137,6 +6137,17 @@ async function cloudSave(payload) {
   try {
     const body = JSON.stringify({ p: APP_PASSWORD, data: payload });
     if (body === lastSyncedJSON) { updateSyncStatus('saved'); return; }
+    // Google Sheets cell holds max ~50,000 characters. data is stringified separately inside, ~38K hard limit for safety.
+    const dataSize = JSON.stringify(payload).length;
+    if (dataSize > 45000) {
+      console.warn('state size', dataSize, '— too big for one Sheet cell. Cloud save will likely fail.');
+      updateSyncStatus('error');
+      if (!cloudSave._warnedSize || (Date.now() - cloudSave._warnedSize) > 60000) {
+        cloudSave._warnedSize = Date.now();
+        alert(`Heads up: your tracker state is now ${(dataSize/1024).toFixed(0)} KB which is too big for the shared Google Sheets cell (50 KB limit).\n\nUploaded images won't sync to Tom. Drag URLs from websites instead of uploading local files.`);
+      }
+      return;
+    }
     await fetch(SCRIPT_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -8593,13 +8604,13 @@ function attachInspDrop(el, room) {
 }
 
 async function fileToDataUrl(file) {
-  // Resize large images to keep state-cell size manageable
+  // Resize aggressively — Google Sheets cell is capped at 50K chars
   return new Promise(res => {
     const img = new Image();
     const reader = new FileReader();
     reader.onload = e => {
       img.onload = () => {
-        const MAX = 1200;
+        const MAX = 640; // keep small enough that several can fit
         let { width, height } = img;
         if (width > MAX || height > MAX) {
           const r = Math.min(MAX / width, MAX / height);
@@ -8610,12 +8621,13 @@ async function fileToDataUrl(file) {
         canvas.width = width; canvas.height = height;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, width, height);
-        res(canvas.toDataURL('image/jpeg', 0.78));
+        try { res(canvas.toDataURL('image/jpeg', 0.7)); }
+        catch (err) { console.warn('canvas export failed', err); res(null); }
       };
-      img.onerror = () => res(null);
+      img.onerror = () => { console.warn('image decode failed (HEIC or unsupported?)', file.name); res(null); };
       img.src = e.target.result;
     };
-    reader.onerror = () => res(null);
+    reader.onerror = () => { console.warn('FileReader error', file.name); res(null); };
     reader.readAsDataURL(file);
   });
 }
@@ -8636,21 +8648,30 @@ function addInspirationPhoto(room, photo, doRender = true) {
 }
 
 function openInspirationUpload(room) {
-  // File picker (multi-select)
   const input = document.createElement('input');
   input.type = 'file';
-  input.accept = 'image/*';
+  input.accept = 'image/jpeg,image/png,image/webp,image/gif';
   input.multiple = true;
-  input.onchange = async () => {
-    if (!input.files || input.files.length === 0) return;
+  input.style.position = 'fixed';
+  input.style.left = '-9999px';
+  document.body.appendChild(input);
+  input.addEventListener('change', async () => {
+    if (!input.files || input.files.length === 0) { document.body.removeChild(input); return; }
+    const total = input.files.length;
+    let ok = 0, failed = [];
     for (const file of input.files) {
       const dataUrl = await fileToDataUrl(file);
-      if (!dataUrl) continue;
+      if (!dataUrl) { failed.push(file.name); continue; }
       addInspirationPhoto(room, { url: dataUrl, caption: file.name.replace(/\.[a-z]+$/i, ''), link: '' }, false);
+      ok++;
     }
+    document.body.removeChild(input);
     persist();
     renderInspiration();
-  };
+    if (failed.length) {
+      alert(`${ok} of ${total} uploaded.\n\nThese couldn't be read (often HEIC from iPhone — export as JPEG first):\n• ${failed.join('\n• ')}`);
+    }
+  });
   input.click();
 }
 
