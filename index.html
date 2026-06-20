@@ -6261,12 +6261,12 @@ async function cloudSave(payload) {
     const body = JSON.stringify({ p: APP_PASSWORD, data: stripped });
     if (body === lastSyncedJSON) { updateSyncStatus('saved'); return; }
     const dataSize = JSON.stringify(stripped).length;
-    if (dataSize > 45000) {
-      console.warn('state size', dataSize, '— still over 45KB after stripping data URLs.');
+    if (dataSize > 49500) {
+      console.warn('state size', dataSize, '— close to or over 50KB Sheet cell limit.');
       updateSyncStatus('error');
-      if (!cloudSave._warnedSize || (Date.now() - cloudSave._warnedSize) > 60000) {
+      if (!cloudSave._warnedSize || (Date.now() - cloudSave._warnedSize) > 300000) {
         cloudSave._warnedSize = Date.now();
-        alert(`State is ${(dataSize/1024).toFixed(0)} KB — over the 45 KB Sheet cell limit even after stripping local photos. Tasks, budget, etc. won't sync.`);
+        alert(`State is ${(dataSize/1024).toFixed(1)} KB — at the 50 KB Sheet cell limit. Cloud sync paused until you remove some items (rooms, tasks, photo references, etc.). Local changes are still safe in this browser.`);
       }
       return;
     }
