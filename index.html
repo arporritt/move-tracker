@@ -6260,23 +6260,7 @@ async function cloudSave(payload) {
     const stripped = stripLocalOnlyPhotos(payload);
     const body = JSON.stringify({ p: APP_PASSWORD, data: stripped });
     if (body === lastSyncedJSON) { updateSyncStatus('saved'); return; }
-    // State is split into 3 cells server-side (core + design + layouts).
-    // Each cell holds up to 50KB, so we check each part separately.
-    const coreOnly = {...stripped}; delete coreOnly.inspiration; delete coreOnly.layouts;
-    const coreSize = JSON.stringify(coreOnly).length;
-    const designSize = JSON.stringify({inspiration: stripped.inspiration || {}}).length;
-    const layoutsSize = JSON.stringify({layouts: stripped.layouts || {}}).length;
-    const maxPart = Math.max(coreSize, designSize, layoutsSize);
-    if (maxPart > 49500) {
-      const overPart = coreSize > 49500 ? 'tasks/budget' : designSize > 49500 ? 'design rooms' : 'layouts';
-      console.warn('state part too big:', { coreSize, designSize, layoutsSize });
-      updateSyncStatus('error');
-      if (!cloudSave._warnedSize || (Date.now() - cloudSave._warnedSize) > 300000) {
-        cloudSave._warnedSize = Date.now();
-        alert(`The "${overPart}" portion of your state hit the 50 KB cell limit. Cloud sync paused — remove some items from that section. Your changes are still safe in this browser.`);
-      }
-      return;
-    }
+    // State is now stored as a JSON file in Drive — no practical size limit.
     await fetch(SCRIPT_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },

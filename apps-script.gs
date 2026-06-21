@@ -1,11 +1,12 @@
 // ============================================================
 // Move Tracker — Google Apps Script backend
-// State is now split across 3 cells (A1 core, A2 design, A3 layouts) for ~150KB capacity.
+// State is stored as a JSON file in Drive (unlimited size).
+// On first run, auto-migrates any existing data from the old Sheet cells.
 // ============================================================
 
 const PASSWORD = 'lakegeneva';
 const SHEET_NAME = 'state';
-const CELLS = { core: 'A1', design: 'A2', layouts: 'A3' };
+const STATE_FILENAME = 'movetracker_state.json';
 const UPLOAD_FOLDER_NAME = 'Move Tracker Uploads';
 
 function authorizeDrive() {
@@ -27,41 +28,48 @@ function getUploadFolder_() {
   return DriveApp.createFolder(UPLOAD_FOLDER_NAME);
 }
 
-function readState_() {
+function getStateFile_() {
+  const folder = getUploadFolder_();
+  const it = folder.getFilesByName(STATE_FILENAME);
+  if (it.hasNext()) return it.next();
+  return folder.createFile(STATE_FILENAME, '{}', 'application/json');
+}
+
+function readStateFromCells_() {
+  // Legacy: read from up to 3 sheet cells (one-time migration source)
   const sh = getSheet_();
   const result = {};
-  const core = String(sh.getRange(CELLS.core).getValue() || '');
-  if (core) {
-    try { Object.assign(result, JSON.parse(core)); } catch (e) {}
-  }
-  const design = String(sh.getRange(CELLS.design).getValue() || '');
-  if (design) {
-    try {
-      const d = JSON.parse(design);
-      if (d.inspiration) result.inspiration = d.inspiration;
-    } catch (e) {}
-  }
-  const layouts = String(sh.getRange(CELLS.layouts).getValue() || '');
-  if (layouts) {
-    try {
-      const l = JSON.parse(layouts);
-      if (l.layouts) result.layouts = l.layouts;
-    } catch (e) {}
-  }
+  const cells = { core: 'A1', design: 'A2', layouts: 'A3' };
+  const core = String(sh.getRange(cells.core).getValue() || '');
+  if (core) { try { Object.assign(result, JSON.parse(core)); } catch (e) {} }
+  const design = String(sh.getRange(cells.design).getValue() || '');
+  if (design) { try { const d = JSON.parse(design); if (d.inspiration) result.inspiration = d.inspiration; } catch (e) {} }
+  const layouts = String(sh.getRange(cells.layouts).getValue() || '');
+  if (layouts) { try { const l = JSON.parse(layouts); if (l.layouts) result.layouts = l.layouts; } catch (e) {} }
   return result;
 }
 
-function writeState_(data) {
-  const sh = getSheet_();
-  const inspiration = data.inspiration;
-  const layouts = data.layouts;
-  const core = {};
-  for (const k of Object.keys(data)) {
-    if (k !== 'inspiration' && k !== 'layouts') core[k] = data[k];
+function readState_() {
+  const file = getStateFile_();
+  const content = file.getBlob().getDataAsString();
+  if (content && content.length > 2) { // not '{}' or empty
+    try {
+      const parsed = JSON.parse(content);
+      if (parsed && (parsed.tasks || parsed.budget || parsed.inspiration)) return parsed;
+    } catch (e) {}
   }
-  sh.getRange(CELLS.core).setValue(JSON.stringify(core));
-  sh.getRange(CELLS.design).setValue(JSON.stringify({ inspiration: inspiration || {} }));
-  sh.getRange(CELLS.layouts).setValue(JSON.stringify({ layouts: layouts || {} }));
+  // First-time migration from old Sheet cells
+  const cellData = readStateFromCells_();
+  if (cellData && Object.keys(cellData).length > 0) {
+    file.setContent(JSON.stringify(cellData));
+    return cellData;
+  }
+  return {};
+}
+
+function writeState_(data) {
+  const file = getStateFile_();
+  file.setContent(JSON.stringify(data));
 }
 
 function doGet(e) {
@@ -94,9 +102,7 @@ function doPost(e) {
       file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
       const id = file.getId();
       return ContentService.createTextOutput(JSON.stringify({
-        ok: true,
-        id: id,
-        url: 'https://lh3.googleusercontent.com/d/' + id
+        ok: true, id: id, url: 'https://lh3.googleusercontent.com/d/' + id
       })).setMimeType(ContentService.MimeType.JSON);
     } catch (err) {
       return ContentService.createTextOutput(JSON.stringify({ok:false,error:String(err)})).setMimeType(ContentService.MimeType.JSON);
