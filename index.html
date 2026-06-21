@@ -7701,18 +7701,32 @@ function roomsWithPhoto(photoUrl) {
 function renderGreenview() {
   const grid = document.getElementById('greenview-grid');
   grid.innerHTML = '';
-  GREENVIEW_PHOTOS.forEach(name => {
+  // Build photo list for lightbox navigation
+  const allPhotos = GREENVIEW_PHOTOS.map(name => ({
+    url: greenviewPhotoUrl(name),
+    caption: name
+  }));
+  GREENVIEW_PHOTOS.forEach((name, idx) => {
     const relUrl = greenviewPhotoUrl(name);
     const assigned = roomsWithPhoto(relUrl);
     const tile = document.createElement('div');
     tile.className = 'gv-tile';
+    tile.style.cursor = 'zoom-in';
     const chipsHtml = assigned.map(a => `<span class="gv-room-chip" title="${escapeHTML(FLOOR_LABELS[a.floor])}">${escapeHTML(a.room.name || 'Unnamed')}</span>`).join('');
     tile.innerHTML = `
       <img src="${relUrl}" alt="${name}" loading="lazy">
       <div class="gv-tile-rooms">${chipsHtml}</div>
       <button class="gv-tile-action">${assigned.length ? 'Edit rooms' : 'Assign to rooms'}</button>
     `;
-    tile.addEventListener('click', () => openGvAssign(name, relUrl));
+    // Click image → open lightbox; click "Assign to rooms" button → open assignment modal
+    tile.querySelector('img').addEventListener('click', e => {
+      e.stopPropagation();
+      openLightbox(allPhotos, idx);
+    });
+    tile.querySelector('.gv-tile-action').addEventListener('click', e => {
+      e.stopPropagation();
+      openGvAssign(name, relUrl);
+    });
     grid.appendChild(tile);
   });
 }
