@@ -1,14 +1,18 @@
 // ============================================================
 // Move Tracker — Google Apps Script backend
-// HOW TO UPDATE (one time): script.google.com → open project → replace ALL code with this →
-//   Deploy → Manage deployments → ✎ edit existing deployment → Version: New version → Deploy
-//   (Same Web App URL stays; you'll re-authorize Drive access on first run.)
+// State is now split across 3 cells (A1 core, A2 design, A3 layouts) for ~150KB capacity.
 // ============================================================
 
 const PASSWORD = 'lakegeneva';
 const SHEET_NAME = 'state';
-const CELL = 'A1';
+const CELLS = { core: 'A1', design: 'A2', layouts: 'A3' };
 const UPLOAD_FOLDER_NAME = 'Move Tracker Uploads';
+
+function authorizeDrive() {
+  const folder = DriveApp.createFolder('__move_tracker_auth_test__');
+  folder.setTrashed(true);
+  return 'Drive write access granted.';
+}
 
 function getSheet_() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -23,15 +27,50 @@ function getUploadFolder_() {
   return DriveApp.createFolder(UPLOAD_FOLDER_NAME);
 }
 
+function readState_() {
+  const sh = getSheet_();
+  const result = {};
+  const core = String(sh.getRange(CELLS.core).getValue() || '');
+  if (core) {
+    try { Object.assign(result, JSON.parse(core)); } catch (e) {}
+  }
+  const design = String(sh.getRange(CELLS.design).getValue() || '');
+  if (design) {
+    try {
+      const d = JSON.parse(design);
+      if (d.inspiration) result.inspiration = d.inspiration;
+    } catch (e) {}
+  }
+  const layouts = String(sh.getRange(CELLS.layouts).getValue() || '');
+  if (layouts) {
+    try {
+      const l = JSON.parse(layouts);
+      if (l.layouts) result.layouts = l.layouts;
+    } catch (e) {}
+  }
+  return result;
+}
+
+function writeState_(data) {
+  const sh = getSheet_();
+  const inspiration = data.inspiration;
+  const layouts = data.layouts;
+  const core = {};
+  for (const k of Object.keys(data)) {
+    if (k !== 'inspiration' && k !== 'layouts') core[k] = data[k];
+  }
+  sh.getRange(CELLS.core).setValue(JSON.stringify(core));
+  sh.getRange(CELLS.design).setValue(JSON.stringify({ inspiration: inspiration || {} }));
+  sh.getRange(CELLS.layouts).setValue(JSON.stringify({ layouts: layouts || {} }));
+}
+
 function doGet(e) {
   const p = e && e.parameter ? e.parameter.p : '';
   if (p !== PASSWORD) {
     return ContentService.createTextOutput('null').setMimeType(ContentService.MimeType.TEXT);
   }
-  const sh = getSheet_();
-  const val = sh.getRange(CELL).getValue();
-  const out = val ? String(val) : 'null';
-  return ContentService.createTextOutput(out).setMimeType(ContentService.MimeType.JSON);
+  const merged = readState_();
+  return ContentService.createTextOutput(JSON.stringify(merged)).setMimeType(ContentService.MimeType.JSON);
 }
 
 function doPost(e) {
@@ -40,7 +79,6 @@ function doPost(e) {
   if (body.p !== PASSWORD) {
     return ContentService.createTextOutput(JSON.stringify({ok:false,error:'unauthorized'})).setMimeType(ContentService.MimeType.JSON);
   }
-  // Image upload to Drive
   if (body.action === 'upload') {
     try {
       const folder = getUploadFolder_();
@@ -64,8 +102,6 @@ function doPost(e) {
       return ContentService.createTextOutput(JSON.stringify({ok:false,error:String(err)})).setMimeType(ContentService.MimeType.JSON);
     }
   }
-  // Default: save state JSON to the cell
-  const sh = getSheet_();
-  sh.getRange(CELL).setValue(JSON.stringify(body.data || {}));
+  writeState_(body.data || {});
   return ContentService.createTextOutput('{"ok":true}').setMimeType(ContentService.MimeType.JSON);
 }
