@@ -8200,6 +8200,7 @@ function addCurrentPhoto(room, photo) {
 function renderCurrentPhotoTile(room, photo) {
   const tile = document.createElement('div');
   tile.className = 'insp-tile';
+  tile.style.cursor = 'zoom-in';
   const posY = (typeof photo.posY === 'number') ? photo.posY : 50;
   const safeUrl = (photo.url || '').replace(/"/g, '&quot;');
   const safeCaption = escapeHTML(photo.caption || '');
@@ -8214,6 +8215,12 @@ function renderCurrentPhotoTile(room, photo) {
     </div>
     ${photo.caption ? `<div class="insp-overlay"><div class="insp-caption">${safeCaption}</div></div>` : ''}
   `;
+  // Click the image (not the action buttons) to open lightbox
+  tile.querySelector('img').addEventListener('click', e => {
+    e.stopPropagation();
+    const idx = (room.currentPhotos || []).findIndex(p => p.id === photo.id);
+    openLightbox(room.currentPhotos || [], Math.max(0, idx));
+  });
   tile.querySelector('[data-act="cp-up"]').addEventListener('click', e => {
     e.stopPropagation();
     photo.posY = Math.max(0, ((typeof photo.posY === 'number') ? photo.posY : 50) - 10);
