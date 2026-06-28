@@ -931,6 +931,36 @@
   .mb-board-header {
     margin-bottom: 20px;
   }
+  .mb-description {
+    background: var(--bg-card);
+    border: 1px solid var(--rule);
+    border-radius: 14px;
+    padding: 22px 26px;
+    margin-bottom: 24px;
+    font-family: 'Fraunces', serif;
+    font-size: 14.5px;
+    line-height: 1.6;
+    color: var(--ink-soft);
+    white-space: pre-wrap;
+    word-break: break-word;
+    outline: none;
+    cursor: text;
+    min-height: 80px;
+    box-shadow: var(--shadow);
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .mb-description:hover { border-color: var(--clay-soft); }
+  .mb-description:focus {
+    background: white;
+    border-color: var(--clay);
+    box-shadow: 0 0 0 2px rgba(122,160,194,0.18), var(--shadow);
+  }
+  .mb-description.empty::before {
+    content: attr(data-placeholder);
+    color: var(--ink-faint);
+    font-style: italic;
+  }
+  .mb-description.empty:focus::before { content: ''; }
   .mb-board-title {
     font-family: 'Fraunces', serif;
     font-weight: 300;
@@ -6087,7 +6117,8 @@
   <div class="container" style="max-width: 1240px; margin: 0 auto; padding: 24px 40px;">
     <div class="moodboard-controls">
       <div class="floor-segment" id="mb-floor-segment">
-        <button class="floor-segment-btn active" data-mb-floor="basement" onclick="switchMbFloor('basement')">Basement</button>
+        <button class="floor-segment-btn active" data-mb-floor="overall" onclick="switchMbFloor('overall')">Overall</button>
+        <button class="floor-segment-btn" data-mb-floor="basement" onclick="switchMbFloor('basement')">Basement</button>
         <button class="floor-segment-btn" data-mb-floor="ground" onclick="switchMbFloor('ground')">Ground floor</button>
         <button class="floor-segment-btn" data-mb-floor="upper" onclick="switchMbFloor('upper')">Upper floor</button>
       </div>
@@ -7554,21 +7585,46 @@ function switchDesignSubtab(name) {
 // ============================================================
 // MOOD BOARDS
 // ============================================================
-let mbFloor = 'basement';
+let mbFloor = 'overall';
 let mbRoomId = null;
 try {
   const f = localStorage.getItem('mt-mb-floor');
-  if (['basement','ground','upper'].includes(f)) mbFloor = f;
+  if (['overall','basement','ground','upper'].includes(f)) mbFloor = f;
   const r = localStorage.getItem('mt-mb-room');
   if (r) mbRoomId = r;
 } catch (e) {}
 
 function switchMbFloor(f) {
   mbFloor = f;
-  mbRoomId = null;
-  try { localStorage.setItem('mt-mb-floor', f); localStorage.removeItem('mt-mb-room'); } catch (e) {}
+  if (f !== 'overall') mbRoomId = null;
+  try { localStorage.setItem('mt-mb-floor', f); if (f !== 'overall') localStorage.removeItem('mt-mb-room'); } catch (e) {}
   renderMoodboard();
 }
+
+const DEFAULT_OVERALL_VISION = `The Style You're Shooting For: "Warm Transitional / Nancy Meyers"
+
+In plain language: a home that feels like it was built slowly, with intention, by someone with taste and a real life. Not a showroom. Not a flip. Layered, warm, effortless.
+
+THE THROUGH-LINES ACROSS ALL YOUR INSPO
+
+• Warm neutrals exclusively — cream, oat, butter, greige, warm taupe. Zero cool grays, zero stark white.
+• Soft brass / antique brass / gold metals — consistently. The lantern pendant, the ceiling fixture, the crystal globe chandelier — all warm gold tones.
+• Dark rich wood celebrated, not hidden — walnut, mahogany, espresso. The inspo rooms let dark furniture anchor the space against soft walls.
+• Walls that have color but read neutral — warm putty, soft sage-greige, creamy linen. Not beige beige, but not a statement color either.
+• Trim treated as an architectural feature — either painted out to match walls (French Parisian look) or in a warm crisp white/cream. Not builder bright white.
+• Soft, diffused lighting — linen shades, candlelight, brass fixtures. Nothing harsh or cool.
+
+HOW YOUR HOUSE MAPS TO THIS
+
+• Dark espresso hardwoods → Perfect — this IS the Nancy Meyers floor.
+• White shaker cabinets → Keep them — paint color on walls will warm them naturally.
+• Black iron stair balusters → The one tension point — inspo skews brass/dark wood, not black iron.
+• Light granite countertops → Fine — warm wall color will pull the warm veining forward.
+• High ceilings, generous light → Dream scenario for this aesthetic — soft color won't darken the space.
+
+METALS DIRECTION BASED ON INSPO
+
+Warm brass — specifically antique brass or unlacquered brass — is the consistent thread. Not polished/shiny gold. Think aged, slightly matte, with depth. This shows up in pendants, lanterns, cabinet pulls, faucets, door hardware. The crystal globe pendant in the Riley Elise entryway is a perfect example of the right fixture vibe.`;
 
 function selectMbRoom(id) {
   mbRoomId = id;
@@ -7578,10 +7634,18 @@ function selectMbRoom(id) {
 
 function renderMoodboard() {
   ensureInspirationState();
-  // Sync floor segment active state
   document.querySelectorAll('.floor-segment-btn[data-mb-floor]').forEach(b => b.classList.toggle('active', b.dataset.mbFloor === mbFloor));
-  // Room chips
   const chipsBox = document.getElementById('mb-room-chips');
+  const board = document.getElementById('mb-board');
+
+  // OVERALL view
+  if (mbFloor === 'overall') {
+    chipsBox.innerHTML = '';
+    renderOverallMoodboard(board);
+    return;
+  }
+
+  // Per-floor view
   const rooms = state.inspiration[mbFloor] || [];
   chipsBox.innerHTML = '';
   if (rooms.length === 0) {
@@ -7597,8 +7661,6 @@ function renderMoodboard() {
     chip.addEventListener('click', () => selectMbRoom(room.id));
     chipsBox.appendChild(chip);
   });
-  // Board
-  const board = document.getElementById('mb-board');
   if (!mbRoomId) {
     board.innerHTML = `<div class="mb-empty">Select a room above to view its mood board.</div>`;
     return;
@@ -7618,15 +7680,32 @@ function renderMoodboard() {
   if (buys.length) meta.push(`<span class="stat"><strong>${buys.length}</strong> to buy · ${fmtMoney(totalBuy)}</span>`);
   if (boughtCount) meta.push(`<span class="stat"><strong>${boughtCount}</strong> bought</span>`);
   if (currents.length) meta.push(`<span class="stat"><strong>${currents.length}</strong> current home photos</span>`);
+  const desc = room.description || '';
+  const placeholderText = `What's the vibe for ${room.name || 'this room'}? Click here to describe its mood, materials, colors, function…`;
   board.innerHTML = `
     <div class="mb-board-header">
       <div class="mb-board-title">${escapeHTML(room.name || 'Unnamed')}</div>
       <div class="mb-board-meta">${meta.join('')}</div>
     </div>
+    <div class="mb-description ${desc ? '' : 'empty'}" contenteditable="true" spellcheck="true" data-placeholder="${escapeHTML(placeholderText)}" id="mb-desc">${escapeHTML(desc)}</div>
     ${insp.length === 0 ? '<div class="mb-empty">No inspiration photos yet. Upload some in Design Vision.</div>' : '<div class="mb-photo-grid" id="mb-photo-grid"></div>'}
     ${buys.length ? '<div class="mb-section-title">To buy</div><div class="mb-buy-grid" id="mb-buy-grid"></div>' : ''}
     ${currents.length ? '<div class="mb-section-title">Current home</div><div class="mb-current-strip" id="mb-current-strip"></div>' : ''}
   `;
+  const descEl = board.querySelector('#mb-desc');
+  descEl.addEventListener('blur', () => {
+    const newText = descEl.innerText.trim();
+    descEl.classList.toggle('empty', !newText);
+    if (newText !== (room.description || '')) {
+      room.description = newText;
+      persist();
+    }
+  });
+  descEl.addEventListener('paste', e => {
+    e.preventDefault();
+    const text = (e.clipboardData || window.clipboardData).getData('text/plain');
+    document.execCommand('insertText', false, text);
+  });
   // Photo masonry
   if (insp.length) {
     const grid = document.getElementById('mb-photo-grid');
@@ -9442,6 +9521,60 @@ function openInspirationManage(room) {
   addEl.addEventListener('click', () => openInspirationUpload(room));
   grid.appendChild(addEl);
   overlay.classList.add('active');
+}
+
+function renderOverallMoodboard(board) {
+  if (!state.overallVision) state.overallVision = {};
+  if (!state.overallVision.description) {
+    state.overallVision.description = DEFAULT_OVERALL_VISION;
+  }
+  const desc = state.overallVision.description || '';
+  // Build a small curated photo strip: first inspiration photo from each room (max 12)
+  const curated = [];
+  for (const f of ['basement','ground','upper']) {
+    (state.inspiration[f] || []).forEach(room => {
+      const p = (room.inspirationPhotos || [])[0];
+      if (p) curated.push({ ...p, roomName: room.name });
+    });
+  }
+  const sample = curated.slice(0, 12);
+  const totalRooms = ['basement','ground','upper'].reduce((s, f) => s + (state.inspiration[f] || []).length, 0);
+  const totalPhotos = curated.length;
+  board.innerHTML = `
+    <div class="mb-board-header">
+      <div class="mb-board-title">Overall vision</div>
+      <div class="mb-board-meta">
+        <span class="stat"><strong>${totalRooms}</strong> rooms</span>
+        <span class="stat"><strong>${totalPhotos}</strong> rooms with inspo</span>
+      </div>
+    </div>
+    <div class="mb-description ${desc ? '' : 'empty'}" contenteditable="true" spellcheck="true" data-placeholder="Describe the overall vision for the house — style, palette, feel, anchor pieces…" id="mb-desc-overall">${escapeHTML(desc)}</div>
+    ${sample.length ? '<div class="mb-section-title">A glimpse from each room</div><div class="mb-photo-grid" id="mb-overall-grid"></div>' : '<div class="mb-empty">Add rooms and inspiration in Design Vision and they\'ll surface here.</div>'}
+  `;
+  const descEl = board.querySelector('#mb-desc-overall');
+  descEl.addEventListener('blur', () => {
+    const newText = descEl.innerText.trim();
+    descEl.classList.toggle('empty', !newText);
+    if (newText !== (state.overallVision.description || '')) {
+      state.overallVision.description = newText;
+      persist();
+    }
+  });
+  descEl.addEventListener('paste', e => {
+    e.preventDefault();
+    const text = (e.clipboardData || window.clipboardData).getData('text/plain');
+    document.execCommand('insertText', false, text);
+  });
+  if (sample.length) {
+    const grid = board.querySelector('#mb-overall-grid');
+    sample.forEach((p, i) => {
+      const fig = document.createElement('div');
+      fig.className = 'photo';
+      fig.innerHTML = `<img src="${escapeHTML(p.url)}" alt="${escapeHTML(p.roomName || '')}" title="${escapeHTML(p.roomName || '')}" loading="lazy">`;
+      fig.addEventListener('click', () => openLightbox(sample, i));
+      grid.appendChild(fig);
+    });
+  }
 }
 
 function renderInspTile(room, img) {
