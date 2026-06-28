@@ -1701,8 +1701,8 @@
   .budget-cat-total .sep { color: var(--ink-faint); margin: 0 6px; }
   .budget-line {
     display: grid;
-    grid-template-columns: 1fr 120px 120px 70px 36px;
-    gap: 14px;
+    grid-template-columns: minmax(0,1.6fr) 130px 110px 110px 60px 32px;
+    gap: 12px;
     padding: 10px 20px;
     border-top: 1px solid var(--rule-soft);
     align-items: center;
@@ -1753,18 +1753,84 @@
   .budget-add:hover { color: var(--clay); background: rgba(122,160,194,0.06); }
   .budget-cols {
     display: grid;
-    grid-template-columns: 1fr 120px 120px 70px 36px;
-    gap: 14px;
+    grid-template-columns: minmax(0,1.6fr) 130px 110px 110px 60px 32px;
+    gap: 12px;
     padding: 10px 20px 6px;
     font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
     color: var(--ink-faint); font-weight: 600;
   }
-  .budget-cols div:nth-child(2),
-  .budget-cols div:nth-child(3) { text-align: right; }
-  .budget-cols div:nth-child(4) { text-align: center; }
+  .budget-cols div:nth-child(3),
+  .budget-cols div:nth-child(4) { text-align: right; }
+  .budget-cols div:nth-child(5) { text-align: center; }
   @media (max-width: 720px) {
     .budget-summary { grid-template-columns: repeat(2, 1fr); }
-    .budget-line, .budget-cols { grid-template-columns: 1fr 90px 90px 50px 32px; gap: 8px; padding-left: 12px; padding-right: 12px; }
+    .budget-line, .budget-cols { grid-template-columns: 1fr 80px 80px 80px 36px 24px; gap: 6px; padding-left: 12px; padding-right: 12px; }
+  }
+
+  /* Budget visualization charts */
+  .budget-charts {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .budget-chart-card {
+    background: var(--bg-card);
+    border: 1px solid var(--rule);
+    border-radius: 12px;
+    padding: 18px 22px;
+    box-shadow: var(--shadow);
+  }
+  .budget-chart-title {
+    font-family: 'Fraunces', serif;
+    font-weight: 500;
+    font-size: 16px;
+    color: var(--ink);
+    margin-bottom: 16px;
+    letter-spacing: -0.01em;
+  }
+  .bar-row { margin-bottom: 12px; }
+  .bar-row:last-child { margin-bottom: 0; }
+  .bar-row-header {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-bottom: 4px;
+  }
+  .bar-row-label {
+    font-size: 12.5px; color: var(--ink); font-weight: 600;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    flex: 1; min-width: 0;
+  }
+  .bar-row-amount {
+    font-size: 11px; color: var(--ink-soft);
+    font-variant-numeric: tabular-nums;
+    margin-left: 10px; white-space: nowrap;
+  }
+  .bar-row-amount .actual-num { color: var(--ink); font-weight: 600; }
+  .bar-row-amount .over { color: var(--behind); font-weight: 700; }
+  .bar-bg {
+    position: relative;
+    height: 10px;
+    background: var(--rule-soft);
+    border-radius: 100px;
+    overflow: hidden;
+  }
+  .bar-fill-est {
+    position: absolute; top: 0; left: 0; bottom: 0;
+    background: rgba(122,160,194,0.35);
+    transition: width 0.3s ease;
+  }
+  .bar-fill-act {
+    position: absolute; top: 0; left: 0; bottom: 0;
+    background: var(--clay);
+    transition: width 0.3s ease;
+  }
+  .bar-fill-act.over { background: var(--behind); }
+  .bar-empty-state {
+    text-align: center; padding: 20px;
+    color: var(--ink-faint); font-style: italic; font-size: 12.5px;
+  }
+  @media (max-width: 720px) {
+    .budget-charts { grid-template-columns: 1fr; }
   }
 
   .owner-picker {
@@ -5830,6 +5896,7 @@
 <div class="tab-content" id="tab-budget">
   <div class="container" style="max-width: 1240px; margin: 0 auto; padding: 32px 40px;">
     <div class="budget-summary" id="budget-summary"></div>
+    <div class="budget-charts" id="budget-charts"></div>
     <div id="budget-categories"></div>
   </div>
 </div>
@@ -9288,9 +9355,82 @@ function parseMoney(s) {
   return isNaN(n) ? 0 : n;
 }
 
+function getBudgetRoomMap() {
+  const map = new Map();
+  if (state.inspiration) {
+    for (const f of ['basement','ground','upper']) {
+      (state.inspiration[f] || []).forEach(r => map.set(r.id, { ...r, floor: f }));
+    }
+  }
+  return map;
+}
+
+function renderBudgetCharts(items) {
+  const container = document.getElementById('budget-charts');
+  if (!container) return;
+  // Aggregate by Category
+  const byCat = {};
+  items.forEach(i => {
+    const k = i.category || 'Other';
+    if (!byCat[k]) byCat[k] = { estimated: 0, actual: 0 };
+    byCat[k].estimated += Number(i.estimated) || 0;
+    byCat[k].actual += Number(i.actual) || 0;
+  });
+  // Aggregate by Room
+  const roomMap = getBudgetRoomMap();
+  const byRoom = {};
+  items.forEach(i => {
+    const k = i.room ? (roomMap.get(i.room)?.name || 'Unknown room') : '— Unassigned';
+    if (!byRoom[k]) byRoom[k] = { estimated: 0, actual: 0 };
+    byRoom[k].estimated += Number(i.estimated) || 0;
+    byRoom[k].actual += Number(i.actual) || 0;
+  });
+  container.innerHTML = `
+    <div class="budget-chart-card">
+      <div class="budget-chart-title">Spend by Category</div>
+      <div id="bars-cat"></div>
+    </div>
+    <div class="budget-chart-card">
+      <div class="budget-chart-title">Spend by Room</div>
+      <div id="bars-room"></div>
+    </div>
+  `;
+  renderBars(document.getElementById('bars-cat'), byCat);
+  renderBars(document.getElementById('bars-room'), byRoom);
+}
+
+function renderBars(container, dataMap) {
+  const entries = Object.entries(dataMap).sort((a, b) => b[1].estimated - a[1].estimated);
+  if (entries.length === 0) {
+    container.innerHTML = '<div class="bar-empty-state">No data yet</div>';
+    return;
+  }
+  const max = Math.max(...entries.map(([_, v]) => Math.max(v.estimated, v.actual))) || 1;
+  entries.forEach(([name, v]) => {
+    const estPct = (v.estimated / max) * 100;
+    const actPct = (v.actual / max) * 100;
+    const over = v.actual > v.estimated && v.estimated > 0;
+    const overAmt = v.actual - v.estimated;
+    const row = document.createElement('div');
+    row.className = 'bar-row';
+    row.innerHTML = `
+      <div class="bar-row-header">
+        <span class="bar-row-label">${escapeHTML(name)}</span>
+        <span class="bar-row-amount"><span class="actual-num">${fmtMoney(v.actual)}</span> / ${fmtMoney(v.estimated)}${over ? ` <span class="over">+${fmtMoney(overAmt)}</span>` : ''}</span>
+      </div>
+      <div class="bar-bg">
+        <div class="bar-fill-est" style="width:${estPct}%"></div>
+        <div class="bar-fill-act ${over ? 'over' : ''}" style="width:${actPct}%"></div>
+      </div>
+    `;
+    container.appendChild(row);
+  });
+}
+
 function renderBudget() {
   ensureBudgetState();
   const items = state.budget.items.filter(matchesSearchBudget);
+  renderBudgetCharts(items);
 
   // Summary
   const totalEst = items.reduce((s, i) => s + (Number(i.estimated) || 0), 0);
@@ -9339,7 +9479,7 @@ function renderBudget() {
         <div class="budget-cat-total">${fmtMoney(catEst)}<span class="sep">est</span>${fmtMoney(catActual)}<span class="sep">actual</span></div>
       </div>
       <div class="budget-cols">
-        <div>Item</div><div>Estimated</div><div>Actual</div><div>Paid</div><div></div>
+        <div>Item</div><div>Room</div><div>Estimated</div><div>Actual</div><div>Paid</div><div></div>
       </div>
       <div class="budget-lines"></div>
       <button class="budget-add" data-cat="${escapeHTML(cat)}">+ Add line item</button>
@@ -9365,14 +9505,33 @@ function renderBudgetLine(item) {
   const row = document.createElement('div');
   row.className = 'budget-line' + (item.paid ? ' is-paid' : '');
   row.dataset.id = item.id;
+  // Build room selector options
+  const roomMap = getBudgetRoomMap();
+  const roomsByFloor = { basement: [], ground: [], upper: [] };
+  for (const [id, r] of roomMap) roomsByFloor[r.floor].push({ id, name: r.name });
+  let roomOpts = `<option value="">— None —</option>`;
+  for (const f of ['basement','ground','upper']) {
+    if (roomsByFloor[f].length === 0) continue;
+    roomOpts += `<optgroup label="${FLOOR_LABELS[f]}">`;
+    roomsByFloor[f].forEach(r => {
+      roomOpts += `<option value="${r.id}"${item.room === r.id ? ' selected' : ''}>${escapeHTML(r.name || 'Unnamed')}</option>`;
+    });
+    roomOpts += `</optgroup>`;
+  }
   row.innerHTML = `
     <input type="text" class="budget-input label" placeholder="Line item name" value="${escapeHTML(item.label || '')}">
+    <select class="budget-input room">${roomOpts}</select>
     <input type="text" class="budget-input amount estimated" placeholder="—" value="${item.estimated ? fmtMoney(item.estimated) : ''}">
     <input type="text" class="budget-input amount actual" placeholder="—" value="${item.actual ? fmtMoney(item.actual) : ''}">
     <label class="budget-paid"><input type="checkbox" class="budget-paid-check" ${item.paid ? 'checked' : ''}></label>
     <button class="budget-del" title="Delete">×</button>
   `;
   row.querySelector('.label').addEventListener('change', e => { item.label = e.target.value.trim(); persist(); });
+  row.querySelector('.room').addEventListener('change', e => {
+    item.room = e.target.value || null;
+    persist();
+    renderBudget();
+  });
   row.querySelector('.estimated').addEventListener('change', e => {
     item.estimated = parseMoney(e.target.value);
     persist();
