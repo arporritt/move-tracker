@@ -1847,6 +1847,15 @@
     align-items: center;
     transition: background 0.1s;
   }
+  .budget-line.no-room,
+  .budget-cols.no-room {
+    grid-template-columns: minmax(0,1.6fr) 110px 110px 60px 32px;
+  }
+  @media (max-width: 720px) {
+    .budget-line.no-room, .budget-cols.no-room {
+      grid-template-columns: 1fr 80px 80px 36px 24px;
+    }
+  }
   .budget-line:first-of-type { border-top: none; }
   .budget-line:hover { background: rgba(122,160,194,0.04); }
   .budget-line.is-paid { opacity: 0.65; }
@@ -9774,8 +9783,8 @@ function renderBudget() {
         <div class="budget-cat-name">${escapeHTML(cat)}</div>
         <div class="budget-cat-total">${fmtMoney(catEst)}<span class="sep">est</span>${fmtMoney(catActual)}<span class="sep">actual</span></div>
       </div>
-      <div class="budget-cols">
-        <div>Item</div><div>Room</div><div>Estimated</div><div>Actual</div><div>Paid</div><div></div>
+      <div class="budget-cols ${budgetSubtab === 'purchase' ? 'no-room' : ''}">
+        <div>Item</div>${budgetSubtab !== 'purchase' ? '<div>Room</div>' : ''}<div>Estimated</div><div>Actual</div><div>Paid</div><div></div>
       </div>
       <div class="budget-lines"></div>
       <button class="budget-add" data-cat="${escapeHTML(cat)}">+ Add line item</button>
@@ -9799,31 +9808,35 @@ function renderBudget() {
 
 function renderBudgetLine(item) {
   const row = document.createElement('div');
-  row.className = 'budget-line' + (item.paid ? ' is-paid' : '');
+  const isPurchase = isPurchaseCategory(item.category);
+  row.className = 'budget-line' + (item.paid ? ' is-paid' : '') + (isPurchase ? ' no-room' : '');
   row.dataset.id = item.id;
-  // Build room selector options
-  const roomMap = getBudgetRoomMap();
-  const roomsByFloor = { basement: [], ground: [], upper: [] };
-  for (const [id, r] of roomMap) roomsByFloor[r.floor].push({ id, name: r.name });
-  let roomOpts = `<option value="">— None —</option>`;
-  for (const f of ['basement','ground','upper']) {
-    if (roomsByFloor[f].length === 0) continue;
-    roomOpts += `<optgroup label="${FLOOR_LABELS[f]}">`;
-    roomsByFloor[f].forEach(r => {
-      roomOpts += `<option value="${r.id}"${item.room === r.id ? ' selected' : ''}>${escapeHTML(r.name || 'Unnamed')}</option>`;
-    });
-    roomOpts += `</optgroup>`;
+  let roomCellHtml = '';
+  if (!isPurchase) {
+    const roomMap = getBudgetRoomMap();
+    const roomsByFloor = { basement: [], ground: [], upper: [] };
+    for (const [id, r] of roomMap) roomsByFloor[r.floor].push({ id, name: r.name });
+    let roomOpts = `<option value="">— None —</option>`;
+    for (const f of ['basement','ground','upper']) {
+      if (roomsByFloor[f].length === 0) continue;
+      roomOpts += `<optgroup label="${FLOOR_LABELS[f]}">`;
+      roomsByFloor[f].forEach(r => {
+        roomOpts += `<option value="${r.id}"${item.room === r.id ? ' selected' : ''}>${escapeHTML(r.name || 'Unnamed')}</option>`;
+      });
+      roomOpts += `</optgroup>`;
+    }
+    roomCellHtml = `<select class="budget-input room">${roomOpts}</select>`;
   }
   row.innerHTML = `
     <input type="text" class="budget-input label" placeholder="Line item name" value="${escapeHTML(item.label || '')}">
-    <select class="budget-input room">${roomOpts}</select>
+    ${roomCellHtml}
     <input type="text" class="budget-input amount estimated" placeholder="—" value="${item.estimated ? fmtMoney(item.estimated) : ''}">
     <input type="text" class="budget-input amount actual" placeholder="—" value="${item.actual ? fmtMoney(item.actual) : ''}">
     <label class="budget-paid"><input type="checkbox" class="budget-paid-check" ${item.paid ? 'checked' : ''}></label>
     <button class="budget-del" title="Delete">×</button>
   `;
   row.querySelector('.label').addEventListener('change', e => { item.label = e.target.value.trim(); persist(); });
-  row.querySelector('.room').addEventListener('change', e => {
+  if (!isPurchase) row.querySelector('.room').addEventListener('change', e => {
     item.room = e.target.value || null;
     persist();
     renderBudget();
