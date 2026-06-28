@@ -1055,6 +1055,49 @@
     color: var(--ink-faint); font-style: italic;
     font-family: 'Fraunces', serif; font-size: 16px;
   }
+
+  /* Paint palette */
+  .mb-palette {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 14px;
+    margin-bottom: 28px;
+  }
+  .mb-swatch {
+    background: var(--bg-card);
+    border: 1px solid var(--rule);
+    border-radius: 12px;
+    overflow: hidden;
+    transition: transform 0.15s, box-shadow 0.15s;
+    text-decoration: none;
+    color: inherit;
+    display: block;
+  }
+  .mb-swatch:hover { transform: translateY(-2px); box-shadow: 0 12px 28px -10px rgba(30,45,60,0.18); }
+  .mb-swatch-chip {
+    width: 100%; height: 100px;
+    display: block;
+  }
+  .mb-swatch-body {
+    padding: 10px 14px;
+  }
+  .mb-swatch-location {
+    font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--ink-faint); font-weight: 700;
+  }
+  .mb-swatch-name {
+    font-family: 'Fraunces', serif;
+    font-size: 15px; font-weight: 500;
+    color: var(--ink);
+    margin-top: 2px;
+    letter-spacing: -0.01em;
+  }
+  .mb-swatch-code {
+    font-size: 11px; color: var(--ink-soft);
+    font-variant-numeric: tabular-nums;
+    margin-top: 2px;
+    letter-spacing: 0.04em;
+  }
   @media (max-width: 900px) {
     .mb-photo-grid { column-count: 2; }
   }
@@ -7682,13 +7725,15 @@ function renderMoodboard() {
   if (currents.length) meta.push(`<span class="stat"><strong>${currents.length}</strong> current home photos</span>`);
   const desc = room.description || '';
   const placeholderText = `What's the vibe for ${room.name || 'this room'}? Click here to describe its mood, materials, colors, function…`;
+  const paint = Array.isArray(room.paintColors) ? room.paintColors : [];
   board.innerHTML = `
     <div class="mb-board-header">
       <div class="mb-board-title">${escapeHTML(room.name || 'Unnamed')}</div>
       <div class="mb-board-meta">${meta.join('')}</div>
     </div>
     <div class="mb-description ${desc ? '' : 'empty'}" contenteditable="true" spellcheck="true" data-placeholder="${escapeHTML(placeholderText)}" id="mb-desc">${escapeHTML(desc)}</div>
-    ${insp.length === 0 ? '<div class="mb-empty">No inspiration photos yet. Upload some in Design Vision.</div>' : '<div class="mb-photo-grid" id="mb-photo-grid"></div>'}
+    ${paint.length ? '<div class="mb-section-title">Paint palette</div>' + renderPaintPaletteHTML(paint) : ''}
+    ${insp.length === 0 ? '<div class="mb-empty">No inspiration photos yet. Upload some in Design Vision.</div>' : '<div class="mb-section-title">Inspiration</div><div class="mb-photo-grid" id="mb-photo-grid"></div>'}
     ${buys.length ? '<div class="mb-section-title">To buy</div><div class="mb-buy-grid" id="mb-buy-grid"></div>' : ''}
     ${currents.length ? '<div class="mb-section-title">Current home</div><div class="mb-current-strip" id="mb-current-strip"></div>' : ''}
   `;
@@ -9523,12 +9568,27 @@ function openInspirationManage(room) {
   overlay.classList.add('active');
 }
 
+function renderPaintPaletteHTML(colors) {
+  const html = colors.map(c => `
+    <a class="mb-swatch" href="${escapeHTML(c.url || '#')}" target="_blank" rel="noopener" title="Open swatch on sherwin-williams.com">
+      <span class="mb-swatch-chip" style="background:${escapeHTML(c.hex || '#ccc')}"></span>
+      <div class="mb-swatch-body">
+        <div class="mb-swatch-location">${escapeHTML(c.location || '')}</div>
+        <div class="mb-swatch-name">${escapeHTML(c.name || '')}</div>
+        <div class="mb-swatch-code">SW ${escapeHTML(c.sw || '')} · ${escapeHTML((c.hex || '').toUpperCase())}</div>
+      </div>
+    </a>
+  `).join('');
+  return `<div class="mb-palette">${html}</div>`;
+}
+
 function renderOverallMoodboard(board) {
   if (!state.overallVision) state.overallVision = {};
   if (!state.overallVision.description) {
     state.overallVision.description = DEFAULT_OVERALL_VISION;
   }
   const desc = state.overallVision.description || '';
+  const universalPalette = (state.overallVision && Array.isArray(state.overallVision.universalPalette)) ? state.overallVision.universalPalette : [];
   // Build a small curated photo strip: first inspiration photo from each room (max 12)
   const curated = [];
   for (const f of ['basement','ground','upper']) {
@@ -9549,6 +9609,7 @@ function renderOverallMoodboard(board) {
       </div>
     </div>
     <div class="mb-description ${desc ? '' : 'empty'}" contenteditable="true" spellcheck="true" data-placeholder="Describe the overall vision for the house — style, palette, feel, anchor pieces…" id="mb-desc-overall">${escapeHTML(desc)}</div>
+    ${universalPalette.length ? '<div class="mb-section-title">Universal palette (applies to every room)</div>' + renderPaintPaletteHTML(universalPalette) : ''}
     ${sample.length ? '<div class="mb-section-title">A glimpse from each room</div><div class="mb-photo-grid" id="mb-overall-grid"></div>' : '<div class="mb-empty">Add rooms and inspiration in Design Vision and they\'ll surface here.</div>'}
   `;
   const descEl = board.querySelector('#mb-desc-overall');
