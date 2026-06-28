@@ -1840,7 +1840,7 @@
   .budget-cat-total .sep { color: var(--ink-faint); margin: 0 6px; }
   .budget-line {
     display: grid;
-    grid-template-columns: minmax(0,1.6fr) 130px 110px 110px 60px 32px;
+    grid-template-columns: minmax(0,1.6fr) 130px 130px 110px 110px 60px 32px;
     gap: 12px;
     padding: 10px 20px;
     border-top: 1px solid var(--rule-soft);
@@ -1901,19 +1901,120 @@
   .budget-add:hover { color: var(--clay); background: rgba(122,160,194,0.06); }
   .budget-cols {
     display: grid;
-    grid-template-columns: minmax(0,1.6fr) 130px 110px 110px 60px 32px;
+    grid-template-columns: minmax(0,1.6fr) 130px 130px 110px 110px 60px 32px;
     gap: 12px;
     padding: 10px 20px 6px;
     font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
     color: var(--ink-faint); font-weight: 600;
   }
-  .budget-cols div:nth-child(3),
-  .budget-cols div:nth-child(4) { text-align: right; }
-  .budget-cols div:nth-child(5) { text-align: center; }
+  .budget-cols div:nth-child(4),
+  .budget-cols div:nth-child(5) { text-align: right; }
+  .budget-cols div:nth-child(6) { text-align: center; }
   @media (max-width: 720px) {
     .budget-summary { grid-template-columns: repeat(2, 1fr); }
-    .budget-line, .budget-cols { grid-template-columns: 1fr 80px 80px 80px 36px 24px; gap: 6px; padding-left: 12px; padding-right: 12px; }
+    .budget-line, .budget-cols { grid-template-columns: 1fr 90px 90px 80px 80px 36px 24px; gap: 6px; padding-left: 12px; padding-right: 12px; }
   }
+
+  /* Unified budget table */
+  .budget-table-toolbar {
+    display: flex; align-items: center; gap: 16px;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--rule);
+    background: var(--bg-card);
+    border-top-left-radius: 12px;
+    border-top-right-radius: 12px;
+    flex-wrap: wrap;
+  }
+  .budget-table-title {
+    font-family: 'Fraunces', serif;
+    font-weight: 500;
+    font-size: 18px;
+    letter-spacing: -0.01em;
+    color: var(--ink);
+    flex: 0 0 auto;
+  }
+  .budget-totals-pill {
+    display: inline-flex; gap: 18px;
+    background: rgba(122,160,194,0.08);
+    border-radius: 100px;
+    padding: 6px 16px;
+    font-family: 'Manrope', sans-serif;
+    font-size: 12px;
+    color: var(--ink-soft);
+    font-variant-numeric: tabular-nums;
+  }
+  .budget-totals-pill strong { color: var(--ink); font-weight: 700; }
+  .budget-totals-pill .over { color: var(--behind); font-weight: 700; }
+  .group-by-control {
+    margin-left: auto;
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--ink-faint); font-weight: 700;
+  }
+  .group-by-control select {
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-family: 'Manrope', sans-serif;
+    font-size: 12.5px;
+    text-transform: none; letter-spacing: 0;
+    background: white; color: var(--ink);
+    outline: none;
+  }
+  .group-by-control select:focus { border-color: var(--clay); }
+  .bt-group-header {
+    padding: 12px 20px;
+    background: rgba(122,160,194,0.10);
+    display: flex; justify-content: space-between; align-items: baseline;
+    border-top: 1px solid var(--rule);
+  }
+  .bt-group-header.first { border-top: none; }
+  .bt-group-name {
+    font-family: 'Fraunces', serif;
+    font-weight: 500;
+    font-size: 15px;
+    color: var(--ink);
+    letter-spacing: -0.01em;
+  }
+  .bt-group-totals {
+    font-family: 'Manrope', sans-serif;
+    font-size: 11.5px;
+    color: var(--ink-soft);
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+  }
+  .bt-group-totals strong { color: var(--ink); font-weight: 700; }
+  .budget-empty {
+    padding: 30px 20px; text-align: center;
+    color: var(--ink-faint); font-style: italic;
+    font-family: 'Fraunces', serif; font-size: 14px;
+  }
+  .budget-table-wrap {
+    background: var(--bg-card);
+    border: 1px solid var(--rule);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 18px;
+    box-shadow: var(--shadow);
+  }
+  .add-line-bar {
+    padding: 12px 20px;
+    border-top: 1px solid var(--rule);
+  }
+  .add-line-bar button {
+    background: transparent;
+    border: 1px dashed var(--rule);
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-family: 'Manrope', sans-serif;
+    font-size: 12px;
+    color: var(--ink-faint);
+    cursor: pointer;
+    width: 100%;
+  }
+  .add-line-bar button:hover { color: var(--clay); border-color: var(--clay-soft); background: rgba(122,160,194,0.04); }
+  .actuals-table .budget-line { background: rgba(74,142,149,0.04); }
+  .actuals-table .bt-group-header { background: rgba(74,142,149,0.10); }
 
   /* Budget visualization charts */
   .budget-charts {
@@ -9774,51 +9875,122 @@ function renderBudget() {
     </div>
   `;
 
-  // Categories — show only those that belong to the current sub-tab
   const baseCats = budgetSubtab === 'purchase' ? PURCHASE_CATEGORIES : budgetSubtab === 'sale' ? SALE_CATEGORIES : HOME_CATEGORIES;
-  const itemCats = items.map(i => i.category).filter(Boolean);
-  const allCategories = [...new Set([...baseCats, ...itemCats])];
   const c = document.getElementById('budget-categories');
   c.innerHTML = '';
-  allCategories.forEach(cat => {
-    const catItems = items.filter(i => i.category === cat);
-    const catEst = catItems.reduce((s, i) => s + (Number(i.estimated) || 0), 0);
-    const catActual = catItems.reduce((s, i) => s + (Number(i.actual) || 0), 0);
-    const section = document.createElement('div');
-    section.className = 'budget-category';
-    section.innerHTML = `
-      <div class="budget-cat-header">
-        <div class="budget-cat-name">${escapeHTML(cat)}</div>
-        <div class="budget-cat-total">${fmtMoney(catEst)}<span class="sep">est</span>${fmtMoney(catActual)}<span class="sep">actual</span></div>
-      </div>
-      <div class="budget-cols ${(budgetSubtab === 'purchase' || budgetSubtab === 'sale') ? 'no-room' : ''}">
-        <div>Item</div>${(budgetSubtab !== 'purchase' && budgetSubtab !== 'sale') ? '<div>Room</div>' : ''}<div>Estimated</div><div>Actual</div><div>Paid</div><div></div>
-      </div>
-      <div class="budget-lines"></div>
-      <button class="budget-add" data-cat="${escapeHTML(cat)}">+ Add line item</button>
-    `;
-    const linesBox = section.querySelector('.budget-lines');
-    catItems.forEach(item => linesBox.appendChild(renderBudgetLine(item)));
-    section.querySelector('.budget-add').addEventListener('click', () => {
-      const newItem = { id: uid(), category: cat, label: '', estimated: 0, actual: 0, paid: false, note: '' };
+  // Build the unified BUDGET table
+  c.appendChild(buildUnifiedBudgetTable(items, baseCats, /*actualsOnly=*/false));
+  // Build the ACTUALS table (only items with actual > 0)
+  const actualItems = items.filter(i => Number(i.actual) > 0);
+  if (actualItems.length > 0) {
+    c.appendChild(buildUnifiedBudgetTable(actualItems, baseCats, /*actualsOnly=*/true));
+  }
+}
+
+function buildUnifiedBudgetTable(items, baseCats, actualsOnly) {
+  const totalEst = items.reduce((s, i) => s + (Number(i.estimated) || 0), 0);
+  const totalActual = items.reduce((s, i) => s + (Number(i.actual) || 0), 0);
+  const variance = totalEst - totalActual;
+  const overBy = variance < 0;
+  const showRoomCol = budgetSubtab === 'home';
+  const wrap = document.createElement('div');
+  wrap.className = 'budget-table-wrap' + (actualsOnly ? ' actuals-table' : '');
+  const groupKey = actualsOnly ? 'mt-actuals-groupby' : 'mt-budget-groupby';
+  let groupBy = 'category';
+  try { groupBy = localStorage.getItem(groupKey) || 'category'; } catch (e) {}
+  const totalsHtml = actualsOnly
+    ? `<span><strong>${fmtMoney(totalActual)}</strong> total spent</span>`
+    : `<span><strong>${fmtMoney(totalEst)}</strong> budget</span><span><strong>${fmtMoney(totalActual)}</strong> spent</span><span class="${overBy ? 'over' : ''}">${overBy ? '+'+fmtMoney(-variance)+' over' : fmtMoney(variance)+' under'}</span>`;
+  wrap.innerHTML = `
+    <div class="budget-table-toolbar">
+      <div class="budget-table-title">${actualsOnly ? 'Actuals' : 'Budget'}</div>
+      <div class="budget-totals-pill">${totalsHtml}</div>
+      <label class="group-by-control">Group by
+        <select class="group-by-select">
+          <option value="none"${groupBy==='none'?' selected':''}>None</option>
+          <option value="category"${groupBy==='category'?' selected':''}>Category</option>
+          ${showRoomCol ? `<option value="room"${groupBy==='room'?' selected':''}>Room</option>` : ''}
+          <option value="paid"${groupBy==='paid'?' selected':''}>Paid / Unpaid</option>
+        </select>
+      </label>
+    </div>
+    <div class="budget-cols ${showRoomCol ? '' : 'no-room'}">
+      <div>Item</div><div>Category</div>${showRoomCol ? '<div>Room</div>' : ''}<div>Estimated</div><div>Actual</div><div>Paid</div><div></div>
+    </div>
+    <div class="bt-body"></div>
+    ${actualsOnly ? '' : `<div class="add-line-bar"><button data-act="add">+ Add line item</button></div>`}
+  `;
+  const body = wrap.querySelector('.bt-body');
+  if (items.length === 0) {
+    body.innerHTML = `<div class="budget-empty">No items yet${actualsOnly ? ' with actuals' : ''}.</div>`;
+  } else {
+    renderBudgetTableBody(body, items, groupBy);
+  }
+  wrap.querySelector('.group-by-select').addEventListener('change', e => {
+    try { localStorage.setItem(groupKey, e.target.value); } catch (er) {}
+    renderBudget();
+  });
+  const addBtn = wrap.querySelector('[data-act="add"]');
+  if (addBtn) {
+    addBtn.addEventListener('click', () => {
+      const newCat = baseCats[0] || 'Other';
+      const newItem = { id: uid(), category: newCat, label: '', estimated: 0, actual: 0, paid: false, note: '' };
       state.budget.items.push(newItem);
       persist();
       renderBudget();
-      // Focus the label input of the new line
       setTimeout(() => {
         const el = document.querySelector(`.budget-line[data-id="${newItem.id}"] .budget-input.label`);
         if (el) el.focus();
       }, 0);
     });
-    c.appendChild(section);
+  }
+  return wrap;
+}
+
+function renderBudgetTableBody(body, items, groupBy) {
+  if (groupBy === 'none') {
+    items.forEach(item => body.appendChild(renderBudgetLine(item)));
+    return;
+  }
+  const groups = {};
+  const roomMap = getBudgetRoomMap();
+  items.forEach(item => {
+    let key;
+    if (groupBy === 'category') key = item.category || 'Other';
+    else if (groupBy === 'room') key = item.room ? (roomMap.get(item.room)?.name || 'Unknown room') : 'Unassigned';
+    else if (groupBy === 'paid') key = item.paid ? 'Paid' : 'Unpaid';
+    else key = 'All';
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(item);
+  });
+  const entries = Object.entries(groups).sort((a, b) => {
+    const aTot = a[1].reduce((s, i) => s + (Number(i.estimated) || 0), 0);
+    const bTot = b[1].reduce((s, i) => s + (Number(i.estimated) || 0), 0);
+    return bTot - aTot;
+  });
+  entries.forEach(([name, list], idx) => {
+    const est = list.reduce((s, i) => s + (Number(i.estimated) || 0), 0);
+    const act = list.reduce((s, i) => s + (Number(i.actual) || 0), 0);
+    const header = document.createElement('div');
+    header.className = 'bt-group-header' + (idx === 0 ? ' first' : '');
+    header.innerHTML = `
+      <div class="bt-group-name">${escapeHTML(name)}</div>
+      <div class="bt-group-totals"><strong>${fmtMoney(est)}</strong> budget · <strong>${fmtMoney(act)}</strong> spent</div>
+    `;
+    body.appendChild(header);
+    list.forEach(item => body.appendChild(renderBudgetLine(item)));
   });
 }
 
 function renderBudgetLine(item) {
   const row = document.createElement('div');
-  const hideRoom = isPurchaseCategory(item.category) || isSaleCategory(item.category);
+  const hideRoom = isPurchaseCategory(item.category) || isSaleCategory(item.category) || budgetSubtab !== 'home';
   row.className = 'budget-line' + (item.paid ? ' is-paid' : '') + (hideRoom ? ' no-room' : '');
   row.dataset.id = item.id;
+  // Category dropdown — restricted to the current sub-tab's categories
+  const cats = budgetSubtab === 'purchase' ? PURCHASE_CATEGORIES : budgetSubtab === 'sale' ? SALE_CATEGORIES : HOME_CATEGORIES;
+  const allCats = [...new Set([...cats, item.category].filter(Boolean))];
+  const catOpts = allCats.map(c => `<option value="${escapeHTML(c)}"${item.category === c ? ' selected' : ''}>${escapeHTML(c)}</option>`).join('');
   let roomCellHtml = '';
   if (!hideRoom) {
     const roomMap = getBudgetRoomMap();
@@ -9837,12 +10009,18 @@ function renderBudgetLine(item) {
   }
   row.innerHTML = `
     <input type="text" class="budget-input label" placeholder="Line item name" value="${escapeHTML(item.label || '')}">
+    <select class="budget-input cat">${catOpts}</select>
     ${roomCellHtml}
     <input type="text" class="budget-input amount estimated" placeholder="—" value="${item.estimated ? fmtMoney(item.estimated) : ''}">
     <input type="text" class="budget-input amount actual" placeholder="—" value="${item.actual ? fmtMoney(item.actual) : ''}">
     <label class="budget-paid"><input type="checkbox" class="budget-paid-check" ${item.paid ? 'checked' : ''}></label>
     <button class="budget-del" title="Delete">×</button>
   `;
+  row.querySelector('.cat').addEventListener('change', e => {
+    item.category = e.target.value;
+    persist();
+    renderBudget();
+  });
   row.querySelector('.label').addEventListener('change', e => { item.label = e.target.value.trim(); persist(); });
   if (!hideRoom) row.querySelector('.room').addEventListener('change', e => {
     item.room = e.target.value || null;
