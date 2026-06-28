@@ -6049,7 +6049,11 @@
 
 <!-- ============ BUDGET TAB ============ -->
 <div class="tab-content" id="tab-budget">
-  <div class="container" style="max-width: 1240px; margin: 0 auto; padding: 32px 40px;">
+  <div class="container" style="max-width: 1240px; margin: 0 auto; padding: 24px 40px;">
+    <div class="floor-tabs" style="margin-bottom: 24px;">
+      <button class="floor-tab-btn active" data-budget-subtab="home" onclick="switchBudgetSubtab('home')">Home budget</button>
+      <button class="floor-tab-btn" data-budget-subtab="purchase" onclick="switchBudgetSubtab('purchase')">Purchase / Closing</button>
+    </div>
     <div class="budget-summary" id="budget-summary"></div>
     <div class="budget-charts" id="budget-charts"></div>
     <div id="budget-categories"></div>
@@ -9573,6 +9577,23 @@ const BUDGET_CATEGORIES = [
   'Other'
 ];
 
+const PURCHASE_CATEGORIES = ['Chicago Sale', 'WI Purchase', 'Rent-back'];
+const HOME_CATEGORIES = ['Moving', 'Setup & Repairs', 'Other'];
+function isPurchaseCategory(cat) { return PURCHASE_CATEGORIES.includes(cat); }
+
+let budgetSubtab = 'home';
+try {
+  const v = localStorage.getItem('mt-budget-subtab');
+  if (v === 'purchase' || v === 'home') budgetSubtab = v;
+} catch (e) {}
+
+function switchBudgetSubtab(name) {
+  budgetSubtab = name;
+  try { localStorage.setItem('mt-budget-subtab', name); } catch (e) {}
+  document.querySelectorAll('.floor-tab-btn[data-budget-subtab]').forEach(b => b.classList.toggle('active', b.dataset.budgetSubtab === name));
+  renderBudget();
+}
+
 const SEED_BUDGET = [
   // Chicago Sale
   { category: 'Chicago Sale', label: 'Listing agent commission (~2.5%)', estimated: 0, actual: 0, paid: false },
@@ -9699,7 +9720,10 @@ function renderBars(container, dataMap) {
 
 function renderBudget() {
   ensureBudgetState();
-  const items = state.budget.items.filter(matchesSearchBudget);
+  // Reflect subtab in UI
+  document.querySelectorAll('.floor-tab-btn[data-budget-subtab]').forEach(b => b.classList.toggle('active', b.dataset.budgetSubtab === budgetSubtab));
+  const allItems = state.budget.items.filter(matchesSearchBudget);
+  const items = allItems.filter(i => budgetSubtab === 'purchase' ? isPurchaseCategory(i.category) : !isPurchaseCategory(i.category));
   renderBudgetCharts(items);
 
   // Summary
@@ -9733,8 +9757,10 @@ function renderBudget() {
     </div>
   `;
 
-  // Categories
-  const allCategories = [...new Set([...BUDGET_CATEGORIES, ...items.map(i => i.category)])];
+  // Categories — show only those that belong to the current sub-tab
+  const baseCats = budgetSubtab === 'purchase' ? PURCHASE_CATEGORIES : HOME_CATEGORIES;
+  const itemCats = items.map(i => i.category).filter(Boolean);
+  const allCategories = [...new Set([...baseCats, ...itemCats])];
   const c = document.getElementById('budget-categories');
   c.innerHTML = '';
   allCategories.forEach(cat => {
