@@ -896,6 +896,145 @@
     box-shadow: 0 1px 3px rgba(30,45,60,0.10);
   }
 
+  /* ============ MOOD BOARDS ============ */
+  .moodboard-controls {
+    display: flex; flex-direction: column; gap: 12px;
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .mb-room-chips {
+    display: flex; flex-wrap: wrap; gap: 8px;
+  }
+  .mb-room-chip {
+    background: var(--bg-card);
+    border: 1px solid var(--rule);
+    border-radius: 100px;
+    padding: 7px 14px;
+    font-family: 'Manrope', sans-serif;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--ink-soft);
+    cursor: pointer;
+    letter-spacing: 0.02em;
+    transition: all 0.15s;
+  }
+  .mb-room-chip:hover { border-color: var(--clay-soft); color: var(--clay); }
+  .mb-room-chip.active {
+    background: var(--ink);
+    color: white;
+    border-color: var(--ink);
+  }
+  .mb-room-chip .count {
+    margin-left: 6px; opacity: 0.6; font-size: 10.5px;
+  }
+  .mb-board-header {
+    margin-bottom: 20px;
+  }
+  .mb-board-title {
+    font-family: 'Fraunces', serif;
+    font-weight: 300;
+    font-size: clamp(34px, 5vw, 52px);
+    letter-spacing: -0.025em;
+    color: var(--ink);
+    line-height: 1.0;
+    font-variation-settings: "opsz" 144, "SOFT" 40;
+  }
+  .mb-board-meta {
+    margin-top: 8px;
+    display: flex; gap: 18px; flex-wrap: wrap;
+    font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--ink-faint); font-weight: 600;
+  }
+  .mb-board-meta .stat { color: var(--ink-soft); }
+  .mb-board-meta .stat strong { color: var(--ink); font-weight: 700; }
+  .mb-photo-grid {
+    column-count: 3;
+    column-gap: 10px;
+    margin-bottom: 32px;
+  }
+  .mb-photo-grid .photo {
+    display: block;
+    width: 100%;
+    margin: 0 0 10px;
+    break-inside: avoid;
+    border-radius: 10px;
+    overflow: hidden;
+    cursor: zoom-in;
+    box-shadow: 0 2px 12px -4px rgba(30,45,60,0.10);
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .mb-photo-grid .photo:hover { transform: translateY(-2px); box-shadow: 0 12px 32px -8px rgba(30,45,60,0.18); }
+  .mb-photo-grid .photo img { display: block; width: 100%; height: auto; }
+  .mb-section-title {
+    font-family: 'Fraunces', serif;
+    font-weight: 400;
+    font-size: 22px;
+    color: var(--ink);
+    margin: 32px 0 14px;
+    letter-spacing: -0.015em;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .mb-buy-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 14px;
+    margin-bottom: 28px;
+  }
+  .mb-buy-card {
+    background: var(--bg-card);
+    border: 1px solid var(--rule);
+    border-radius: 12px;
+    padding: 14px 16px;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .mb-buy-card.bought { opacity: 0.55; }
+  .mb-buy-card.bought .mb-buy-name { text-decoration: line-through; }
+  .mb-buy-name { font-size: 13.5px; font-weight: 600; color: var(--ink); }
+  .mb-buy-price {
+    font-family: 'Fraunces', serif;
+    font-size: 16px;
+    color: var(--clay);
+    font-variant-numeric: tabular-nums;
+  }
+  .mb-buy-link {
+    color: var(--clay);
+    font-size: 11px;
+    text-decoration: none;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .mb-buy-link:hover { color: var(--plum); }
+  .mb-current-strip {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 8px;
+    margin-bottom: 28px;
+  }
+  .mb-current-strip .photo {
+    aspect-ratio: 4/3;
+    border-radius: 8px;
+    overflow: hidden;
+    cursor: zoom-in;
+  }
+  .mb-current-strip .photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .mb-empty {
+    text-align: center; padding: 60px 20px;
+    color: var(--ink-faint); font-style: italic;
+    font-family: 'Fraunces', serif; font-size: 16px;
+  }
+  @media (max-width: 900px) {
+    .mb-photo-grid { column-count: 2; }
+  }
+  @media (max-width: 600px) {
+    #tab-moodboard .container { padding: 16px 14px !important; }
+    .mb-board-title { font-size: clamp(28px, 9vw, 40px); }
+    .mb-photo-grid { column-count: 2; column-gap: 6px; }
+    .mb-photo-grid .photo { margin-bottom: 6px; }
+  }
+
   /* ============ INSPIRATION ============ */
   .floor-tabs {
     display: flex; gap: 4px;
@@ -5828,10 +5967,26 @@
   <div class="project-subtabs" style="max-width: 1240px; margin: 14px auto 0; padding: 0 40px;">
     <div class="floor-tabs" style="margin-bottom:0;">
       <button class="floor-tab-btn active" data-design-subtab="inspiration" onclick="switchDesignSubtab('inspiration')">Design Vision</button>
+      <button class="floor-tab-btn" data-design-subtab="moodboard" onclick="switchDesignSubtab('moodboard')">Mood Boards</button>
       <button class="floor-tab-btn" data-design-subtab="greenview" onclick="switchDesignSubtab('greenview')">Listing images</button>
       <button class="floor-tab-btn" data-design-subtab="layout" onclick="switchDesignSubtab('layout')">Layout</button>
     </div>
   </div>
+<!-- ============ MOOD BOARDS (inside Design) ============ -->
+<div class="design-subtab-content" id="tab-moodboard">
+  <div class="container" style="max-width: 1240px; margin: 0 auto; padding: 24px 40px;">
+    <div class="moodboard-controls">
+      <div class="floor-segment" id="mb-floor-segment">
+        <button class="floor-segment-btn active" data-mb-floor="basement" onclick="switchMbFloor('basement')">Basement</button>
+        <button class="floor-segment-btn" data-mb-floor="ground" onclick="switchMbFloor('ground')">Ground floor</button>
+        <button class="floor-segment-btn" data-mb-floor="upper" onclick="switchMbFloor('upper')">Upper floor</button>
+      </div>
+      <div class="mb-room-chips" id="mb-room-chips"></div>
+    </div>
+    <div id="mb-board"></div>
+  </div>
+</div>
+
 <!-- ============ LAYOUT (inside Design) ============ -->
 <div class="design-subtab-content" id="tab-layout">
   <div class="container" style="max-width: 1240px; margin: 0 auto; padding: 16px 40px;">
@@ -7278,6 +7433,121 @@ function switchDesignSubtab(name) {
   if (name === 'inspiration') renderInspiration();
   else if (name === 'greenview') renderGreenview();
   else if (name === 'layout') renderLayout();
+  else if (name === 'moodboard') renderMoodboard();
+}
+
+// ============================================================
+// MOOD BOARDS
+// ============================================================
+let mbFloor = 'basement';
+let mbRoomId = null;
+try {
+  const f = localStorage.getItem('mt-mb-floor');
+  if (['basement','ground','upper'].includes(f)) mbFloor = f;
+  const r = localStorage.getItem('mt-mb-room');
+  if (r) mbRoomId = r;
+} catch (e) {}
+
+function switchMbFloor(f) {
+  mbFloor = f;
+  mbRoomId = null;
+  try { localStorage.setItem('mt-mb-floor', f); localStorage.removeItem('mt-mb-room'); } catch (e) {}
+  renderMoodboard();
+}
+
+function selectMbRoom(id) {
+  mbRoomId = id;
+  try { localStorage.setItem('mt-mb-room', id); } catch (e) {}
+  renderMoodboard();
+}
+
+function renderMoodboard() {
+  ensureInspirationState();
+  // Sync floor segment active state
+  document.querySelectorAll('.floor-segment-btn[data-mb-floor]').forEach(b => b.classList.toggle('active', b.dataset.mbFloor === mbFloor));
+  // Room chips
+  const chipsBox = document.getElementById('mb-room-chips');
+  const rooms = state.inspiration[mbFloor] || [];
+  chipsBox.innerHTML = '';
+  if (rooms.length === 0) {
+    chipsBox.innerHTML = `<div style="color:var(--ink-faint);font-style:italic;font-size:13px;">No rooms on this floor yet. Add some in Design Vision first.</div>`;
+  }
+  if (mbRoomId && !rooms.some(r => r.id === mbRoomId)) mbRoomId = null;
+  if (!mbRoomId && rooms.length > 0) mbRoomId = rooms[0].id;
+  rooms.forEach(room => {
+    const chip = document.createElement('button');
+    chip.className = 'mb-room-chip' + (room.id === mbRoomId ? ' active' : '');
+    const photoCount = (room.inspirationPhotos || []).length;
+    chip.innerHTML = `${escapeHTML(room.name || 'Unnamed')}${photoCount ? `<span class="count">${photoCount}</span>` : ''}`;
+    chip.addEventListener('click', () => selectMbRoom(room.id));
+    chipsBox.appendChild(chip);
+  });
+  // Board
+  const board = document.getElementById('mb-board');
+  if (!mbRoomId) {
+    board.innerHTML = `<div class="mb-empty">Select a room above to view its mood board.</div>`;
+    return;
+  }
+  const room = rooms.find(r => r.id === mbRoomId);
+  if (!room) {
+    board.innerHTML = `<div class="mb-empty">Room not found.</div>`;
+    return;
+  }
+  const insp = room.inspirationPhotos || [];
+  const buys = room.buyList || [];
+  const currents = room.currentPhotos || [];
+  const totalBuy = buys.reduce((s, i) => s + (Number(i.price) || 0), 0);
+  const boughtCount = buys.filter(i => i.bought).length;
+  const meta = [];
+  meta.push(`<span class="stat"><strong>${insp.length}</strong> photos</span>`);
+  if (buys.length) meta.push(`<span class="stat"><strong>${buys.length}</strong> to buy · ${fmtMoney(totalBuy)}</span>`);
+  if (boughtCount) meta.push(`<span class="stat"><strong>${boughtCount}</strong> bought</span>`);
+  if (currents.length) meta.push(`<span class="stat"><strong>${currents.length}</strong> current home photos</span>`);
+  board.innerHTML = `
+    <div class="mb-board-header">
+      <div class="mb-board-title">${escapeHTML(room.name || 'Unnamed')}</div>
+      <div class="mb-board-meta">${meta.join('')}</div>
+    </div>
+    ${insp.length === 0 ? '<div class="mb-empty">No inspiration photos yet. Upload some in Design Vision.</div>' : '<div class="mb-photo-grid" id="mb-photo-grid"></div>'}
+    ${buys.length ? '<div class="mb-section-title">To buy</div><div class="mb-buy-grid" id="mb-buy-grid"></div>' : ''}
+    ${currents.length ? '<div class="mb-section-title">Current home</div><div class="mb-current-strip" id="mb-current-strip"></div>' : ''}
+  `;
+  // Photo masonry
+  if (insp.length) {
+    const grid = document.getElementById('mb-photo-grid');
+    insp.forEach((p, i) => {
+      const fig = document.createElement('div');
+      fig.className = 'photo';
+      fig.innerHTML = `<img src="${escapeHTML(p.url)}" alt="${escapeHTML(p.caption || '')}" loading="lazy">`;
+      fig.addEventListener('click', () => openLightbox(insp, i));
+      grid.appendChild(fig);
+    });
+  }
+  // Buy cards
+  if (buys.length) {
+    const bg = document.getElementById('mb-buy-grid');
+    buys.forEach(item => {
+      const card = document.createElement('div');
+      card.className = 'mb-buy-card' + (item.bought ? ' bought' : '');
+      card.innerHTML = `
+        <div class="mb-buy-name">${escapeHTML(item.name || 'Untitled')}</div>
+        ${item.price ? `<div class="mb-buy-price">${fmtMoney(item.price)}</div>` : ''}
+        ${item.link ? `<a class="mb-buy-link" href="${escapeHTML(item.link)}" target="_blank" rel="noopener">Open source ↗</a>` : ''}
+      `;
+      bg.appendChild(card);
+    });
+  }
+  // Current photos strip
+  if (currents.length) {
+    const strip = document.getElementById('mb-current-strip');
+    currents.forEach((p, i) => {
+      const fig = document.createElement('div');
+      fig.className = 'photo';
+      fig.innerHTML = `<img src="${escapeHTML(p.url)}" alt="${escapeHTML(p.caption || '')}" loading="lazy" style="object-position:center ${p.posY ?? 50}%">`;
+      fig.addEventListener('click', () => openLightbox(currents, i));
+      strip.appendChild(fig);
+    });
+  }
 }
 
 function renderActive() {
