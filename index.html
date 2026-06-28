@@ -6061,7 +6061,8 @@
   <div class="container" style="max-width: 1240px; margin: 0 auto; padding: 24px 40px;">
     <div class="floor-tabs" style="margin-bottom: 24px;">
       <button class="floor-tab-btn active" data-budget-subtab="home" onclick="switchBudgetSubtab('home')">Home budget</button>
-      <button class="floor-tab-btn" data-budget-subtab="purchase" onclick="switchBudgetSubtab('purchase')">Purchase / Closing</button>
+      <button class="floor-tab-btn" data-budget-subtab="purchase" onclick="switchBudgetSubtab('purchase')">WI Purchase</button>
+      <button class="floor-tab-btn" data-budget-subtab="sale" onclick="switchBudgetSubtab('sale')">Chicago Sale</button>
     </div>
     <div class="budget-summary" id="budget-summary"></div>
     <div class="budget-charts" id="budget-charts"></div>
@@ -9586,14 +9587,17 @@ const BUDGET_CATEGORIES = [
   'Other'
 ];
 
-const PURCHASE_CATEGORIES = ['Chicago Sale', 'WI Purchase', 'Rent-back'];
+const PURCHASE_CATEGORIES = ['WI Purchase'];
+const SALE_CATEGORIES = ['Chicago Sale', 'Rent-back'];
 const HOME_CATEGORIES = ['Moving', 'Setup & Repairs', 'Other'];
 function isPurchaseCategory(cat) { return PURCHASE_CATEGORIES.includes(cat); }
+function isSaleCategory(cat) { return SALE_CATEGORIES.includes(cat); }
+function isHomeCategory(cat) { return !isPurchaseCategory(cat) && !isSaleCategory(cat); }
 
 let budgetSubtab = 'home';
 try {
   const v = localStorage.getItem('mt-budget-subtab');
-  if (v === 'purchase' || v === 'home') budgetSubtab = v;
+  if (['purchase','home','sale'].includes(v)) budgetSubtab = v;
 } catch (e) {}
 
 function switchBudgetSubtab(name) {
@@ -9732,7 +9736,11 @@ function renderBudget() {
   // Reflect subtab in UI
   document.querySelectorAll('.floor-tab-btn[data-budget-subtab]').forEach(b => b.classList.toggle('active', b.dataset.budgetSubtab === budgetSubtab));
   const allItems = state.budget.items.filter(matchesSearchBudget);
-  const items = allItems.filter(i => budgetSubtab === 'purchase' ? isPurchaseCategory(i.category) : !isPurchaseCategory(i.category));
+  const items = allItems.filter(i => {
+    if (budgetSubtab === 'purchase') return isPurchaseCategory(i.category);
+    if (budgetSubtab === 'sale') return isSaleCategory(i.category);
+    return isHomeCategory(i.category);
+  });
   renderBudgetCharts(items);
 
   // Summary
@@ -9767,7 +9775,7 @@ function renderBudget() {
   `;
 
   // Categories — show only those that belong to the current sub-tab
-  const baseCats = budgetSubtab === 'purchase' ? PURCHASE_CATEGORIES : HOME_CATEGORIES;
+  const baseCats = budgetSubtab === 'purchase' ? PURCHASE_CATEGORIES : budgetSubtab === 'sale' ? SALE_CATEGORIES : HOME_CATEGORIES;
   const itemCats = items.map(i => i.category).filter(Boolean);
   const allCategories = [...new Set([...baseCats, ...itemCats])];
   const c = document.getElementById('budget-categories');
@@ -9783,8 +9791,8 @@ function renderBudget() {
         <div class="budget-cat-name">${escapeHTML(cat)}</div>
         <div class="budget-cat-total">${fmtMoney(catEst)}<span class="sep">est</span>${fmtMoney(catActual)}<span class="sep">actual</span></div>
       </div>
-      <div class="budget-cols ${budgetSubtab === 'purchase' ? 'no-room' : ''}">
-        <div>Item</div>${budgetSubtab !== 'purchase' ? '<div>Room</div>' : ''}<div>Estimated</div><div>Actual</div><div>Paid</div><div></div>
+      <div class="budget-cols ${(budgetSubtab === 'purchase' || budgetSubtab === 'sale') ? 'no-room' : ''}">
+        <div>Item</div>${(budgetSubtab !== 'purchase' && budgetSubtab !== 'sale') ? '<div>Room</div>' : ''}<div>Estimated</div><div>Actual</div><div>Paid</div><div></div>
       </div>
       <div class="budget-lines"></div>
       <button class="budget-add" data-cat="${escapeHTML(cat)}">+ Add line item</button>
@@ -9808,11 +9816,11 @@ function renderBudget() {
 
 function renderBudgetLine(item) {
   const row = document.createElement('div');
-  const isPurchase = isPurchaseCategory(item.category);
-  row.className = 'budget-line' + (item.paid ? ' is-paid' : '') + (isPurchase ? ' no-room' : '');
+  const hideRoom = isPurchaseCategory(item.category) || isSaleCategory(item.category);
+  row.className = 'budget-line' + (item.paid ? ' is-paid' : '') + (hideRoom ? ' no-room' : '');
   row.dataset.id = item.id;
   let roomCellHtml = '';
-  if (!isPurchase) {
+  if (!hideRoom) {
     const roomMap = getBudgetRoomMap();
     const roomsByFloor = { basement: [], ground: [], upper: [] };
     for (const [id, r] of roomMap) roomsByFloor[r.floor].push({ id, name: r.name });
@@ -9836,7 +9844,7 @@ function renderBudgetLine(item) {
     <button class="budget-del" title="Delete">×</button>
   `;
   row.querySelector('.label').addEventListener('change', e => { item.label = e.target.value.trim(); persist(); });
-  if (!isPurchase) row.querySelector('.room').addEventListener('change', e => {
+  if (!hideRoom) row.querySelector('.room').addEventListener('change', e => {
     item.room = e.target.value || null;
     persist();
     renderBudget();
