@@ -1098,6 +1098,136 @@
     margin-top: 2px;
     letter-spacing: 0.04em;
   }
+  .mb-swatch { position: relative; }
+  .mb-swatch-actions {
+    position: absolute; top: 6px; right: 6px;
+    display: flex; gap: 4px;
+    opacity: 0; transition: opacity 0.15s;
+  }
+  .mb-swatch:hover .mb-swatch-actions { opacity: 1; }
+  .mb-swatch-actions button, .mb-swatch-actions a {
+    background: rgba(255,255,255,0.95);
+    border: 1px solid var(--rule);
+    border-radius: 50%;
+    width: 24px; height: 24px;
+    color: var(--ink);
+    cursor: pointer;
+    font-size: 11px;
+    display: flex; align-items: center; justify-content: center;
+    text-decoration: none;
+  }
+  .mb-swatch-actions .del { color: var(--behind); }
+  .mb-swatch-add {
+    background: rgba(122,160,194,0.08);
+    border: 2px dashed var(--rule);
+    border-radius: 12px;
+    padding: 14px;
+    color: var(--ink-faint);
+    font-family: 'Manrope', sans-serif;
+    font-size: 13px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s;
+    min-height: 156px;
+  }
+  .mb-swatch-add:hover { color: var(--clay); border-color: var(--clay-soft); background: rgba(122,160,194,0.14); }
+
+  /* To-buy table in mood board */
+  .mb-buy-table {
+    background: var(--bg-card);
+    border: 1px solid var(--rule);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 28px;
+    box-shadow: var(--shadow);
+  }
+  .mb-buy-table-row, .mb-buy-table-head {
+    display: grid;
+    grid-template-columns: minmax(0,1.5fr) 100px 80px 70px 50px;
+    gap: 12px;
+    padding: 10px 16px;
+    align-items: center;
+    border-top: 1px solid var(--rule-soft);
+  }
+  .mb-buy-table-head {
+    font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--ink-faint); font-weight: 700;
+    border-top: none;
+    background: rgba(122,160,194,0.04);
+  }
+  .mb-buy-table-row.bought .name { text-decoration: line-through; color: var(--ink-faint); }
+  .mb-buy-table-row input[type="text"] {
+    border: 1px solid transparent;
+    background: transparent;
+    padding: 4px 6px;
+    border-radius: 4px;
+    font-family: 'Manrope', sans-serif;
+    font-size: 13px;
+    color: var(--ink);
+    outline: none;
+    width: 100%;
+    min-width: 0;
+  }
+  .mb-buy-table-row input[type="text"]:focus { border-color: var(--clay); background: white; }
+  .mb-buy-table-row .price { text-align: right; font-variant-numeric: tabular-nums; }
+  .mb-buy-table-row .check {
+    display: flex; justify-content: center;
+  }
+  .mb-buy-table-row .check input { width: 16px; height: 16px; accent-color: var(--forest); }
+  .mb-buy-table-row .actions { display: flex; gap: 4px; justify-content: flex-end; }
+  .mb-buy-table-row .actions button, .mb-buy-table-row .actions a {
+    background: transparent; border: none; cursor: pointer;
+    color: var(--ink-faint); font-size: 14px;
+    width: 24px; height: 24px;
+    border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    text-decoration: none;
+  }
+  .mb-buy-table-row .actions button:hover { color: var(--ink); background: rgba(122,160,194,0.08); }
+  .mb-buy-add-row {
+    padding: 10px 16px;
+    background: rgba(122,160,194,0.04);
+    border-top: 1px solid var(--rule-soft);
+  }
+  .mb-buy-add-row button {
+    background: transparent; border: 1px dashed var(--rule);
+    padding: 6px 12px; border-radius: 8px;
+    font-family: 'Manrope', sans-serif; font-size: 12px;
+    color: var(--ink-faint); cursor: pointer; width: 100%;
+  }
+  .mb-buy-add-row button:hover { color: var(--clay); border-color: var(--clay-soft); }
+  .mb-buy-table-totals {
+    display: flex; justify-content: flex-end;
+    gap: 18px;
+    padding: 10px 16px;
+    border-top: 1px solid var(--rule);
+    background: rgba(122,160,194,0.04);
+    font-size: 12px; color: var(--ink-soft);
+    font-variant-numeric: tabular-nums;
+  }
+  .mb-buy-table-totals strong { color: var(--ink); font-weight: 700; }
+  @media (max-width: 600px) {
+    .mb-buy-table-row, .mb-buy-table-head {
+      grid-template-columns: minmax(0,1fr) 70px 60px 36px 36px;
+      gap: 6px; padding: 8px 10px;
+    }
+  }
+
+  /* Add inspiration button (mood board) */
+  .mb-add-insp-btn {
+    background: var(--bg-card);
+    border: 1px dashed var(--rule);
+    border-radius: 100px;
+    padding: 7px 16px;
+    font-family: 'Manrope', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ink-soft);
+    cursor: pointer;
+    transition: all 0.15s;
+    margin-left: 10px;
+  }
+  .mb-add-insp-btn:hover { color: var(--clay); border-color: var(--clay-soft); }
   @media (max-width: 900px) {
     .mb-photo-grid { column-count: 2; }
   }
@@ -7732,7 +7862,7 @@ function renderMoodboard() {
       <div class="mb-board-meta">${meta.join('')}</div>
     </div>
     <div class="mb-description ${desc ? '' : 'empty'}" contenteditable="true" spellcheck="true" data-placeholder="${escapeHTML(placeholderText)}" id="mb-desc">${escapeHTML(desc)}</div>
-    ${paint.length ? '<div class="mb-section-title">Paint palette</div>' + renderPaintPaletteHTML(paint) : ''}
+    ${paint.length ? '<div class="mb-section-title">Paint palette</div>' + '<div id="mb-room-palette-host"></div>' : ''}
     ${insp.length === 0 ? '<div class="mb-empty">No inspiration photos yet. Upload some in Design Vision.</div>' : '<div class="mb-section-title">Inspiration</div><div class="mb-photo-grid" id="mb-photo-grid"></div>'}
     ${buys.length ? '<div class="mb-section-title">To buy</div><div class="mb-buy-grid" id="mb-buy-grid"></div>' : ''}
     ${currents.length ? '<div class="mb-section-title">Current home</div><div class="mb-current-strip" id="mb-current-strip"></div>' : ''}
@@ -7751,6 +7881,15 @@ function renderMoodboard() {
     const text = (e.clipboardData || window.clipboardData).getData('text/plain');
     document.execCommand('insertText', false, text);
   });
+  // Editable paint palette
+  const paletteHost = board.querySelector('#mb-room-palette-host');
+  if (paletteHost) {
+    if (!Array.isArray(room.paintColors)) room.paintColors = [];
+    paletteHost.appendChild(renderPaintPalette(room.paintColors, () => {
+      persist();
+      renderMoodboard();
+    }));
+  }
   // Photo masonry
   if (insp.length) {
     const grid = document.getElementById('mb-photo-grid');
@@ -9568,18 +9707,69 @@ function openInspirationManage(room) {
   overlay.classList.add('active');
 }
 
-function renderPaintPaletteHTML(colors) {
-  const html = colors.map(c => `
-    <a class="mb-swatch" href="${escapeHTML(c.url || '#')}" target="_blank" rel="noopener" title="Open swatch on sherwin-williams.com">
+function renderPaintPalette(colors, onChange) {
+  const wrap = document.createElement('div');
+  wrap.className = 'mb-palette';
+  colors.forEach((c, idx) => {
+    const tile = document.createElement('div');
+    tile.className = 'mb-swatch';
+    tile.innerHTML = `
       <span class="mb-swatch-chip" style="background:${escapeHTML(c.hex || '#ccc')}"></span>
       <div class="mb-swatch-body">
         <div class="mb-swatch-location">${escapeHTML(c.location || '')}</div>
         <div class="mb-swatch-name">${escapeHTML(c.name || '')}</div>
         <div class="mb-swatch-code">SW ${escapeHTML(c.sw || '')} · ${escapeHTML((c.hex || '').toUpperCase())}</div>
       </div>
-    </a>
-  `).join('');
-  return `<div class="mb-palette">${html}</div>`;
+      <div class="mb-swatch-actions">
+        ${c.url ? `<a href="${escapeHTML(c.url)}" target="_blank" rel="noopener" title="Open on sherwin-williams.com">↗</a>` : ''}
+        <button data-act="edit" title="Edit">✎</button>
+        <button class="del" data-act="del" title="Remove">×</button>
+      </div>
+    `;
+    tile.querySelector('[data-act="edit"]').addEventListener('click', e => {
+      e.preventDefault(); e.stopPropagation();
+      openPaintColorEditor(colors, idx, onChange);
+    });
+    tile.querySelector('[data-act="del"]').addEventListener('click', e => {
+      e.preventDefault(); e.stopPropagation();
+      if (!confirm('Remove this color?')) return;
+      colors.splice(idx, 1);
+      onChange();
+    });
+    wrap.appendChild(tile);
+  });
+  const addBtn = document.createElement('button');
+  addBtn.className = 'mb-swatch-add';
+  addBtn.innerHTML = '+ Add paint color';
+  addBtn.addEventListener('click', () => openPaintColorEditor(colors, -1, onChange));
+  wrap.appendChild(addBtn);
+  return wrap;
+}
+
+function openPaintColorEditor(colors, idx, onChange) {
+  const existing = idx >= 0 ? colors[idx] : { location: '', name: '', sw: '', hex: '#CCCCCC', url: '' };
+  const location = prompt('Where does this color go? (e.g., Walls, Ceiling, Trim, Doors, Wainscot)', existing.location || '');
+  if (location === null) return;
+  const name = prompt('SW color name (e.g., Alabaster)', existing.name || '');
+  if (name === null) return;
+  const sw = prompt('SW number (e.g., 7008)', existing.sw || '');
+  if (sw === null) return;
+  let hex = prompt('Hex color (e.g., #EDEAE0). Leave blank to look up from SW name later.', existing.hex || '');
+  if (hex === null) return;
+  hex = (hex || '').trim();
+  if (hex && !hex.startsWith('#')) hex = '#' + hex;
+  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  const url = sw && name ? `https://www.sherwin-williams.com/en-us/color/color-family/all/SW${sw}-${slug}` : '';
+  const updated = {
+    location: location.trim(),
+    name: name.trim(),
+    sw: sw.trim(),
+    hex: hex || '#CCCCCC',
+    url
+  };
+  if (idx >= 0) colors[idx] = updated;
+  else colors.push(updated);
+  onChange();
 }
 
 function renderOverallMoodboard(board) {
@@ -9609,7 +9799,7 @@ function renderOverallMoodboard(board) {
       </div>
     </div>
     <div class="mb-description ${desc ? '' : 'empty'}" contenteditable="true" spellcheck="true" data-placeholder="Describe the overall vision for the house — style, palette, feel, anchor pieces…" id="mb-desc-overall">${escapeHTML(desc)}</div>
-    ${universalPalette.length ? '<div class="mb-section-title">Universal palette (applies to every room)</div>' + renderPaintPaletteHTML(universalPalette) : ''}
+    ${universalPalette.length ? '<div class="mb-section-title">Universal palette (applies to every room)</div>' + '<div id="mb-universal-palette-host"></div>' : ''}
     ${sample.length ? '<div class="mb-section-title">A glimpse from each room</div><div class="mb-photo-grid" id="mb-overall-grid"></div>' : '<div class="mb-empty">Add rooms and inspiration in Design Vision and they\'ll surface here.</div>'}
   `;
   const descEl = board.querySelector('#mb-desc-overall');
@@ -9621,6 +9811,15 @@ function renderOverallMoodboard(board) {
       persist();
     }
   });
+  // Editable universal palette
+  const palHost = board.querySelector('#mb-universal-palette-host');
+  if (palHost) {
+    if (!Array.isArray(state.overallVision.universalPalette)) state.overallVision.universalPalette = [];
+    palHost.appendChild(renderPaintPalette(state.overallVision.universalPalette, () => {
+      persist();
+      renderMoodboard();
+    }));
+  }
   descEl.addEventListener('paste', e => {
     e.preventDefault();
     const text = (e.clipboardData || window.clipboardData).getData('text/plain');
