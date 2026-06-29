@@ -1266,6 +1266,145 @@
     margin-left: 10px;
   }
   .mb-add-insp-btn:hover { color: var(--clay); border-color: var(--clay-soft); }
+
+  /* Flat design nav (replaces nested subtabs + floor segment) */
+  .design-nav-wrap {
+    max-width: 1240px;
+    margin: 12px auto 0;
+    padding: 0 40px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .design-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 6px 0 8px;
+    align-items: center;
+  }
+  .dn-btn {
+    background: transparent;
+    border: none;
+    padding: 8px 16px;
+    font-family: 'Manrope', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink-soft);
+    cursor: pointer;
+    border-radius: 100px;
+    letter-spacing: 0.02em;
+    transition: all 0.15s;
+  }
+  .dn-btn:hover { color: var(--ink); background: rgba(122,160,194,0.10); }
+  .dn-btn.active { background: var(--ink); color: white; }
+  .dn-sep {
+    width: 1px;
+    height: 18px;
+    background: var(--rule);
+    margin: 0 10px;
+    display: inline-block;
+  }
+  @media (max-width: 600px) {
+    .design-nav-wrap { padding: 0 14px; }
+    .dn-btn { padding: 6px 12px; font-size: 12px; }
+    .dn-sep { display: none; }
+  }
+
+  /* Palette (paint inventory) tab */
+  .palette-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .palette-card {
+    background: var(--bg-card);
+    border: 1px solid var(--rule);
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+  .palette-card-chip {
+    height: 140px;
+    width: 100%;
+  }
+  .palette-card-body { padding: 14px 18px; }
+  .palette-card-loc {
+    font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--ink-faint); font-weight: 700;
+  }
+  .palette-card-name {
+    font-family: 'Fraunces', serif;
+    font-size: 17px; font-weight: 500;
+    color: var(--ink); margin-top: 2px;
+    letter-spacing: -0.01em;
+  }
+  .palette-card-code {
+    font-size: 11px; color: var(--ink-soft);
+    font-variant-numeric: tabular-nums;
+    margin-top: 2px;
+    letter-spacing: 0.04em;
+  }
+  .palette-card-rooms {
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid var(--rule-soft);
+    display: flex; flex-wrap: wrap; gap: 4px;
+    align-items: center;
+  }
+  .palette-room-chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: rgba(122,160,194,0.10);
+    padding: 3px 10px 3px 10px;
+    border-radius: 100px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--ink-soft);
+  }
+  .palette-room-chip button {
+    background: transparent; border: none; cursor: pointer;
+    color: var(--ink-faint); font-size: 13px;
+    padding: 0; margin-left: 2px;
+    line-height: 1;
+  }
+  .palette-room-chip button:hover { color: var(--behind); }
+  .palette-add-room {
+    background: transparent;
+    border: 1px dashed var(--rule);
+    border-radius: 100px;
+    padding: 3px 10px;
+    font-family: 'Manrope', sans-serif;
+    font-size: 11px;
+    color: var(--ink-faint);
+    cursor: pointer;
+  }
+  .palette-add-room:hover { color: var(--clay); border-color: var(--clay-soft); }
+  .palette-section-header {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin: 24px 0 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .palette-section-header h3 {
+    font-family: 'Fraunces', serif;
+    font-weight: 400;
+    font-size: 22px;
+    color: var(--ink);
+    margin: 0;
+    letter-spacing: -0.01em;
+  }
+  .palette-add-color-btn {
+    background: var(--clay);
+    color: white;
+    border: none;
+    border-radius: 100px;
+    padding: 8px 16px;
+    font-family: 'Manrope', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+  }
+  .palette-add-color-btn:hover { background: var(--plum); }
   @media (max-width: 900px) {
     .mb-photo-grid { column-count: 2; }
   }
@@ -6313,28 +6452,32 @@
   </div>
 </div>
 
-<!-- ============ DESIGN PARENT TAB (Design Vision + Listing images + Layout) ============ -->
+<!-- ============ DESIGN PARENT TAB ============ -->
 <div class="tab-content" id="tab-design">
-  <div class="project-subtabs" style="max-width: 1240px; margin: 14px auto 0; padding: 0 40px;">
-    <div class="floor-tabs" style="margin-bottom:0;">
-      <button class="floor-tab-btn active" data-design-subtab="moodboard" onclick="switchDesignSubtab('moodboard')">Design Vision</button>
-      <button class="floor-tab-btn" data-design-subtab="greenview" onclick="switchDesignSubtab('greenview')">Listing images</button>
-      <button class="floor-tab-btn" data-design-subtab="layout" onclick="switchDesignSubtab('layout')">Layout</button>
+  <div class="design-nav-wrap">
+    <div class="design-nav" id="design-nav">
+      <button class="dn-btn active" data-design-subtab="overall" onclick="switchDesignSubtab('overall')">Overall</button>
+      <button class="dn-btn" data-design-subtab="basement" onclick="switchDesignSubtab('basement')">Basement</button>
+      <button class="dn-btn" data-design-subtab="ground" onclick="switchDesignSubtab('ground')">Ground</button>
+      <button class="dn-btn" data-design-subtab="upper" onclick="switchDesignSubtab('upper')">Upper</button>
+      <span class="dn-sep"></span>
+      <button class="dn-btn" data-design-subtab="palette" onclick="switchDesignSubtab('palette')">Palette</button>
+      <button class="dn-btn" data-design-subtab="greenview" onclick="switchDesignSubtab('greenview')">Listing photos</button>
+      <button class="dn-btn" data-design-subtab="layout" onclick="switchDesignSubtab('layout')">Layout</button>
     </div>
   </div>
-<!-- ============ MOOD BOARDS (inside Design) ============ -->
-<div class="design-subtab-content" id="tab-moodboard">
-  <div class="container" style="max-width: 1240px; margin: 0 auto; padding: 24px 40px;">
-    <div class="moodboard-controls">
-      <div class="floor-segment" id="mb-floor-segment">
-        <button class="floor-segment-btn active" data-mb-floor="overall" onclick="switchMbFloor('overall')">Overall</button>
-        <button class="floor-segment-btn" data-mb-floor="basement" onclick="switchMbFloor('basement')">Basement</button>
-        <button class="floor-segment-btn" data-mb-floor="ground" onclick="switchMbFloor('ground')">Ground floor</button>
-        <button class="floor-segment-btn" data-mb-floor="upper" onclick="switchMbFloor('upper')">Upper floor</button>
-      </div>
-      <div class="mb-room-chips" id="mb-room-chips"></div>
-    </div>
+<!-- ============ MOOD BOARDS (room views — overall/basement/ground/upper share this) ============ -->
+<div class="design-subtab-content active" id="tab-moodboard">
+  <div class="container" style="max-width: 1240px; margin: 0 auto; padding: 18px 40px 24px;">
+    <div class="mb-room-chips" id="mb-room-chips"></div>
     <div id="mb-board"></div>
+  </div>
+</div>
+
+<!-- ============ PALETTE (paint inventory) ============ -->
+<div class="design-subtab-content" id="tab-palette">
+  <div class="container" style="max-width: 1240px; margin: 0 auto; padding: 18px 40px 24px;">
+    <div id="palette-board"></div>
   </div>
 </div>
 
@@ -7773,25 +7916,38 @@ function switchProjectSubtab(name) {
   if (name === 'weeks') renderWeeks(); else renderList();
 }
 
-let designSubtab = 'moodboard';
+let designSubtab = 'overall';
+const FLOOR_VIEWS = ['overall','basement','ground','upper'];
 try {
   const saved = localStorage.getItem('mt-design-subtab');
-  if (['moodboard','greenview','layout'].includes(saved)) designSubtab = saved;
-  // Auto-migrate stale 'inspiration' preference
-  if (saved === 'inspiration') designSubtab = 'moodboard';
+  const validViews = [...FLOOR_VIEWS, 'palette', 'greenview', 'layout'];
+  if (validViews.includes(saved)) designSubtab = saved;
+  if (saved === 'inspiration' || saved === 'moodboard') designSubtab = 'overall';
 } catch(e) {}
 
 function switchDesignSubtab(name) {
   designSubtab = name;
   try { localStorage.setItem('mt-design-subtab', name); } catch(e) {}
-  document.querySelectorAll('.floor-tab-btn[data-design-subtab]').forEach(b => b.classList.toggle('active', b.dataset.designSubtab === name));
+  // Sync nav button active state
+  document.querySelectorAll('.dn-btn[data-design-subtab]').forEach(b => b.classList.toggle('active', b.dataset.designSubtab === name));
+  // Show the right content container
   document.querySelectorAll('.design-subtab-content').forEach(c => c.classList.remove('active'));
-  const inner = document.getElementById('tab-' + name);
-  if (inner) inner.classList.add('active');
-  if (name === 'greenview') renderGreenview();
-  else if (name === 'layout') renderLayout();
-  else if (name === 'moodboard') renderMoodboard();
-  else if (name === 'inspiration') { designSubtab = 'moodboard'; switchDesignSubtab('moodboard'); }
+  if (FLOOR_VIEWS.includes(name)) {
+    document.getElementById('tab-moodboard').classList.add('active');
+    mbFloor = name;
+    if (name !== 'overall') mbRoomId = null;
+    try { localStorage.setItem('mt-mb-floor', name); if (name !== 'overall') localStorage.removeItem('mt-mb-room'); } catch (e) {}
+    renderMoodboard();
+  } else if (name === 'palette') {
+    document.getElementById('tab-palette').classList.add('active');
+    renderPalette();
+  } else if (name === 'greenview') {
+    document.getElementById('tab-greenview').classList.add('active');
+    renderGreenview();
+  } else if (name === 'layout') {
+    document.getElementById('tab-layout').classList.add('active');
+    renderLayout();
+  }
 }
 
 // ============================================================
@@ -9880,6 +10036,187 @@ function openInspirationManage(room) {
   addEl.addEventListener('click', () => openInspirationUpload(room));
   grid.appendChild(addEl);
   overlay.classList.add('active');
+}
+
+function renderPalette() {
+  ensureInspirationState();
+  if (!state.overallVision) state.overallVision = {};
+  if (!Array.isArray(state.overallVision.universalPalette)) state.overallVision.universalPalette = [];
+  const board = document.getElementById('palette-board');
+
+  // Build inventory: map key (sw+name) → { color, locations: [{floor, room, location}] }
+  const inv = new Map();
+  function addRef(c, floor, room, location) {
+    const key = (c.sw || '') + '|' + (c.name || '').toLowerCase();
+    if (!inv.has(key)) inv.set(key, { color: { ...c, location: c.location || location }, refs: [] });
+    inv.get(key).refs.push({ floor, roomId: room ? room.id : null, roomName: room ? room.name : null, location: c.location || location });
+  }
+  // Universal palette → applies to all rooms
+  (state.overallVision.universalPalette || []).forEach(c => {
+    addRef(c, null, null, c.location);
+  });
+  // Per-room palettes
+  for (const f of ['basement','ground','upper']) {
+    (state.inspiration[f] || []).forEach(room => {
+      (room.paintColors || []).forEach(c => {
+        // Skip if this matches a universal palette entry (same name+sw+location)
+        const isUniv = (state.overallVision.universalPalette || []).some(u =>
+          u.sw === c.sw && (u.name || '').toLowerCase() === (c.name || '').toLowerCase() && (u.location || '') === (c.location || '')
+        );
+        if (isUniv) return;
+        addRef(c, f, room, c.location);
+      });
+    });
+  }
+
+  // Render
+  board.innerHTML = `
+    <div class="palette-section-header">
+      <h3>Paint Inventory</h3>
+      <button class="palette-add-color-btn" id="pal-add-new">+ Add new color</button>
+    </div>
+    <div class="palette-grid" id="palette-grid"></div>
+  `;
+  const grid = board.querySelector('#palette-grid');
+  if (inv.size === 0) {
+    grid.innerHTML = '<div class="mb-empty">No paint colors yet. Add one to start.</div>';
+  }
+  const entries = [...inv.values()].sort((a, b) => (a.color.name || '').localeCompare(b.color.name || ''));
+  entries.forEach(entry => grid.appendChild(renderPaletteCard(entry)));
+  board.querySelector('#pal-add-new').addEventListener('click', () => addNewPaletteColor());
+}
+
+function renderPaletteCard(entry) {
+  const c = entry.color;
+  const card = document.createElement('div');
+  card.className = 'palette-card';
+  // Determine which rooms are using this color (deduplicated by room.id)
+  const universalRef = entry.refs.find(r => !r.roomId);
+  const roomRefs = entry.refs.filter(r => r.roomId);
+  const seen = new Set();
+  const uniqueRoomRefs = roomRefs.filter(r => { if (seen.has(r.roomId)) return false; seen.add(r.roomId); return true; });
+  card.innerHTML = `
+    <div class="palette-card-chip" style="background:${escapeHTML(c.hex || '#ccc')}"></div>
+    <div class="palette-card-body">
+      <div class="palette-card-loc">${escapeHTML(c.location || '—')}</div>
+      <div class="palette-card-name">${escapeHTML(c.name || 'Unnamed')}</div>
+      <div class="palette-card-code">SW ${escapeHTML(c.sw || '')} · ${escapeHTML((c.hex || '').toUpperCase())} ${c.url ? `· <a href="${escapeHTML(c.url)}" target="_blank" rel="noopener" style="color:var(--clay);text-decoration:none;">view on SW ↗</a>` : ''}</div>
+      <div class="palette-card-rooms" id="rooms-${escapeHTML(c.sw || '')}-${Math.random().toString(36).slice(2,6)}">
+        ${universalRef ? '<span class="palette-room-chip" style="background:rgba(74,142,149,0.14);color:var(--forest);">★ Every room (universal)</span>' : ''}
+      </div>
+      <div style="display:flex;gap:6px;margin-top:10px;">
+        <button class="palette-add-room edit-color-btn">✎ Edit color</button>
+        ${universalRef ? '' : `<button class="palette-add-room add-room-btn">+ Assign to room</button>`}
+      </div>
+    </div>
+  `;
+  const roomsBox = card.querySelector('.palette-card-rooms');
+  uniqueRoomRefs.forEach(ref => {
+    const chip = document.createElement('span');
+    chip.className = 'palette-room-chip';
+    chip.innerHTML = `${escapeHTML(ref.roomName || 'Room')} <button title="Remove from room">×</button>`;
+    chip.querySelector('button').addEventListener('click', () => {
+      if (!confirm(`Remove "${c.name}" from ${ref.roomName}?`)) return;
+      removeColorFromRoom(c, ref.floor, ref.roomId);
+    });
+    roomsBox.appendChild(chip);
+  });
+  card.querySelector('.edit-color-btn').addEventListener('click', () => editColorEverywhere(c));
+  const addBtn = card.querySelector('.add-room-btn');
+  if (addBtn) {
+    addBtn.addEventListener('click', () => assignColorToRoom(c));
+  }
+  return card;
+}
+
+function colorMatches(a, b) {
+  return (a.sw || '') === (b.sw || '') &&
+         (a.name || '').toLowerCase() === (b.name || '').toLowerCase() &&
+         (a.location || '') === (b.location || '');
+}
+
+function removeColorFromRoom(c, floor, roomId) {
+  const room = (state.inspiration[floor] || []).find(r => r.id === roomId);
+  if (!room || !Array.isArray(room.paintColors)) return;
+  room.paintColors = room.paintColors.filter(p => !colorMatches(p, c));
+  persist();
+  renderPalette();
+}
+
+function assignColorToRoom(c) {
+  const choices = [];
+  for (const f of ['basement','ground','upper']) {
+    (state.inspiration[f] || []).forEach(r => choices.push({ floor: f, id: r.id, label: `${FLOOR_LABELS[f]} / ${r.name || 'Unnamed'}` }));
+  }
+  if (choices.length === 0) { alert('No rooms exist yet. Add some in Design Vision first.'); return; }
+  const list = choices.map((c, i) => `${i+1}. ${c.label}`).join('\n');
+  const input = prompt(`Assign "${c.name}" (SW ${c.sw}) to which room(s)?\n\n${list}\n\nEnter numbers separated by commas (e.g., "1,3,5"):`, '');
+  if (!input) return;
+  const nums = input.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n) && choices[n-1]);
+  let added = 0;
+  nums.forEach(n => {
+    const target = choices[n-1];
+    const room = state.inspiration[target.floor].find(r => r.id === target.id);
+    if (!room) return;
+    if (!Array.isArray(room.paintColors)) room.paintColors = [];
+    if (room.paintColors.some(p => colorMatches(p, c))) return;
+    room.paintColors.push({ ...c });
+    added++;
+  });
+  if (added > 0) { persist(); renderPalette(); }
+}
+
+function editColorEverywhere(c) {
+  const location = prompt('Where does this color go? (e.g., Walls, Ceiling, Trim, Doors, Wainscot)', c.location || '');
+  if (location === null) return;
+  const name = prompt('SW color name:', c.name || '');
+  if (name === null) return;
+  const sw = prompt('SW number:', c.sw || '');
+  if (sw === null) return;
+  let hex = prompt('Hex color:', c.hex || '#CCCCCC');
+  if (hex === null) return;
+  hex = (hex || '').trim();
+  if (hex && !hex.startsWith('#')) hex = '#' + hex;
+  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  const url = sw && name ? `https://www.sherwin-williams.com/en-us/color/color-family/all/SW${sw}-${slug}` : '';
+  const updated = { location: location.trim(), name: name.trim(), sw: sw.trim(), hex: hex || '#CCCCCC', url };
+  // Replace everywhere it appears
+  if (Array.isArray(state.overallVision.universalPalette)) {
+    state.overallVision.universalPalette = state.overallVision.universalPalette.map(p => colorMatches(p, c) ? updated : p);
+  }
+  for (const f of ['basement','ground','upper']) {
+    (state.inspiration[f] || []).forEach(r => {
+      if (Array.isArray(r.paintColors)) r.paintColors = r.paintColors.map(p => colorMatches(p, c) ? updated : p);
+    });
+  }
+  persist();
+  renderPalette();
+}
+
+function addNewPaletteColor() {
+  const location = prompt('Where will this color go? (e.g., Walls, Ceiling, Trim, Doors, Wainscot)', '');
+  if (location === null || !location.trim()) return;
+  const name = prompt('SW color name (e.g., Alabaster):', '');
+  if (name === null || !name.trim()) return;
+  const sw = prompt('SW number (e.g., 7008):', '');
+  if (sw === null) return;
+  let hex = prompt('Hex color (e.g., #EDEAE0):', '#CCCCCC');
+  if (hex === null) return;
+  hex = (hex || '').trim();
+  if (hex && !hex.startsWith('#')) hex = '#' + hex;
+  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  const url = sw && name ? `https://www.sherwin-williams.com/en-us/color/color-family/all/SW${sw}-${slug}` : '';
+  const color = { location: location.trim(), name: name.trim(), sw: sw.trim(), hex: hex || '#CCCCCC', url };
+  // Ask: universal (every room) or assign to specific rooms?
+  const scope = prompt('Apply to:\n\n1. Every room (universal)\n2. Specific rooms\n\nEnter 1 or 2:', '2');
+  if (scope === '1') {
+    if (!Array.isArray(state.overallVision.universalPalette)) state.overallVision.universalPalette = [];
+    state.overallVision.universalPalette.push(color);
+    persist(); renderPalette();
+  } else {
+    assignColorToRoom(color);
+    // Also save to universal if user later assigns it, but for now: assignColorToRoom takes care of it
+  }
 }
 
 function renderPaintPalette(colors, onChange) {
