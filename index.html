@@ -10944,7 +10944,8 @@ function renderBudgetLine(item) {
   }
   row.innerHTML = `
     <input type="text" class="budget-input label" placeholder="Line item name" value="${escapeHTML(item.label || '')}">
-    <select class="budget-input cat">${catOpts}</select>
+    <input type="text" class="budget-input cat" list="${datalistId}" placeholder="Type or pick category" value="${escapeHTML(item.category || '')}">
+    <datalist id="${datalistId}">${catOpts}</datalist>
     ${roomCellHtml}
     <input type="text" class="budget-input amount estimated" placeholder="—" value="${item.estimated ? fmtMoney(item.estimated) : ''}">
     <input type="text" class="budget-input amount actual" placeholder="—" value="${item.actual ? fmtMoney(item.actual) : ''}">
@@ -10952,7 +10953,11 @@ function renderBudgetLine(item) {
     <button class="budget-del" title="Delete">×</button>
   `;
   row.querySelector('.cat').addEventListener('change', e => {
-    item.category = e.target.value;
+    const newCat = e.target.value.trim();
+    item.category = newCat;
+    if (newCat && !PURCHASE_CATEGORIES.includes(newCat) && !SALE_CATEGORIES.includes(newCat) && !HOME_CATEGORIES.includes(newCat)) {
+      setCategoryScope(newCat, budgetSubtab);
+    }
     persist();
     renderBudget();
   });
