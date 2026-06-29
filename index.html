@@ -11023,37 +11023,71 @@ function renderBudget() {
   });
   renderBudgetCharts(items);
 
-  // Summary — actuals roll up paid items (paid + no manual actual = treats estimated as spent)
-  const totalEst = items.reduce((s, i) => s + (Number(i.estimated) || 0), 0);
-  const totalActual = items.reduce((s, i) => s + effectiveActual(i), 0);
-  const totalPaid = items.filter(i => i.paid).reduce((s, i) => s + effectiveActual(i), 0);
-  const actualsCount = items.filter(i => effectiveActual(i) > 0).length;
-  const delta = totalEst - totalActual;
-  const deltaCls = delta >= 0 ? 'delta-pos' : 'delta-neg';
-  const deltaPrefix = delta >= 0 ? 'under by ' : 'over by ';
-
-  document.getElementById('budget-summary').innerHTML = `
-    <div class="budget-sum-cell">
-      <div class="budget-sum-label">Estimated total</div>
-      <div class="budget-sum-value">${fmtMoney(totalEst)}</div>
-      <div class="budget-sum-sub">${items.length} line items</div>
-    </div>
-    <div class="budget-sum-cell">
-      <div class="budget-sum-label">Actual total</div>
-      <div class="budget-sum-value">${fmtMoney(totalActual)}</div>
-      <div class="budget-sum-sub">${actualsCount} with actuals</div>
-    </div>
-    <div class="budget-sum-cell">
-      <div class="budget-sum-label">Paid so far</div>
-      <div class="budget-sum-value">${fmtMoney(totalPaid)}</div>
-      <div class="budget-sum-sub">${items.filter(i => i.paid).length} of ${items.length} paid</div>
-    </div>
-    <div class="budget-sum-cell">
-      <div class="budget-sum-label">Est. vs Actual</div>
-      <div class="budget-sum-value ${deltaCls}">${deltaPrefix}${fmtMoney(Math.abs(delta))}</div>
-      <div class="budget-sum-sub">${totalActual === 0 ? 'no actuals yet' : 'running variance'}</div>
-    </div>
-  `;
+  // Summary — Home uses allocation table as budget; Purchase/Sale uses item estimated totals
+  let sumHTML;
+  if (budgetSubtab === 'home') {
+    ensureBudgetAllocations();
+    const allocs = state.budget.allocations || [];
+    const totalBudget = allocs.reduce((s, a) => s + (Number(a.budget) || 0), 0);
+    const totalSpent = items.reduce((s, i) => s + effectiveActual(i), 0);
+    const purchaseCount = items.filter(i => i.paid || Number(i.actual) > 0).length;
+    const remaining = totalBudget - totalSpent;
+    const remCls = remaining >= 0 ? 'delta-pos' : 'delta-neg';
+    const pctSpent = totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0;
+    sumHTML = `
+      <div class="budget-sum-cell">
+        <div class="budget-sum-label">Total budget</div>
+        <div class="budget-sum-value">${fmtMoney(totalBudget)}</div>
+        <div class="budget-sum-sub">${allocs.length} categories</div>
+      </div>
+      <div class="budget-sum-cell">
+        <div class="budget-sum-label">Spent so far</div>
+        <div class="budget-sum-value">${fmtMoney(totalSpent)}</div>
+        <div class="budget-sum-sub">${purchaseCount} purchase${purchaseCount === 1 ? '' : 's'}</div>
+      </div>
+      <div class="budget-sum-cell">
+        <div class="budget-sum-label">Remaining</div>
+        <div class="budget-sum-value ${remCls}">${remaining < 0 ? '−' : ''}${fmtMoney(Math.abs(remaining))}</div>
+        <div class="budget-sum-sub">${remaining < 0 ? 'over budget' : 'left to spend'}</div>
+      </div>
+      <div class="budget-sum-cell">
+        <div class="budget-sum-label">% of budget used</div>
+        <div class="budget-sum-value">${pctSpent}%</div>
+        <div class="budget-sum-sub">${totalBudget === 0 ? 'set a budget below' : pctSpent >= 100 ? 'budget exhausted' : 'on track'}</div>
+      </div>
+    `;
+  } else {
+    const totalEst = items.reduce((s, i) => s + (Number(i.estimated) || 0), 0);
+    const totalActual = items.reduce((s, i) => s + effectiveActual(i), 0);
+    const totalPaid = items.filter(i => i.paid).reduce((s, i) => s + effectiveActual(i), 0);
+    const actualsCount = items.filter(i => effectiveActual(i) > 0).length;
+    const delta = totalEst - totalActual;
+    const deltaCls = delta >= 0 ? 'delta-pos' : 'delta-neg';
+    const deltaPrefix = delta >= 0 ? 'under by ' : 'over by ';
+    sumHTML = `
+      <div class="budget-sum-cell">
+        <div class="budget-sum-label">Estimated total</div>
+        <div class="budget-sum-value">${fmtMoney(totalEst)}</div>
+        <div class="budget-sum-sub">${items.length} line items</div>
+      </div>
+      <div class="budget-sum-cell">
+        <div class="budget-sum-label">Actual total</div>
+        <div class="budget-sum-value">${fmtMoney(totalActual)}</div>
+        <div class="budget-sum-sub">${actualsCount} with actuals</div>
+      </div>
+      <div class="budget-sum-cell">
+        <div class="budget-sum-label">Paid so far</div>
+        <div class="budget-sum-value">${fmtMoney(totalPaid)}</div>
+        <div class="budget-sum-sub">${items.filter(i => i.paid).length} of ${items.length} paid</div>
+      </div>
+      <div class="budget-sum-cell">
+        <div class="budget-sum-label">Est. vs Actual</div>
+        <div class="budget-sum-value ${deltaCls}">${deltaPrefix}${fmtMoney(Math.abs(delta))}</div>
+        <div class="budget-sum-sub">${totalActual === 0 ? 'no actuals yet' : 'running variance'}</div>
+      </div>
+    `;
+  }
+  document.getElementById('budget-summary').innerHTML = sumHTML;
 
   const baseCats = budgetSubtab === 'purchase' ? PURCHASE_CATEGORIES : budgetSubtab === 'sale' ? SALE_CATEGORIES : HOME_CATEGORIES;
   const c = document.getElementById('budget-categories');
