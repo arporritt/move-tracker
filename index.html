@@ -1527,7 +1527,7 @@
   }
   .palette-table-head, .palette-table-row {
     display: grid;
-    grid-template-columns: 44px 120px minmax(0,1.4fr) 80px 92px minmax(0,1.6fr) 72px;
+    grid-template-columns: 22px 44px 120px minmax(0,1.4fr) 80px 92px minmax(0,1.6fr) 72px;
     gap: 12px; align-items: center; padding: 10px 16px;
   }
   .palette-table-head {
@@ -1535,6 +1535,14 @@
     color: var(--ink-faint); font-weight: 700; background: rgba(122,160,194,0.04);
   }
   .palette-table-row { border-top: 1px solid var(--rule-soft); font-size: 13px; }
+  .palette-table-row.dragging { opacity: 0.4; }
+  .palette-table-row.drag-over { border-top: 2px solid var(--clay); }
+  .pt-drag {
+    cursor: grab; color: var(--ink-faint); font-size: 15px; line-height: 1;
+    display: flex; align-items: center; justify-content: center; user-select: none;
+  }
+  .pt-drag:hover { color: var(--ink); }
+  .pt-drag:active { cursor: grabbing; }
   .pt-swatch { width: 32px; height: 32px; border-radius: 7px; border: 1px solid var(--rule); }
   .pt-loc { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-faint); font-weight: 700; }
   .pt-name { font-family: 'Fraunces', serif; font-size: 15px; color: var(--ink); letter-spacing: -0.01em; }
@@ -10815,6 +10823,7 @@ function openInspirationManage(room) {
 }
 
 let paletteView = 'gallery';
+let paletteDragColor = null;
 try { const v = localStorage.getItem('mt-palette-view'); if (v === 'table' || v === 'gallery') paletteView = v; } catch (e) {}
 
 // Master color list lives in state.overallVision.palette — colors exist here independently of room assignment,
@@ -10845,6 +10854,12 @@ function renderPalette() {
   ensurePaletteMaster();
   const board = document.getElementById('palette-board');
 
+  // Sort alphabetically once as a starting point; after that the order is manual (drag the ⠿ handle).
+  if (!state.overallVision.paletteSorted) {
+    state.overallVision.palette.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    state.overallVision.paletteSorted = true;
+    persist();
+  }
   // Build entries from the master list; compute where each color is used.
   const entries = state.overallVision.palette.map(color => {
     const universal = (state.overallVision.universalPalette || []).some(u => colorMatches(u, color));
@@ -10861,7 +10876,7 @@ function renderPalette() {
       }
     }
     return { color, refs, universal };
-  }).sort((a, b) => (a.color.name || '').localeCompare(b.color.name || ''));
+  });
   board.innerHTML = `
     <div class="palette-section-header">
       <div>
@@ -10905,7 +10920,7 @@ function renderPaletteTable(entries) {
   wrap.innerHTML = `
     <div class="palette-table">
       <div class="palette-table-head">
-        <div></div><div>Location</div><div>Color</div><div>SW #</div><div>Hex</div><div>Used in</div><div></div>
+        <div></div><div></div><div>Location</div><div>Color</div><div>SW #</div><div>Hex</div><div>Used in</div><div></div>
       </div>
       <div class="palette-table-body"></div>
     </div>
@@ -10920,6 +10935,7 @@ function renderPaletteTable(entries) {
     const row = document.createElement('div');
     row.className = 'palette-table-row';
     row.innerHTML = `
+      <span class="pt-drag" draggable="true" title="Drag to reorder">⠿</span>
       <input type="color" class="pt-swatch-input" value="${safeHexForInput(c.hex)}" title="Pick color">
       <input type="text" class="pt-input pt-loc-input" value="${escapeHTML(c.location || '')}" placeholder="Location">
       <div class="pt-name-cell">
@@ -10988,6 +11004,41 @@ function renderPaletteTable(entries) {
     if (assignBtn) assignBtn.addEventListener('click', () => assignColorToRoom(cur));
     const delColorBtn = row.querySelector('[data-act="del-color"]');
     if (delColorBtn) delColorBtn.addEventListener('click', () => deletePaletteColor(cur));
+
+    // Drag to reorder (grip handle starts the drag; the row is the drop target)
+    const grip = row.querySelector('.pt-drag');
+    grip.addEventListener('dragstart', e => {
+      paletteDragColor = cur;
+      row.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      try { e.dataTransfer.setData('text/plain', cur.name || ''); } catch (err) {}
+    });
+    grip.addEventListener('dragend', () => {
+      row.classList.remove('dragging');
+      document.querySelectorAll('.palette-table-row.drag-over').forEach(r => r.classList.remove('drag-over'));
+      paletteDragColor = null;
+    });
+    row.addEventListener('dragover', e => {
+      if (!paletteDragColor) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      row.classList.add('drag-over');
+    });
+    row.addEventListener('dragleave', () => row.classList.remove('drag-over'));
+    row.addEventListener('drop', e => {
+      e.preventDefault();
+      row.classList.remove('drag-over');
+      if (!paletteDragColor) return;
+      const pal = state.overallVision.palette;
+      const from = pal.findIndex(p => colorMatches(p, paletteDragColor));
+      const to = pal.findIndex(p => colorMatches(p, cur));
+      if (from < 0 || to < 0 || from === to) return;
+      const [moved] = pal.splice(from, 1);
+      pal.splice(to, 0, moved);
+      state.overallVision.paletteSorted = true; // order is now manual
+      persist();
+      renderPalette();
+    });
     body.appendChild(row);
   });
   return wrap;
