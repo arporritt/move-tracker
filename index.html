@@ -11322,10 +11322,10 @@ function buildActualsTable(items) {
   wrap.innerHTML = `
     <div class="actuals-toolbar">
       <div class="actuals-title">Actual purchases</div>
-      <div class="actuals-totals"><span><strong>${fmtMoney(total)}</strong> total spent</span><span>${actuals.length} item${actuals.length === 1 ? '' : 's'}</span></div>
+      <div class="actuals-totals"><span><strong>${fmtMoney(total)}</strong> forecasted total</span><span>${actuals.length} item${actuals.length === 1 ? '' : 's'}</span></div>
     </div>
     <div class="actuals-cols">
-      <div>Item</div><div>Category</div><div>Room</div><div>Spent</div><div>Paid</div><div></div>
+      <div>Item</div><div>Category</div><div>Room</div><div>Forecasted</div><div>Paid</div><div></div>
     </div>
     <div class="actuals-body"></div>
     <div class="actuals-add-bar"><button data-act="add-actual">+ Add purchase</button></div>
