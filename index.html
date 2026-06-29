@@ -2530,7 +2530,7 @@
   .alloc-totals .over { color: var(--behind); font-weight: 700; }
   .alloc-cols, .alloc-row {
     display: grid;
-    grid-template-columns: minmax(0, 2.2fr) 120px 120px 130px 32px;
+    grid-template-columns: minmax(0, 2fr) 110px 110px 110px 120px 32px;
     gap: 10px;
     padding: 6px 18px;
     align-items: center;
@@ -2543,7 +2543,8 @@
   }
   .alloc-cols div:nth-child(2),
   .alloc-cols div:nth-child(3),
-  .alloc-cols div:nth-child(4) { text-align: right; }
+  .alloc-cols div:nth-child(4),
+  .alloc-cols div:nth-child(5) { text-align: right; }
   .alloc-row { border-top: 1px solid var(--rule-soft); }
   .alloc-row.total {
     background: rgba(122,160,194,0.10);
@@ -2615,7 +2616,7 @@
   .actuals-row .expand-btn:hover { background: rgba(122,160,194,0.12); color: var(--ink); }
   .actuals-row .expand-btn.open { color: var(--clay); }
   @media (max-width: 720px) {
-    .alloc-cols, .alloc-row { grid-template-columns: 1fr 80px 80px 90px 24px; gap: 6px; padding: 5px 12px; }
+    .alloc-cols, .alloc-row { grid-template-columns: 1fr 64px 64px 64px 72px 22px; gap: 5px; padding: 5px 12px; }
     .actuals-cols, .actuals-row { grid-template-columns: 20px 1fr 100px 90px 80px 36px 24px; gap: 6px; padding: 5px 12px; }
   }
 
@@ -11306,9 +11307,9 @@ function renderBudgetCharts(items) {
   container.innerHTML = `
     <div class="budget-chart-card">
       <div class="budget-chart-title">
-        Forecast by category
+        By category
         <span class="bar-legend">
-          <span class="legend-dot legend-actuals"></span>Actuals
+          <span class="legend-dot legend-actuals"></span>Spent
           <span class="legend-dot legend-forecast"></span>Forecast
         </span>
       </div>
@@ -11316,9 +11317,9 @@ function renderBudgetCharts(items) {
     </div>
     <div class="budget-chart-card">
       <div class="budget-chart-title">
-        Forecast by room
+        By room
         <span class="bar-legend">
-          <span class="legend-dot legend-actuals"></span>Actuals
+          <span class="legend-dot legend-actuals"></span>Spent
           <span class="legend-dot legend-forecast"></span>Forecast
         </span>
       </div>
@@ -11417,14 +11418,14 @@ function renderBudget() {
     ensureBudgetAllocations();
     const allocs = state.budget.allocations || [];
     const totalBudget = allocs.reduce((s, a) => s + (Number(a.budget) || 0), 0);
-    const actualsItems = items.filter(i => i.paid);
+    const spentItems = items.filter(i => i.paid);
     const forecastItems = items.filter(i => !i.paid);
-    const totalActuals = actualsItems.reduce((s, i) => s + effectiveActual(i), 0);
+    const totalSpent = spentItems.reduce((s, i) => s + effectiveActual(i), 0);
     const totalForecast = forecastItems.reduce((s, i) => s + effectiveActual(i), 0);
-    const forecastedTotal = totalActuals + totalForecast;
-    const remaining = totalBudget - forecastedTotal;
+    const committed = totalSpent + totalForecast;
+    const remaining = totalBudget - committed;
     const remCls = remaining >= 0 ? 'delta-pos' : 'delta-neg';
-    const pctUsed = totalBudget > 0 ? Math.round((forecastedTotal / totalBudget) * 100) : 0;
+    const pctUsed = totalBudget > 0 ? Math.round((committed / totalBudget) * 100) : 0;
     sumHTML = `
       <div class="budget-sum-cell">
         <div class="budget-sum-label">Budget</div>
@@ -11432,9 +11433,9 @@ function renderBudget() {
         <div class="budget-sum-sub">${allocs.length} categories</div>
       </div>
       <div class="budget-sum-cell">
-        <div class="budget-sum-label">Actuals</div>
-        <div class="budget-sum-value">${fmtMoney(totalActuals)}</div>
-        <div class="budget-sum-sub">${actualsItems.length} paid</div>
+        <div class="budget-sum-label">Spent</div>
+        <div class="budget-sum-value">${fmtMoney(totalSpent)}</div>
+        <div class="budget-sum-sub">${spentItems.length} paid</div>
       </div>
       <div class="budget-sum-cell">
         <div class="budget-sum-label">Forecast</div>
@@ -11442,9 +11443,9 @@ function renderBudget() {
         <div class="budget-sum-sub">${forecastItems.length} unpaid</div>
       </div>
       <div class="budget-sum-cell">
-        <div class="budget-sum-label">Forecasted total</div>
-        <div class="budget-sum-value ${remCls}">${fmtMoney(forecastedTotal)}</div>
-        <div class="budget-sum-sub">${totalBudget === 0 ? 'set a budget below' : `${pctUsed}% of budget · ${remaining < 0 ? fmtMoney(-remaining) + ' over' : fmtMoney(remaining) + ' left'}`}</div>
+        <div class="budget-sum-label">Remaining</div>
+        <div class="budget-sum-value ${remCls}">${remaining < 0 ? '−' : ''}${fmtMoney(Math.abs(remaining))}</div>
+        <div class="budget-sum-sub">${totalBudget === 0 ? 'set a budget below' : `${pctUsed}% of budget used`}</div>
       </div>
     `;
   } else {
@@ -11499,31 +11500,36 @@ function buildAllocationTable(items) {
   wrap.className = 'alloc-table-wrap';
   const allocs = state.budget.allocations || [];
   const totalBudget = allocs.reduce((s, a) => s + (Number(a.budget) || 0), 0);
-  // Per-category actual = sum of effectiveActual for items in that category
+  // Per-category: Spent = paid items, Forecast = unpaid items
   const spentByCat = {};
+  const forecastByCat = {};
   items.forEach(i => {
     const c = i.category || 'Other';
-    spentByCat[c] = (spentByCat[c] || 0) + effectiveActual(i);
+    const amt = effectiveActual(i);
+    if (i.paid) spentByCat[c] = (spentByCat[c] || 0) + amt;
+    else forecastByCat[c] = (forecastByCat[c] || 0) + amt;
   });
   const totalSpent = Object.values(spentByCat).reduce((s, v) => s + v, 0);
-  const totalRemaining = totalBudget - totalSpent;
+  const totalForecast = Object.values(forecastByCat).reduce((s, v) => s + v, 0);
+  const totalRemaining = totalBudget - totalSpent - totalForecast;
   wrap.innerHTML = `
     <div class="alloc-toolbar">
       <div class="alloc-title">Budget allocation</div>
       <div class="alloc-totals">
-        <span><strong>${fmtMoney(totalBudget)}</strong> budgeted</span>
+        <span><strong>${fmtMoney(totalBudget)}</strong> budget</span>
         <span><strong>${fmtMoney(totalSpent)}</strong> spent</span>
+        <span><strong>${fmtMoney(totalForecast)}</strong> forecast</span>
         <span class="${totalRemaining < 0 ? 'over' : ''}">${totalRemaining < 0 ? '+'+fmtMoney(-totalRemaining)+' over' : fmtMoney(totalRemaining)+' remaining'}</span>
       </div>
     </div>
     <div class="alloc-cols">
-      <div>Category</div><div>Budget</div><div>Spent</div><div>Remaining</div><div></div>
+      <div>Category</div><div>Budget</div><div>Spent</div><div>Forecast</div><div>Remaining</div><div></div>
     </div>
     <div class="alloc-body"></div>
     <div class="alloc-add-bar"><button data-act="add">+ Add category</button></div>
   `;
   const body = wrap.querySelector('.alloc-body');
-  allocs.forEach(a => body.appendChild(renderAllocRow(a, spentByCat[a.category] || 0)));
+  allocs.forEach(a => body.appendChild(renderAllocRow(a, spentByCat[a.category] || 0, forecastByCat[a.category] || 0)));
   // Total row
   const totalRow = document.createElement('div');
   totalRow.className = 'alloc-row total';
@@ -11531,6 +11537,7 @@ function buildAllocationTable(items) {
     <div>Total</div>
     <div class="alloc-amount-display"><strong>${fmtMoney(totalBudget)}</strong></div>
     <div class="alloc-amount-display"><strong>${fmtMoney(totalSpent)}</strong></div>
+    <div class="alloc-amount-display"><strong>${fmtMoney(totalForecast)}</strong></div>
     <div class="alloc-amount-display ${totalRemaining < 0 ? 'over' : ''}"><strong>${fmtMoney(Math.abs(totalRemaining))}${totalRemaining < 0 ? ' over' : ''}</strong></div>
     <div></div>
   `;
@@ -11541,23 +11548,24 @@ function buildAllocationTable(items) {
     persist();
     renderBudget();
     setTimeout(() => {
-      const inputs = document.querySelectorAll('.alloc-row .alloc-input');
-      const last = inputs[inputs.length - 4]; // category input of the last row
+      const cats = document.querySelectorAll('.alloc-row .alloc-input.cat');
+      const last = cats[cats.length - 1]; // category input of the newest row
       if (last) { last.focus(); }
     }, 0);
   });
   return wrap;
 }
 
-function renderAllocRow(alloc, spent) {
+function renderAllocRow(alloc, spent, forecast) {
   const row = document.createElement('div');
   row.className = 'alloc-row';
   const budget = Number(alloc.budget) || 0;
-  const remaining = budget - spent;
+  const remaining = budget - spent - forecast;
   row.innerHTML = `
     <input type="text" class="alloc-input cat" placeholder="Category name" value="${escapeHTML(alloc.category || '')}">
     <input type="text" class="alloc-input amount" placeholder="$—" value="${budget ? fmtMoney(budget) : ''}">
     <div class="alloc-amount-display">${fmtMoney(spent)}</div>
+    <div class="alloc-amount-display">${fmtMoney(forecast)}</div>
     <div class="alloc-amount-display ${remaining < 0 ? 'over' : ''}">${fmtMoney(Math.abs(remaining))}${remaining < 0 ? ' over' : ''}</div>
     <button class="budget-del" title="Delete">×</button>
   `;
@@ -11592,16 +11600,17 @@ function renderAllocRow(alloc, spent) {
 function buildActualsTable(items) {
   const wrap = document.createElement('div');
   wrap.className = 'actuals-table-wrap';
-  // "Actuals" = anything marked paid OR with an actual > 0 (paid items at $0 count too — they're new entries you're filling in)
+  // Purchases = anything marked paid OR with an actual > 0 (paid items at $0 count too — they're new entries you're filling in)
   const actuals = items.filter(i => i.paid || Number(i.actual) > 0);
-  const total = actuals.reduce((s, i) => s + effectiveActual(i), 0);
+  const purchSpent = actuals.filter(i => i.paid).reduce((s, i) => s + effectiveActual(i), 0);
+  const purchForecast = actuals.filter(i => !i.paid).reduce((s, i) => s + effectiveActual(i), 0);
   wrap.innerHTML = `
     <div class="actuals-toolbar">
-      <div class="actuals-title">Actual purchases</div>
-      <div class="actuals-totals"><span><strong>${fmtMoney(total)}</strong> forecasted total</span><span>${actuals.length} item${actuals.length === 1 ? '' : 's'}</span></div>
+      <div class="actuals-title">Purchases</div>
+      <div class="actuals-totals"><span><strong>${fmtMoney(purchSpent)}</strong> spent</span><span><strong>${fmtMoney(purchForecast)}</strong> forecast</span><span>${actuals.length} item${actuals.length === 1 ? '' : 's'}</span></div>
     </div>
     <div class="actuals-cols">
-      <div></div><div>Item</div><div>Category</div><div>Room</div><div>Forecasted</div><div>Paid</div><div></div>
+      <div></div><div>Item</div><div>Category</div><div>Room</div><div>Amount</div><div>Paid</div><div></div>
     </div>
     <div class="actuals-body"></div>
     <div class="actuals-add-bar"><button data-act="add-actual">+ Add purchase</button></div>
