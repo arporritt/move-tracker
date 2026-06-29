@@ -1428,6 +1428,10 @@
     margin: 0;
     letter-spacing: -0.01em;
   }
+  .palette-subtitle {
+    font-size: 12px; color: var(--ink-soft);
+    margin-top: 3px; max-width: 560px; line-height: 1.4;
+  }
   .palette-add-color-btn {
     background: var(--clay);
     color: white;
@@ -10460,15 +10464,19 @@ function ensurePaletteMaster() {
   if (!Array.isArray(state.overallVision.universalPalette)) state.overallVision.universalPalette = [];
   if (!Array.isArray(state.overallVision.palette)) state.overallVision.palette = [];
   const master = state.overallVision.palette;
+  let added = false;
   const addToMaster = c => {
     if (!master.some(m => colorMatches(m, c))) {
       master.push({ location: c.location || '', name: c.name || '', sw: c.sw || '', hex: c.hex || '#CCCCCC', url: c.url || paletteUrlFor(c.name, c.sw) });
+      added = true;
     }
   };
   (state.overallVision.universalPalette || []).forEach(addToMaster);
   for (const f of ['basement','ground','upper']) {
     (state.inspiration[f] || []).forEach(room => (room.paintColors || []).forEach(addToMaster));
   }
+  // Persist the master list so colors survive reloads even when not assigned to any room.
+  if (added) persist();
 }
 
 function renderPalette() {
@@ -10495,7 +10503,10 @@ function renderPalette() {
   }).sort((a, b) => (a.color.name || '').localeCompare(b.color.name || ''));
   board.innerHTML = `
     <div class="palette-section-header">
-      <h3>Paint Inventory</h3>
+      <div>
+        <h3>Master Palette</h3>
+        <div class="palette-subtitle">Every paint color lives here. Assign each to any rooms — removing it from a room never deletes it.</div>
+      </div>
       <div class="palette-header-actions">
         <div class="palette-view-toggle">
           <button data-view="gallery" class="${paletteView === 'gallery' ? 'active' : ''}">Gallery</button>
