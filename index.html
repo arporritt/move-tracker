@@ -1139,44 +1139,53 @@
     background: rgba(30,45,60,0.72); color: white; border-radius: 100px;
     padding: 2px 8px; font-size: 10px; font-weight: 600; letter-spacing: 0.02em;
   }
-  /* Color story (the "full palette" at the top of Overall) */
-  .cs-strip { display: flex; border-radius: 12px; overflow: hidden; height: 84px; margin-bottom: 20px; box-shadow: var(--shadow); }
-  .cs-strip-block { flex: 1; }
-  .cs-list { display: flex; flex-direction: column; }
-  .cs-row { display: flex; align-items: center; gap: 14px; padding: 8px 0; border-bottom: 1px solid var(--rule-soft); }
-  .cs-row:last-child { border-bottom: none; }
-  .cs-swatch {
-    width: 54px; height: 54px; border-radius: 10px; border: 1px solid var(--rule);
-    padding: 0; cursor: pointer; background: none; flex: none; -webkit-appearance: none; appearance: none;
+  /* Color story — a single labeled, editable ribbon at the top of Overall */
+  .cs-ribbon {
+    display: flex; gap: 0; border-radius: 14px; overflow: hidden;
+    box-shadow: var(--shadow); margin-bottom: 24px; overflow-x: auto;
   }
-  .cs-swatch::-webkit-color-swatch-wrapper { padding: 0; }
-  .cs-swatch::-webkit-color-swatch { border: none; border-radius: 9px; }
-  .cs-swatch::-moz-color-swatch { border: none; border-radius: 9px; }
-  .cs-body { flex: 1; min-width: 0; }
-  .cs-name {
-    font-family: 'Fraunces', serif; font-size: 17px; font-weight: 500; color: var(--ink);
-    border: 1px solid transparent; background: transparent; padding: 2px 6px; border-radius: 6px;
-    width: 100%; outline: none; letter-spacing: -0.01em;
+  .cs-block { position: relative; flex: 1 0 130px; min-height: 140px; display: flex; align-items: flex-end; }
+  .cs-scrim { position: absolute; inset: 0; background: linear-gradient(transparent 30%, rgba(0,0,0,0.58)); pointer-events: none; }
+  .cs-block-controls {
+    position: absolute; top: 8px; left: 8px; right: 8px; z-index: 3;
+    display: flex; align-items: center; justify-content: space-between;
+    opacity: 0; transition: opacity 0.15s;
   }
-  .cs-name:hover { border-color: var(--rule-soft); }
-  .cs-name:focus { border-color: var(--clay); background: white; }
-  .cs-meta { display: flex; align-items: center; gap: 6px; margin-top: 1px; }
-  .cs-hex, .cs-usage {
-    border: 1px solid transparent; background: transparent; padding: 2px 6px; border-radius: 6px;
-    font-family: 'Manrope', sans-serif; font-size: 13px; color: var(--ink-soft); outline: none;
+  .cs-block:hover .cs-block-controls { opacity: 1; }
+  .cs-color-chip {
+    width: 22px; height: 22px; border-radius: 50%; cursor: pointer; position: relative;
+    overflow: hidden; display: inline-block; border: 2px solid rgba(255,255,255,0.85); background: rgba(255,255,255,0.2);
   }
-  .cs-hex { font-variant-numeric: tabular-nums; width: 92px; }
-  .cs-usage { flex: 1; min-width: 0; }
-  .cs-hex:hover, .cs-usage:hover { border-color: var(--rule-soft); }
-  .cs-hex:focus, .cs-usage:focus { border-color: var(--clay); background: white; }
-  .cs-dash { color: var(--ink-faint); }
-  .cs-del { background: transparent; border: none; color: var(--ink-faint); font-size: 18px; cursor: pointer; width: 28px; height: 28px; border-radius: 6px; flex: none; }
-  .cs-del:hover { color: var(--behind); background: rgba(214,85,62,0.08); }
-  .cs-add {
-    margin: 14px 0 28px; background: transparent; border: 1px dashed var(--rule); border-radius: 100px;
-    padding: 7px 14px; font-family: 'Manrope', sans-serif; font-size: 12px; color: var(--ink-faint); cursor: pointer;
+  .cs-color-chip input[type="color"] {
+    position: absolute; inset: -6px; width: 200%; height: 200%; opacity: 0; cursor: pointer; border: none; padding: 0;
   }
-  .cs-add:hover { color: var(--clay); border-color: var(--clay-soft); }
+  .cs-block-del {
+    width: 22px; height: 22px; border-radius: 50%; border: none; cursor: pointer;
+    background: rgba(0,0,0,0.45); color: white; font-size: 14px; line-height: 1;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .cs-block-del:hover { background: var(--behind); }
+  .cs-block-labels { position: relative; z-index: 2; width: 100%; padding: 10px 12px 12px; }
+  .cs-block-name, .cs-block-usage {
+    width: 100%; background: transparent; border: none; outline: none; padding: 0;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.35);
+  }
+  .cs-block-name {
+    font-family: 'Fraunces', serif; font-size: 15px; font-weight: 500; color: white; letter-spacing: -0.01em;
+  }
+  .cs-block-name::placeholder { color: rgba(255,255,255,0.6); }
+  .cs-block-usage {
+    font-family: 'Manrope', sans-serif; font-size: 12px; color: rgba(255,255,255,0.88); margin-top: 2px;
+  }
+  .cs-block-usage::placeholder { color: rgba(255,255,255,0.55); }
+  .cs-block-name:focus, .cs-block-usage:focus { border-bottom: 1px solid rgba(255,255,255,0.55); }
+  .cs-block-add {
+    flex: 0 0 92px; min-height: 140px; background: rgba(122,160,194,0.08);
+    border: 1px dashed var(--rule); color: var(--ink-faint); cursor: pointer;
+    font-family: 'Manrope', sans-serif; font-size: 12px; font-weight: 600;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .cs-block-add:hover { color: var(--clay); border-color: var(--clay-soft); }
   .mb-buy-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -11427,77 +11436,59 @@ function ensureColorStory() {
   }
 }
 
-// The "full palette" — a curated color story (swatch strip + editable list). Lives at the top of Overall.
+// The "full palette" — a single labeled ribbon. Each block shows the color with its name + category
+// layered on top, all editable in place. Lives at the top of Overall.
 function renderColorStory(host) {
   ensureColorStory();
   const story = state.overallVision.colorStory;
   host.innerHTML = '';
-  // Swatch strip
-  const strip = document.createElement('div');
-  strip.className = 'cs-strip';
-  const stripBlocks = [];
-  story.forEach(c => {
-    const b = document.createElement('span');
-    b.className = 'cs-strip-block';
-    b.style.background = safeHexForInput(c.hex);
-    b.title = c.name || '';
-    strip.appendChild(b);
-    stripBlocks.push(b);
-  });
-  if (story.length) host.appendChild(strip);
-  // Editable list
-  const list = document.createElement('div');
-  list.className = 'cs-list';
+  const ribbon = document.createElement('div');
+  ribbon.className = 'cs-ribbon';
   story.forEach((c, i) => {
-    const row = document.createElement('div');
-    row.className = 'cs-row';
-    row.innerHTML = `
-      <input type="color" class="cs-swatch" value="${safeHexForInput(c.hex)}" title="Pick color">
-      <div class="cs-body">
-        <input type="text" class="cs-name" value="${escapeHTML(c.name || '')}" placeholder="Color name">
-        <div class="cs-meta">
-          <input type="text" class="cs-hex" value="${escapeHTML((c.hex || '').toUpperCase())}" placeholder="#hex">
-          <span class="cs-dash">—</span>
-          <input type="text" class="cs-usage" value="${escapeHTML(c.usage || '')}" placeholder="what it's for">
-        </div>
+    const hex = safeHexForInput(c.hex);
+    const block = document.createElement('div');
+    block.className = 'cs-block';
+    block.style.background = hex;
+    block.innerHTML = `
+      <div class="cs-scrim"></div>
+      <div class="cs-block-controls">
+        <label class="cs-color-chip" title="Change color"><input type="color" value="${hex}"></label>
+        <button class="cs-block-del" title="Remove color">×</button>
       </div>
-      <button class="cs-del" title="Remove color">×</button>
+      <div class="cs-block-labels">
+        <input type="text" class="cs-block-name" value="${escapeHTML(c.name || '')}" placeholder="Name">
+        <input type="text" class="cs-block-usage" value="${escapeHTML(c.usage || '')}" placeholder="what it's for">
+      </div>
     `;
-    const swatch = row.querySelector('.cs-swatch');
-    const hexInput = row.querySelector('.cs-hex');
-    function setHex(v) {
-      let h = (v || '').trim(); if (h && !h.startsWith('#')) h = '#' + h;
-      c.hex = h || '#CCCCCC';
-      swatch.value = safeHexForInput(c.hex);
-      hexInput.value = (c.hex || '').toUpperCase();
-      stripBlocks[i].style.background = safeHexForInput(c.hex);
+    const colorInput = block.querySelector('input[type="color"]');
+    colorInput.addEventListener('change', e => {
+      c.hex = e.target.value;
+      block.style.background = safeHexForInput(c.hex);
       persist();
-    }
-    swatch.addEventListener('change', e => setHex(e.target.value));
-    hexInput.addEventListener('change', e => setHex(e.target.value));
-    row.querySelector('.cs-name').addEventListener('change', e => { c.name = e.target.value.trim(); stripBlocks[i].title = c.name; persist(); });
-    row.querySelector('.cs-usage').addEventListener('change', e => { c.usage = e.target.value.trim(); persist(); });
-    row.querySelector('.cs-del').addEventListener('click', () => {
-      if (!confirm(`Remove "${c.name || 'this color'}" from the palette?`)) return;
+    });
+    block.querySelector('.cs-block-name').addEventListener('change', e => { c.name = e.target.value.trim(); persist(); });
+    block.querySelector('.cs-block-usage').addEventListener('change', e => { c.usage = e.target.value.trim(); persist(); });
+    block.querySelector('.cs-block-del').addEventListener('click', () => {
+      if (!confirm(`Remove "${c.name || 'this color'}"?`)) return;
       story.splice(i, 1);
       persist();
       renderColorStory(host);
     });
-    list.appendChild(row);
+    ribbon.appendChild(block);
   });
-  host.appendChild(list);
   const add = document.createElement('button');
-  add.className = 'cs-add';
-  add.textContent = '+ Add color';
+  add.className = 'cs-block-add';
+  add.innerHTML = '+ Add';
   add.addEventListener('click', () => {
     story.push({ name: 'New color', hex: '#CCCCCC', usage: '' });
     persist();
     renderColorStory(host);
-    const names = host.querySelectorAll('.cs-name');
+    const names = host.querySelectorAll('.cs-block-name');
     const last = names[names.length - 1];
     if (last) { last.focus(); last.select(); }
   });
-  host.appendChild(add);
+  ribbon.appendChild(add);
+  host.appendChild(ribbon);
 }
 
 function renderOverallMoodboard(board) {
