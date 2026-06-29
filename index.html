@@ -930,7 +930,45 @@
   }
   .mb-board-header {
     margin-bottom: 20px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-areas: "title actions" "meta meta";
+    gap: 6px 12px;
+    align-items: center;
   }
+  .mb-room-title-input {
+    grid-area: title;
+    font-family: 'Fraunces', serif;
+    font-weight: 300;
+    font-size: clamp(28px, 4vw, 44px);
+    letter-spacing: -0.025em;
+    color: var(--ink);
+    background: transparent;
+    border: 1px solid transparent;
+    padding: 4px 8px;
+    border-radius: 8px;
+    width: 100%;
+    outline: none;
+    font-variation-settings: "opsz" 144, "SOFT" 40;
+  }
+  .mb-room-title-input:hover { border-color: var(--rule-soft); }
+  .mb-room-title-input:focus { border-color: var(--clay); background: white; }
+  .mb-room-header-actions {
+    grid-area: actions;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .mb-board-meta { grid-area: meta; }
+  .mb-room-del-btn {
+    background: transparent;
+    border: 1px solid var(--rule);
+    border-radius: 50%;
+    width: 32px; height: 32px;
+    color: var(--ink-faint); font-size: 16px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s;
+  }
+  .mb-room-del-btn:hover { color: var(--behind); border-color: var(--behind); background: rgba(214,85,62,0.08); }
   .mb-description {
     background: var(--bg-card);
     border: 1px solid var(--rule);
@@ -6279,8 +6317,7 @@
 <div class="tab-content" id="tab-design">
   <div class="project-subtabs" style="max-width: 1240px; margin: 14px auto 0; padding: 0 40px;">
     <div class="floor-tabs" style="margin-bottom:0;">
-      <button class="floor-tab-btn active" data-design-subtab="inspiration" onclick="switchDesignSubtab('inspiration')">Design Vision</button>
-      <button class="floor-tab-btn" data-design-subtab="moodboard" onclick="switchDesignSubtab('moodboard')">Mood Boards</button>
+      <button class="floor-tab-btn active" data-design-subtab="moodboard" onclick="switchDesignSubtab('moodboard')">Design Vision</button>
       <button class="floor-tab-btn" data-design-subtab="greenview" onclick="switchDesignSubtab('greenview')">Listing images</button>
       <button class="floor-tab-btn" data-design-subtab="layout" onclick="switchDesignSubtab('layout')">Layout</button>
     </div>
@@ -7736,10 +7773,12 @@ function switchProjectSubtab(name) {
   if (name === 'weeks') renderWeeks(); else renderList();
 }
 
-let designSubtab = 'inspiration';
+let designSubtab = 'moodboard';
 try {
   const saved = localStorage.getItem('mt-design-subtab');
-  if (['inspiration','greenview','layout'].includes(saved)) designSubtab = saved;
+  if (['moodboard','greenview','layout'].includes(saved)) designSubtab = saved;
+  // Auto-migrate stale 'inspiration' preference
+  if (saved === 'inspiration') designSubtab = 'moodboard';
 } catch(e) {}
 
 function switchDesignSubtab(name) {
@@ -7749,10 +7788,10 @@ function switchDesignSubtab(name) {
   document.querySelectorAll('.design-subtab-content').forEach(c => c.classList.remove('active'));
   const inner = document.getElementById('tab-' + name);
   if (inner) inner.classList.add('active');
-  if (name === 'inspiration') renderInspiration();
-  else if (name === 'greenview') renderGreenview();
+  if (name === 'greenview') renderGreenview();
   else if (name === 'layout') renderLayout();
   else if (name === 'moodboard') renderMoodboard();
+  else if (name === 'inspiration') { designSubtab = 'moodboard'; switchDesignSubtab('moodboard'); }
 }
 
 // ============================================================
@@ -7834,6 +7873,27 @@ function renderMoodboard() {
     chip.addEventListener('click', () => selectMbRoom(room.id));
     chipsBox.appendChild(chip);
   });
+  // + Add room button
+  const addRoomBtn = document.createElement('button');
+  addRoomBtn.className = 'mb-room-chip';
+  addRoomBtn.style.borderStyle = 'dashed';
+  addRoomBtn.style.color = 'var(--clay)';
+  addRoomBtn.innerHTML = '+ Add room';
+  addRoomBtn.addEventListener('click', () => {
+    ensureInspirationState();
+    const newRoom = {
+      id: 'r_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,6),
+      name: 'New room',
+      inspirationPhotos: [],
+      currentPhotos: [],
+      paintColors: state.overallVision?.universalPalette ? [...state.overallVision.universalPalette] : []
+    };
+    state.inspiration[mbFloor].push(newRoom);
+    mbRoomId = newRoom.id;
+    persist();
+    renderMoodboard();
+  });
+  chipsBox.appendChild(addRoomBtn);
   if (!mbRoomId) {
     board.innerHTML = `<div class="mb-empty">Select a room above to view its mood board.</div>`;
     return;
@@ -7890,6 +7950,28 @@ function renderMoodboard() {
       renderMoodboard();
     }));
   }
+  // Room title rename
+  const titleInput = board.querySelector('#mb-room-title-input');
+  titleInput.addEventListener('change', e => {
+    room.name = e.target.value.trim() || 'Unnamed';
+    persist();
+    renderMoodboard();
+  });
+  // Delete room
+  board.querySelector('#mb-room-del').addEventListener('click', () => {
+    if (!confirm(`Delete room "${room.name}" and all its contents?`)) return;
+    state.inspiration[mbFloor] = state.inspiration[mbFloor].filter(r => r.id !== room.id);
+    // Also clear budget items tied to this room
+    if (state.budget?.items) {
+      state.budget.items.forEach(b => { if (b.room === room.id) b.room = null; });
+    }
+    mbRoomId = null;
+    persist();
+    renderMoodboard();
+  });
+  // Upload photos button
+  board.querySelector('#mb-upload-insp').addEventListener('click', () => openInspirationUpload(room));
+
   // Photo masonry
   if (insp.length) {
     const grid = document.getElementById('mb-photo-grid');
@@ -7901,23 +7983,14 @@ function renderMoodboard() {
       grid.appendChild(fig);
     });
   }
-  // Buy cards
-  if (buys.length) {
-    const bg = document.getElementById('mb-buy-grid');
-    buys.forEach(item => {
-      const card = document.createElement('div');
-      card.className = 'mb-buy-card' + (item.bought ? ' bought' : '');
-      card.innerHTML = `
-        <div class="mb-buy-name">${escapeHTML(item.name || 'Untitled')}</div>
-        ${item.price ? `<div class="mb-buy-price">${fmtMoney(item.price)}</div>` : ''}
-        ${item.link ? `<a class="mb-buy-link" href="${escapeHTML(item.link)}" target="_blank" rel="noopener">Open source ↗</a>` : ''}
-      `;
-      bg.appendChild(card);
-    });
-  }
+  // To buy table (synced with budget)
+  document.getElementById('mb-buy-table-host').appendChild(renderMbBuyTable(room, roomBudgetItems));
+
   // Current photos strip
+  const curHost = document.getElementById('mb-current-host');
   if (currents.length) {
-    const strip = document.getElementById('mb-current-strip');
+    const strip = document.createElement('div');
+    strip.className = 'mb-current-strip';
     currents.forEach((p, i) => {
       const fig = document.createElement('div');
       fig.className = 'photo';
@@ -7925,7 +7998,109 @@ function renderMoodboard() {
       fig.addEventListener('click', () => openLightbox(currents, i));
       strip.appendChild(fig);
     });
+    curHost.appendChild(strip);
+  } else {
+    curHost.innerHTML = '<div style="font-size:12px;color:var(--ink-faint);font-style:italic;padding:8px;">No current-home photos for this room yet. Assign some from the Listing images tab.</div>';
   }
+}
+
+function renderMbBuyTable(room, items) {
+  const wrap = document.createElement('div');
+  wrap.className = 'mb-buy-table';
+  const totalBudget = items.reduce((s, i) => s + (Number(i.estimated) || 0), 0);
+  const totalActual = items.reduce((s, i) => s + (Number(i.actual) || 0), 0);
+  wrap.innerHTML = `
+    <div class="mb-buy-table-head">
+      <div>Item</div>
+      <div class="price">Budget</div>
+      <div>Spent</div>
+      <div class="check">Paid</div>
+      <div></div>
+    </div>
+    <div class="mb-buy-rows"></div>
+    <div class="mb-buy-add-row"><button>+ Add to-buy item</button></div>
+    ${(items.length > 0) ? `<div class="mb-buy-table-totals"><span>Budget: <strong>${fmtMoney(totalBudget)}</strong></span><span>Spent: <strong>${fmtMoney(totalActual)}</strong></span></div>` : ''}
+  `;
+  const rowsBox = wrap.querySelector('.mb-buy-rows');
+  if (items.length === 0) {
+    rowsBox.innerHTML = `<div style="padding:14px;text-align:center;color:var(--ink-faint);font-style:italic;font-size:13px;">No items yet. These sync with the Home budget tab.</div>`;
+  }
+  items.forEach(item => {
+    const row = document.createElement('div');
+    row.className = 'mb-buy-table-row' + (item.paid ? ' bought' : '');
+    row.innerHTML = `
+      <input type="text" class="name" value="${escapeHTML(item.label || '')}" placeholder="Item name">
+      <input type="text" class="price budget" value="${item.estimated ? fmtMoney(item.estimated) : ''}" placeholder="$—">
+      <input type="text" class="price actual" value="${item.actual ? fmtMoney(item.actual) : ''}" placeholder="$—">
+      <div class="check"><input type="checkbox" ${item.paid ? 'checked' : ''}></div>
+      <div class="actions">
+        ${item.note && /^https?:\/\//.test(item.note) ? `<a href="${escapeHTML(item.note)}" target="_blank" rel="noopener" title="Open link">↗</a>` : ''}
+        <button data-act="link" title="Set link">🔗</button>
+        <button data-act="move" title="Move to room">⇄</button>
+        <button data-act="del" title="Delete">×</button>
+      </div>
+    `;
+    row.querySelector('.name').addEventListener('change', e => { item.label = e.target.value.trim(); persist(); });
+    row.querySelector('.budget').addEventListener('change', e => { item.estimated = parseMoney(e.target.value); persist(); renderMoodboard(); });
+    row.querySelector('.actual').addEventListener('change', e => { item.actual = parseMoney(e.target.value); persist(); renderMoodboard(); });
+    row.querySelector('.check input').addEventListener('change', e => {
+      item.paid = e.target.checked;
+      if (item.paid && !item.actual) item.actual = item.estimated;
+      persist(); renderMoodboard();
+    });
+    row.querySelector('[data-act="del"]').addEventListener('click', () => {
+      if (!confirm('Remove this item from your budget?')) return;
+      state.budget.items = state.budget.items.filter(i => i.id !== item.id);
+      persist(); renderMoodboard();
+    });
+    row.querySelector('[data-act="link"]').addEventListener('click', () => {
+      const url = prompt('Link URL (e.g., Wayfair, Pinterest):', item.note || '');
+      if (url === null) return;
+      item.note = url.trim();
+      persist(); renderMoodboard();
+    });
+    row.querySelector('[data-act="move"]').addEventListener('click', () => moveBudgetItemToRoom(item));
+    rowsBox.appendChild(row);
+  });
+  wrap.querySelector('.mb-buy-add-row button').addEventListener('click', () => {
+    if (!state.budget) state.budget = { items: [] };
+    if (!Array.isArray(state.budget.items)) state.budget.items = [];
+    const newItem = {
+      id: 'b_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,6),
+      category: 'Other',
+      label: '',
+      estimated: 0,
+      actual: 0,
+      paid: false,
+      room: room.id,
+      note: ''
+    };
+    state.budget.items.push(newItem);
+    persist();
+    renderMoodboard();
+    setTimeout(() => {
+      const els = document.querySelectorAll('.mb-buy-table-row .name');
+      const last = els[els.length - 1];
+      if (last) { last.focus(); last.select(); }
+    }, 0);
+  });
+  return wrap;
+}
+
+function moveBudgetItemToRoom(item) {
+  const choices = [];
+  for (const f of ['basement','ground','upper']) {
+    (state.inspiration?.[f] || []).forEach(r => choices.push({ id: r.id, label: `${FLOOR_LABELS[f]} / ${r.name || 'Unnamed'}` }));
+  }
+  const list = choices.map((c, i) => `${i+1}. ${c.label}`).join('\n');
+  const choice = prompt(`Move "${item.label || 'this item'}" to which room?\n\n${list}\n\n0. Unassigned (no room)\n\nEnter number:`, '');
+  if (choice === null || choice === '') return;
+  const idx = parseInt(choice);
+  if (isNaN(idx)) return;
+  if (idx === 0) { item.room = null; }
+  else if (choices[idx - 1]) { item.room = choices[idx - 1].id; }
+  persist();
+  renderMoodboard();
 }
 
 function renderActive() {
