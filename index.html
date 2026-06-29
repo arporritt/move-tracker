@@ -2669,6 +2669,31 @@
   }
   .bar-fill-act.over { background: linear-gradient(90deg, #D88474, var(--behind)); }
   .bar-fill-act.no-budget { background: var(--ink-faint); opacity: 0.5; }
+  .bar-bg.stacked { display: flex; }
+  .bar-seg {
+    height: 100%;
+    transition: width 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .bar-seg-actuals { background: linear-gradient(90deg, #4F7DA3, #2F5F87); }
+  .bar-seg-forecast { background: repeating-linear-gradient(45deg, #B8CFE0, #B8CFE0 4px, #A8C3D7 4px, #A8C3D7 8px); }
+  .bar-seg-actuals.over { background: linear-gradient(90deg, var(--behind), #A8554A); }
+  .bar-seg-forecast.over { background: repeating-linear-gradient(45deg, #E8B5AC, #E8B5AC 4px, #DFA59A 4px, #DFA59A 8px); }
+  .bar-seg:first-child { border-radius: 100px 0 0 100px; }
+  .bar-seg:last-child { border-radius: 0 100px 100px 0; }
+  .bar-seg:only-child, .bar-seg:first-child:last-child { border-radius: 100px; }
+  .bar-legend {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-family: var(--font-body); font-size: 11px; font-weight: 500;
+    color: var(--ink-soft); letter-spacing: 0.02em;
+    text-transform: uppercase; float: right; margin-top: 2px;
+  }
+  .bar-legend .legend-dot {
+    display: inline-block; width: 10px; height: 10px; border-radius: 3px;
+    margin-left: 8px; margin-right: 1px;
+  }
+  .bar-legend .legend-dot:first-child { margin-left: 0; }
+  .legend-actuals { background: linear-gradient(90deg, #4F7DA3, #2F5F87); }
+  .legend-forecast { background: repeating-linear-gradient(45deg, #B8CFE0, #B8CFE0 3px, #A8C3D7 3px, #A8C3D7 6px); }
   .bar-empty-state {
     text-align: center; padding: 28px 20px;
     color: var(--ink-faint); font-style: italic; font-size: 13px;
@@ -10958,11 +10983,14 @@ function renderBudgetCharts(items) {
   const container = document.getElementById('budget-charts');
   if (!container) return;
 
-  // Aggregate spending by category from purchase items
-  const spentByCat = {};
+  // Aggregate by category: actuals = paid items, forecast = unpaid items
+  const actualsByCat = {};
+  const forecastByCat = {};
   items.forEach(i => {
     const k = i.category || 'Other';
-    spentByCat[k] = (spentByCat[k] || 0) + effectiveActual(i);
+    const amt = effectiveActual(i);
+    if (i.paid) actualsByCat[k] = (actualsByCat[k] || 0) + amt;
+    else forecastByCat[k] = (forecastByCat[k] || 0) + amt;
   });
 
   // For Home subtab, budget comes from allocation table; otherwise sum item.estimated
@@ -10978,25 +11006,46 @@ function renderBudgetCharts(items) {
     });
   }
 
-  const catKeys = new Set([...Object.keys(budgetByCat), ...Object.keys(spentByCat)]);
+  const catKeys = new Set([...Object.keys(budgetByCat), ...Object.keys(actualsByCat), ...Object.keys(forecastByCat)]);
   const byCat = {};
-  catKeys.forEach(k => { byCat[k] = { budget: budgetByCat[k] || 0, spent: spentByCat[k] || 0 }; });
+  catKeys.forEach(k => {
+    byCat[k] = {
+      budget: budgetByCat[k] || 0,
+      actuals: actualsByCat[k] || 0,
+      forecast: forecastByCat[k] || 0
+    };
+  });
 
-  // Aggregate spending by room (no per-room budget)
+  // Aggregate by room: stacked actuals + forecast
   const roomMap = getBudgetRoomMap();
   const byRoom = {};
   items.forEach(i => {
     const k = i.room ? (roomMap.get(i.room)?.name || 'Unknown room') : 'Unassigned';
-    byRoom[k] = (byRoom[k] || 0) + effectiveActual(i);
+    if (!byRoom[k]) byRoom[k] = { actuals: 0, forecast: 0 };
+    const amt = effectiveActual(i);
+    if (i.paid) byRoom[k].actuals += amt;
+    else byRoom[k].forecast += amt;
   });
 
   container.innerHTML = `
     <div class="budget-chart-card">
-      <div class="budget-chart-title">Spend by category</div>
+      <div class="budget-chart-title">
+        Forecast by category
+        <span class="bar-legend">
+          <span class="legend-dot legend-actuals"></span>Actuals
+          <span class="legend-dot legend-forecast"></span>Forecast
+        </span>
+      </div>
       <div id="bars-cat"></div>
     </div>
     <div class="budget-chart-card">
-      <div class="budget-chart-title">Spend by room</div>
+      <div class="budget-chart-title">
+        Forecast by room
+        <span class="bar-legend">
+          <span class="legend-dot legend-actuals"></span>Actuals
+          <span class="legend-dot legend-forecast"></span>Forecast
+        </span>
+      </div>
       <div id="bars-room"></div>
     </div>
   `;
@@ -11005,32 +11054,35 @@ function renderBudgetCharts(items) {
 }
 
 function renderBudgetBars(container, dataMap, opts = {}) {
-  // Sort: spent desc, then budget desc; drop entries with both zero
   const entries = Object.entries(dataMap)
-    .filter(([_, v]) => v.spent > 0 || v.budget > 0)
-    .sort((a, b) => (b[1].spent - a[1].spent) || (b[1].budget - a[1].budget));
+    .map(([k, v]) => [k, { ...v, total: v.actuals + v.forecast }])
+    .filter(([_, v]) => v.total > 0 || v.budget > 0)
+    .sort((a, b) => (b[1].total - a[1].total) || (b[1].budget - a[1].budget));
   if (entries.length === 0) {
     container.innerHTML = '<div class="bar-empty-state">No spending yet</div>';
     return;
   }
   entries.forEach(([name, v]) => {
-    const pct = v.budget > 0 ? Math.min(100, (v.spent / v.budget) * 100) : (v.spent > 0 ? 100 : 0);
-    const over = v.budget > 0 && v.spent > v.budget;
-    const overAmt = v.spent - v.budget;
-    const noBudget = v.budget === 0 && v.spent > 0;
+    const denom = Math.max(v.budget, v.total) || 1;
+    const actPct = (v.actuals / denom) * 100;
+    const fcstPct = (v.forecast / denom) * 100;
+    const over = v.budget > 0 && v.total > v.budget;
+    const overAmt = v.total - v.budget;
+    const noBudget = v.budget === 0 && v.total > 0;
     const row = document.createElement('div');
     row.className = 'bar-row';
     row.innerHTML = `
       <div class="bar-row-header">
         <span class="bar-row-label">${escapeHTML(name)}</span>
         <span class="bar-row-amount">
-          <span class="actual-num">${fmtMoney(v.spent)}</span>${v.budget > 0 ? ` <span class="muted">of ${fmtMoney(v.budget)}</span>` : ''}
+          <span class="actual-num">${fmtMoney(v.total)}</span>${v.budget > 0 ? ` <span class="muted">of ${fmtMoney(v.budget)}</span>` : ''}
           ${over ? `<span class="over">+${fmtMoney(overAmt)}</span>` : ''}
           ${noBudget ? `<span class="muted">no budget</span>` : ''}
         </span>
       </div>
-      <div class="bar-bg">
-        <div class="bar-fill-act ${over ? 'over' : ''} ${noBudget ? 'no-budget' : ''}" style="width:${pct}%"></div>
+      <div class="bar-bg stacked">
+        <div class="bar-seg bar-seg-actuals ${over ? 'over' : ''}" style="width:${actPct}%" title="Actuals: ${fmtMoney(v.actuals)}"></div>
+        <div class="bar-seg bar-seg-forecast ${over ? 'over' : ''}" style="width:${fcstPct}%" title="Forecast: ${fmtMoney(v.forecast)}"></div>
       </div>
     `;
     container.appendChild(row);
@@ -11039,29 +11091,32 @@ function renderBudgetBars(container, dataMap, opts = {}) {
 
 function renderRoomBars(container, dataMap) {
   const entries = Object.entries(dataMap)
-    .filter(([_, v]) => v > 0)
-    .sort((a, b) => b[1] - a[1]);
+    .map(([k, v]) => [k, { ...v, total: v.actuals + v.forecast }])
+    .filter(([_, v]) => v.total > 0)
+    .sort((a, b) => b[1].total - a[1].total);
   if (entries.length === 0) {
     container.innerHTML = '<div class="bar-empty-state">No spending tagged to a room yet</div>';
     return;
   }
-  const max = Math.max(...entries.map(([_, v]) => v)) || 1;
-  const total = entries.reduce((s, [_, v]) => s + v, 0);
+  const max = Math.max(...entries.map(([_, v]) => v.total)) || 1;
+  const grand = entries.reduce((s, [_, v]) => s + v.total, 0);
   entries.forEach(([name, v]) => {
-    const pct = (v / max) * 100;
-    const share = total > 0 ? Math.round((v / total) * 100) : 0;
+    const actPct = (v.actuals / max) * 100;
+    const fcstPct = (v.forecast / max) * 100;
+    const share = grand > 0 ? Math.round((v.total / grand) * 100) : 0;
     const row = document.createElement('div');
     row.className = 'bar-row';
     row.innerHTML = `
       <div class="bar-row-header">
         <span class="bar-row-label">${escapeHTML(name)}</span>
         <span class="bar-row-amount">
-          <span class="actual-num">${fmtMoney(v)}</span>
+          <span class="actual-num">${fmtMoney(v.total)}</span>
           <span class="muted">${share}%</span>
         </span>
       </div>
-      <div class="bar-bg">
-        <div class="bar-fill-act" style="width:${pct}%"></div>
+      <div class="bar-bg stacked">
+        <div class="bar-seg bar-seg-actuals" style="width:${actPct}%" title="Actuals: ${fmtMoney(v.actuals)}"></div>
+        <div class="bar-seg bar-seg-forecast" style="width:${fcstPct}%" title="Forecast: ${fmtMoney(v.forecast)}"></div>
       </div>
     `;
     container.appendChild(row);
@@ -11086,31 +11141,34 @@ function renderBudget() {
     ensureBudgetAllocations();
     const allocs = state.budget.allocations || [];
     const totalBudget = allocs.reduce((s, a) => s + (Number(a.budget) || 0), 0);
-    const totalSpent = items.reduce((s, i) => s + effectiveActual(i), 0);
-    const purchaseCount = items.filter(i => i.paid || Number(i.actual) > 0).length;
-    const remaining = totalBudget - totalSpent;
+    const actualsItems = items.filter(i => i.paid);
+    const forecastItems = items.filter(i => !i.paid);
+    const totalActuals = actualsItems.reduce((s, i) => s + effectiveActual(i), 0);
+    const totalForecast = forecastItems.reduce((s, i) => s + effectiveActual(i), 0);
+    const forecastedTotal = totalActuals + totalForecast;
+    const remaining = totalBudget - forecastedTotal;
     const remCls = remaining >= 0 ? 'delta-pos' : 'delta-neg';
-    const pctSpent = totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0;
+    const pctUsed = totalBudget > 0 ? Math.round((forecastedTotal / totalBudget) * 100) : 0;
     sumHTML = `
       <div class="budget-sum-cell">
-        <div class="budget-sum-label">Total budget</div>
+        <div class="budget-sum-label">Budget</div>
         <div class="budget-sum-value">${fmtMoney(totalBudget)}</div>
         <div class="budget-sum-sub">${allocs.length} categories</div>
       </div>
       <div class="budget-sum-cell">
-        <div class="budget-sum-label">Spent so far</div>
-        <div class="budget-sum-value">${fmtMoney(totalSpent)}</div>
-        <div class="budget-sum-sub">${purchaseCount} purchase${purchaseCount === 1 ? '' : 's'}</div>
+        <div class="budget-sum-label">Actuals</div>
+        <div class="budget-sum-value">${fmtMoney(totalActuals)}</div>
+        <div class="budget-sum-sub">${actualsItems.length} paid</div>
       </div>
       <div class="budget-sum-cell">
-        <div class="budget-sum-label">Remaining</div>
-        <div class="budget-sum-value ${remCls}">${remaining < 0 ? '−' : ''}${fmtMoney(Math.abs(remaining))}</div>
-        <div class="budget-sum-sub">${remaining < 0 ? 'over budget' : 'left to spend'}</div>
+        <div class="budget-sum-label">Forecast</div>
+        <div class="budget-sum-value">${fmtMoney(totalForecast)}</div>
+        <div class="budget-sum-sub">${forecastItems.length} unpaid</div>
       </div>
       <div class="budget-sum-cell">
-        <div class="budget-sum-label">% of budget used</div>
-        <div class="budget-sum-value">${pctSpent}%</div>
-        <div class="budget-sum-sub">${totalBudget === 0 ? 'set a budget below' : pctSpent >= 100 ? 'budget exhausted' : 'on track'}</div>
+        <div class="budget-sum-label">Forecasted total</div>
+        <div class="budget-sum-value ${remCls}">${fmtMoney(forecastedTotal)}</div>
+        <div class="budget-sum-sub">${totalBudget === 0 ? 'set a budget below' : `${pctUsed}% of budget · ${remaining < 0 ? fmtMoney(-remaining) + ' over' : fmtMoney(remaining) + ' left'}`}</div>
       </div>
     `;
   } else {
