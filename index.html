@@ -1438,6 +1438,49 @@
     cursor: pointer;
   }
   .palette-add-color-btn:hover { background: var(--plum); }
+  .palette-header-actions { display: flex; align-items: center; gap: 12px; }
+  .palette-view-toggle {
+    display: inline-flex; background: var(--rule-soft);
+    border-radius: 100px; padding: 3px; gap: 2px;
+  }
+  .palette-view-toggle button {
+    background: transparent; border: none; cursor: pointer;
+    font-family: 'Manrope', sans-serif; font-size: 12px; font-weight: 600;
+    color: var(--ink-soft); padding: 5px 14px; border-radius: 100px;
+  }
+  .palette-view-toggle button.active {
+    background: var(--bg-card); color: var(--ink);
+    box-shadow: 0 1px 3px rgba(30,45,60,0.12);
+  }
+  .palette-table-wrap { overflow-x: auto; margin-bottom: 24px; }
+  .palette-table {
+    background: var(--bg-card); border: 1px solid var(--rule);
+    border-radius: 14px; overflow: hidden; box-shadow: var(--shadow);
+    min-width: 660px;
+  }
+  .palette-table-head, .palette-table-row {
+    display: grid;
+    grid-template-columns: 44px 120px minmax(0,1.4fr) 80px 92px minmax(0,1.6fr) 72px;
+    gap: 12px; align-items: center; padding: 10px 16px;
+  }
+  .palette-table-head {
+    font-size: 9.5px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--ink-faint); font-weight: 700; background: rgba(122,160,194,0.04);
+  }
+  .palette-table-row { border-top: 1px solid var(--rule-soft); font-size: 13px; }
+  .pt-swatch { width: 32px; height: 32px; border-radius: 7px; border: 1px solid var(--rule); }
+  .pt-loc { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-faint); font-weight: 700; }
+  .pt-name { font-family: 'Fraunces', serif; font-size: 15px; color: var(--ink); letter-spacing: -0.01em; }
+  .pt-name a { color: var(--clay); text-decoration: none; }
+  .pt-sw, .pt-hex { font-variant-numeric: tabular-nums; color: var(--ink-soft); font-size: 12px; letter-spacing: 0.04em; }
+  .pt-rooms { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+  .pt-unused { color: var(--ink-faint); }
+  .pt-actions { display: flex; gap: 4px; justify-content: flex-end; }
+  .pt-actions button {
+    background: transparent; border: 1px solid var(--rule); border-radius: 6px;
+    cursor: pointer; color: var(--ink-soft); width: 28px; height: 28px; font-size: 13px;
+  }
+  .pt-actions button:hover { border-color: var(--clay); color: var(--clay); }
   @media (max-width: 900px) {
     .mb-photo-grid { column-count: 2; }
   }
@@ -10356,6 +10399,9 @@ function openInspirationManage(room) {
   overlay.classList.add('active');
 }
 
+let paletteView = 'gallery';
+try { const v = localStorage.getItem('mt-palette-view'); if (v === 'table' || v === 'gallery') paletteView = v; } catch (e) {}
+
 function renderPalette() {
   ensureInspirationState();
   if (!state.overallVision) state.overallVision = {};
@@ -10388,20 +10434,100 @@ function renderPalette() {
   }
 
   // Render
+  const entries = [...inv.values()].sort((a, b) => (a.color.name || '').localeCompare(b.color.name || ''));
   board.innerHTML = `
     <div class="palette-section-header">
       <h3>Paint Inventory</h3>
-      <button class="palette-add-color-btn" id="pal-add-new">+ Add new color</button>
+      <div class="palette-header-actions">
+        <div class="palette-view-toggle">
+          <button data-view="gallery" class="${paletteView === 'gallery' ? 'active' : ''}">Gallery</button>
+          <button data-view="table" class="${paletteView === 'table' ? 'active' : ''}">Table</button>
+        </div>
+        <button class="palette-add-color-btn" id="pal-add-new">+ Add new color</button>
+      </div>
     </div>
-    <div class="palette-grid" id="palette-grid"></div>
+    <div id="palette-content"></div>
   `;
-  const grid = board.querySelector('#palette-grid');
-  if (inv.size === 0) {
-    grid.innerHTML = '<div class="mb-empty">No paint colors yet. Add one to start.</div>';
+  const content = board.querySelector('#palette-content');
+  if (entries.length === 0) {
+    content.innerHTML = '<div class="mb-empty">No paint colors yet. Add one to start.</div>';
+  } else if (paletteView === 'table') {
+    content.appendChild(renderPaletteTable(entries));
+  } else {
+    const grid = document.createElement('div');
+    grid.className = 'palette-grid';
+    entries.forEach(entry => grid.appendChild(renderPaletteCard(entry)));
+    content.appendChild(grid);
   }
-  const entries = [...inv.values()].sort((a, b) => (a.color.name || '').localeCompare(b.color.name || ''));
-  entries.forEach(entry => grid.appendChild(renderPaletteCard(entry)));
   board.querySelector('#pal-add-new').addEventListener('click', () => addNewPaletteColor());
+  board.querySelectorAll('.palette-view-toggle button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      paletteView = btn.dataset.view;
+      try { localStorage.setItem('mt-palette-view', paletteView); } catch (e) {}
+      renderPalette();
+    });
+  });
+}
+
+function renderPaletteTable(entries) {
+  const wrap = document.createElement('div');
+  wrap.className = 'palette-table-wrap';
+  wrap.innerHTML = `
+    <div class="palette-table">
+      <div class="palette-table-head">
+        <div></div><div>Location</div><div>Color</div><div>SW #</div><div>Hex</div><div>Used in</div><div></div>
+      </div>
+      <div class="palette-table-body"></div>
+    </div>
+  `;
+  const body = wrap.querySelector('.palette-table-body');
+  entries.forEach(entry => {
+    const c = entry.color;
+    const universalRef = entry.refs.find(r => !r.roomId);
+    const roomRefs = entry.refs.filter(r => r.roomId);
+    const seen = new Set();
+    const uniqueRoomRefs = roomRefs.filter(r => { if (seen.has(r.roomId)) return false; seen.add(r.roomId); return true; });
+    const row = document.createElement('div');
+    row.className = 'palette-table-row';
+    row.innerHTML = `
+      <div class="pt-swatch" style="background:${escapeHTML(c.hex || '#ccc')}"></div>
+      <div class="pt-loc">${escapeHTML(c.location || '—')}</div>
+      <div class="pt-name">${escapeHTML(c.name || 'Unnamed')}${c.url ? ` <a href="${escapeHTML(c.url)}" target="_blank" rel="noopener" title="View on Sherwin-Williams">↗</a>` : ''}</div>
+      <div class="pt-sw">${c.sw ? 'SW ' + escapeHTML(c.sw) : '—'}</div>
+      <div class="pt-hex">${escapeHTML((c.hex || '').toUpperCase())}</div>
+      <div class="pt-rooms"></div>
+      <div class="pt-actions">
+        <button data-act="edit" title="Edit color">✎</button>
+        ${universalRef ? '' : `<button data-act="assign" title="Assign to room">＋</button>`}
+      </div>
+    `;
+    const roomsBox = row.querySelector('.pt-rooms');
+    if (universalRef) {
+      const chip = document.createElement('span');
+      chip.className = 'palette-room-chip';
+      chip.style.cssText = 'background:rgba(74,142,149,0.14);color:var(--forest);';
+      chip.textContent = '★ Every room';
+      roomsBox.appendChild(chip);
+    }
+    uniqueRoomRefs.forEach(ref => {
+      const chip = document.createElement('span');
+      chip.className = 'palette-room-chip';
+      chip.innerHTML = `${escapeHTML(ref.roomName || 'Room')} <button title="Remove from room">×</button>`;
+      chip.querySelector('button').addEventListener('click', () => {
+        if (!confirm(`Remove "${c.name}" from ${ref.roomName}?`)) return;
+        removeColorFromRoom(c, ref.floor, ref.roomId);
+      });
+      roomsBox.appendChild(chip);
+    });
+    if (!universalRef && uniqueRoomRefs.length === 0) {
+      roomsBox.innerHTML = '<span class="pt-unused">—</span>';
+    }
+    row.querySelector('[data-act="edit"]').addEventListener('click', () => editColorEverywhere(c));
+    const assignBtn = row.querySelector('[data-act="assign"]');
+    if (assignBtn) assignBtn.addEventListener('click', () => assignColorToRoom(c));
+    body.appendChild(row);
+  });
+  return wrap;
 }
 
 function renderPaletteCard(entry) {
