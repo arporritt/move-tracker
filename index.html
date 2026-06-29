@@ -3131,6 +3131,19 @@
   .btn-save:hover { opacity: 0.85; }
   .btn-delete { background: transparent; border: 1px solid var(--behind); color: var(--behind); margin-right: auto; }
   .btn-delete:hover { background: var(--behind); color: white; }
+  /* Room picker (assign paint color to rooms) */
+  .room-pick-sub { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ink-soft); margin: -8px 0 16px; }
+  .room-pick-swatch { width: 20px; height: 20px; border-radius: 5px; border: 1px solid var(--rule); flex: none; }
+  .room-pick-list { display: flex; flex-direction: column; gap: 16px; max-height: 52vh; overflow-y: auto; }
+  .room-pick-floor { font-size: 9.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-faint); font-weight: 700; margin-bottom: 4px; }
+  .room-pick-rooms { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 2px; }
+  .room-pick-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 10px; border-radius: 8px; cursor: pointer;
+    font-size: 14px; color: var(--ink);
+  }
+  .room-pick-item:hover { background: rgba(122,160,194,0.08); }
+  .room-pick-item input { width: 17px; height: 17px; accent-color: var(--forest); cursor: pointer; flex: none; }
 
   /* ============ FOOTER ============ */
   footer {
@@ -10673,26 +10686,64 @@ function removeColorFromRoom(c, floor, roomId) {
 }
 
 function assignColorToRoom(c) {
-  const choices = [];
+  const rooms = [];
   for (const f of ['basement','ground','upper']) {
-    (state.inspiration[f] || []).forEach(r => choices.push({ floor: f, id: r.id, label: `${FLOOR_LABELS[f]} / ${r.name || 'Unnamed'}` }));
+    (state.inspiration[f] || []).forEach(r => rooms.push({
+      floor: f, id: r.id, name: r.name || 'Unnamed',
+      has: Array.isArray(r.paintColors) && r.paintColors.some(p => colorMatches(p, c))
+    }));
   }
-  if (choices.length === 0) { alert('No rooms exist yet. Add some in Design Vision first.'); return; }
-  const list = choices.map((c, i) => `${i+1}. ${c.label}`).join('\n');
-  const input = prompt(`Assign "${c.name}" (SW ${c.sw}) to which room(s)?\n\n${list}\n\nEnter numbers separated by commas (e.g., "1,3,5"):`, '');
-  if (!input) return;
-  const nums = input.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n) && choices[n-1]);
-  let added = 0;
-  nums.forEach(n => {
-    const target = choices[n-1];
-    const room = state.inspiration[target.floor].find(r => r.id === target.id);
-    if (!room) return;
-    if (!Array.isArray(room.paintColors)) room.paintColors = [];
-    if (room.paintColors.some(p => colorMatches(p, c))) return;
-    room.paintColors.push({ ...c });
-    added++;
+  if (rooms.length === 0) { alert('No rooms exist yet. Add some in the Design tab first.'); return; }
+
+  const groupsHtml = ['basement','ground','upper'].map(f => {
+    const list = rooms.filter(r => r.floor === f);
+    if (!list.length) return '';
+    return `<div class="room-pick-group">
+      <div class="room-pick-floor">${FLOOR_LABELS[f]}</div>
+      <div class="room-pick-rooms">${list.map(r => `
+        <label class="room-pick-item">
+          <input type="checkbox" data-room="${r.id}" data-floor="${r.floor}" ${r.has ? 'checked' : ''}>
+          <span>${escapeHTML(r.name)}</span>
+        </label>`).join('')}</div>
+    </div>`;
+  }).join('');
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay active';
+  overlay.innerHTML = `
+    <div class="modal">
+      <h3>Assign ${escapeHTML(c.name || 'color')}</h3>
+      <div class="room-pick-sub">
+        <span class="room-pick-swatch" style="background:${escapeHTML(c.hex || '#ccc')}"></span>
+        SW ${escapeHTML(c.sw || '')} · check the rooms that use this color
+      </div>
+      <div class="room-pick-list">${groupsHtml}</div>
+      <div class="modal-buttons">
+        <button class="btn-cancel" data-act="cancel">Cancel</button>
+        <button class="btn-save" data-act="save">Save</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  function close() { overlay.remove(); document.removeEventListener('keydown', onKey); }
+  function onKey(e) { if (e.key === 'Escape') close(); }
+  document.addEventListener('keydown', onKey);
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  overlay.querySelector('[data-act="cancel"]').addEventListener('click', close);
+  overlay.querySelector('[data-act="save"]').addEventListener('click', () => {
+    overlay.querySelectorAll('input[data-room]').forEach(chk => {
+      const room = (state.inspiration[chk.dataset.floor] || []).find(r => r.id === chk.dataset.room);
+      if (!room) return;
+      if (!Array.isArray(room.paintColors)) room.paintColors = [];
+      const hasNow = room.paintColors.some(p => colorMatches(p, c));
+      if (chk.checked && !hasNow) room.paintColors.push({ ...c });
+      else if (!chk.checked && hasNow) room.paintColors = room.paintColors.filter(p => !colorMatches(p, c));
+    });
+    persist();
+    close();
+    renderPalette();
   });
-  if (added > 0) { persist(); renderPalette(); }
 }
 
 function editColorEverywhere(c) {
