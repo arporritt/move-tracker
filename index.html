@@ -11148,21 +11148,26 @@ function deletePaletteColor(c) {
 
 function assignColorToRoom(c) {
   ensurePaletteMaster();
+  // Only list rooms that don't have a room-specific color yet ("unassigned").
+  // (Universal colors are inherited by every room, so they don't count as assigned.)
+  const universalList = state.overallVision.universalPalette || [];
+  const isSpecific = p => !universalList.some(u => colorMatches(u, p));
   const rooms = [];
   for (const f of ['basement','ground','upper']) {
-    (state.inspiration[f] || []).forEach(r => rooms.push({
-      floor: f, id: r.id, name: r.name || 'Unnamed',
-      has: Array.isArray(r.paintColors) && r.paintColors.some(p => colorMatches(p, c))
-    }));
+    (state.inspiration[f] || []).forEach(r => {
+      const alreadyAssigned = (r.paintColors || []).some(isSpecific);
+      if (alreadyAssigned) return;
+      rooms.push({ floor: f, id: r.id, name: r.name || 'Unnamed' });
+    });
   }
   let universal = (state.overallVision.universalPalette || []).some(u => colorMatches(u, c));
-  const checked = new Set(rooms.filter(r => r.has).map(r => r.id));
+  const checked = new Set();
 
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay active';
   overlay.innerHTML = `
     <div class="picker">
-      <div class="picker-label"><span class="room-pick-swatch" style="background:${escapeHTML(c.hex || '#ccc')};vertical-align:middle;margin-right:6px;"></span>Assign <strong>${escapeHTML(c.name || 'color')}</strong> to rooms</div>
+      <div class="picker-label"><span class="room-pick-swatch" style="background:${escapeHTML(c.hex || '#ccc')};vertical-align:middle;margin-right:6px;"></span>Assign <strong>${escapeHTML(c.name || 'color')}</strong> to rooms <span style="color:var(--ink-faint);font-weight:400;">· unassigned rooms only</span></div>
       <input type="text" class="picker-search" placeholder="Search rooms…" autocomplete="off">
       <div class="picker-list"></div>
       <div class="picker-footer">
@@ -11204,7 +11209,15 @@ function assignColorToRoom(c) {
         listEl.appendChild(row);
       });
     });
-    if (!rooms.length) listEl.appendChild(Object.assign(document.createElement('div'), { className: 'picker-empty', textContent: 'No rooms yet — add them in the Design tab, or use Every room.' }));
+    if (!rooms.length) {
+      const anyRooms = ['basement','ground','upper'].some(f => (state.inspiration[f] || []).length);
+      listEl.appendChild(Object.assign(document.createElement('div'), {
+        className: 'picker-empty',
+        textContent: anyRooms
+          ? 'Every room already has a color — change colors from the table or each room.'
+          : 'No rooms yet — add them in the Design tab, or use Every room.'
+      }));
+    }
   }
   draw();
 
