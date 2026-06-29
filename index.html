@@ -10599,9 +10599,31 @@ const BUDGET_CATEGORIES = [
 const PURCHASE_CATEGORIES = ['WI Purchase'];
 const SALE_CATEGORIES = ['Chicago Sale', 'Rent-back'];
 const HOME_CATEGORIES = ['Moving', 'Setup & Repairs', 'Other'];
-function isPurchaseCategory(cat) { return PURCHASE_CATEGORIES.includes(cat); }
-function isSaleCategory(cat) { return SALE_CATEGORIES.includes(cat); }
-function isHomeCategory(cat) { return !isPurchaseCategory(cat) && !isSaleCategory(cat); }
+
+function ensureBudgetScopes() {
+  if (!state.budget) state.budget = { items: [] };
+  if (!state.budget.scopes) state.budget.scopes = {};
+}
+function getCategoryScope(cat) {
+  if (!cat) return 'home';
+  if (PURCHASE_CATEGORIES.includes(cat)) return 'purchase';
+  if (SALE_CATEGORIES.includes(cat)) return 'sale';
+  ensureBudgetScopes();
+  if (state.budget.scopes[cat]) return state.budget.scopes[cat];
+  return 'home';
+}
+function setCategoryScope(cat, scope) {
+  ensureBudgetScopes();
+  state.budget.scopes[cat] = scope;
+}
+function customCategoriesForScope(scope) {
+  ensureBudgetScopes();
+  return Object.keys(state.budget.scopes).filter(c => state.budget.scopes[c] === scope);
+}
+
+function isPurchaseCategory(cat) { return getCategoryScope(cat) === 'purchase'; }
+function isSaleCategory(cat) { return getCategoryScope(cat) === 'sale'; }
+function isHomeCategory(cat) { return getCategoryScope(cat) === 'home'; }
 
 let budgetSubtab = 'home';
 try {
@@ -10898,10 +10920,12 @@ function renderBudgetLine(item) {
   const hideRoom = isPurchaseCategory(item.category) || isSaleCategory(item.category) || budgetSubtab !== 'home';
   row.className = 'budget-line' + (item.paid ? ' is-paid' : '') + (hideRoom ? ' no-room' : '');
   row.dataset.id = item.id;
-  // Category dropdown — restricted to the current sub-tab's categories
-  const cats = budgetSubtab === 'purchase' ? PURCHASE_CATEGORIES : budgetSubtab === 'sale' ? SALE_CATEGORIES : HOME_CATEGORIES;
-  const allCats = [...new Set([...cats, item.category].filter(Boolean))];
-  const catOpts = allCats.map(c => `<option value="${escapeHTML(c)}"${item.category === c ? ' selected' : ''}>${escapeHTML(c)}</option>`).join('');
+  // Category — typeable input with autocomplete (built-ins + previously-added custom ones for this scope)
+  const baseCats = budgetSubtab === 'purchase' ? PURCHASE_CATEGORIES : budgetSubtab === 'sale' ? SALE_CATEGORIES : HOME_CATEGORIES;
+  const customCats = customCategoriesForScope(budgetSubtab);
+  const allCats = [...new Set([...baseCats, ...customCats, item.category].filter(Boolean))];
+  const datalistId = 'cat-options-' + budgetSubtab;
+  const catOpts = allCats.map(c => `<option value="${escapeHTML(c)}">`).join('');
   let roomCellHtml = '';
   if (!hideRoom) {
     const roomMap = getBudgetRoomMap();
