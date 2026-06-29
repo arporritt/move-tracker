@@ -37,6 +37,39 @@
     max-width: 100vw;
     width: 100%;
   }
+  /* Hide project-specific header when on Budget or Design tabs */
+  body.not-project-tab .masthead,
+  body.not-project-tab .meta-row,
+  body.not-project-tab .gantt-wrap,
+  body.not-project-tab .legend {
+    display: none;
+  }
+  body.not-project-tab .jump-now-btn { display: none; }
+  /* Tighter design-nav padding when used standalone */
+  body.not-project-tab .design-nav-wrap {
+    margin-top: 8px;
+  }
+  /* Room chips: tighter and clearer */
+  .mb-room-chips {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    margin-bottom: 16px;
+  }
+  .mb-room-chip {
+    background: var(--bg-card);
+    border: 1px solid var(--rule);
+    border-radius: 100px;
+    padding: 6px 12px;
+    font-family: 'Manrope', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ink-soft);
+    cursor: pointer;
+    letter-spacing: 0.02em;
+    transition: all 0.15s;
+  }
+  .mb-room-chip:hover { border-color: var(--clay-soft); color: var(--clay); }
+  .mb-room-chip.active { background: var(--ink); color: white; border-color: var(--ink); }
+  .mb-room-chip .count { margin-left: 5px; opacity: 0.6; font-size: 10px; }
   body {
     font-family: 'Manrope', -apple-system, sans-serif;
     background: var(--bg);
@@ -11141,9 +11174,15 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
     btn.classList.add('active');
     document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    document.body.classList.toggle('not-project-tab', btn.dataset.tab !== 'project');
     renderActive();
   });
 });
+// Initialize body class on load
+(function setInitialTabBodyClass() {
+  const active = document.querySelector('.tab-btn.active');
+  if (active) document.body.classList.toggle('not-project-tab', active.dataset.tab !== 'project');
+})();
 
 // ============================================================
 // LIST CONTROLS
