@@ -12128,8 +12128,9 @@ function renderAllocRow(alloc, spent, forecast) {
 function buildActualsTable(items) {
   const wrap = document.createElement('div');
   wrap.className = 'actuals-table-wrap';
-  // Purchases = anything marked paid OR with an actual > 0 (paid items at $0 count too — they're new entries you're filling in)
-  const actuals = items.filter(i => i.paid || Number(i.actual) > 0);
+  // Every line item is a purchase — paid only flags spent vs forecast, so show them all
+  // (unchecking Paid must never make a row disappear).
+  const actuals = items;
   const purchSpent = actuals.filter(i => i.paid).reduce((s, i) => s + effectiveActual(i), 0);
   const purchForecast = actuals.filter(i => !i.paid).reduce((s, i) => s + effectiveActual(i), 0);
   wrap.innerHTML = `
