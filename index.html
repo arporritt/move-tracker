@@ -6728,7 +6728,6 @@
 <!-- ============ LIST VIEW ============ -->
 <div class="project-subtab-content" id="tab-list">
   <div class="list-controls">
-    <input type="search" id="list-search" placeholder="Search tasks &amp; notes…">
     <select id="filter-week"><option value="">All weeks</option><option value="now">Now · May 15 → May 17</option><option value="w1">Week 1 · May 18 → May 24</option><option value="w2">Week 2 · May 25 → May 31</option><option value="w3">Week 3 · Jun 1 → Jun 7</option><option value="w4">Week 4 · Jun 8 → Jun 14</option><option value="w5">Week 5 · Jun 15 → Jun 21</option><option value="w6">Week 6 · Jun 22 → Jun 28</option><option value="w7">Week 7 · Jun 29 → Jul 5</option><option value="w8">Week 8 · Jul 6 → Jul 12</option><option value="w9">Week 9 · Jul 13 → Jul 19</option><option value="w10">Week 10 · Jul 20 → Jul 26</option><option value="w11">Week 11 · Jul 27 → Aug 2</option><option value="w12">Week 12 · Aug 3 → Aug 9</option><option value="w13">Week 13 · Aug 10 → Aug 16</option><option value="w14">Week 14 · Aug 17 → Aug 23</option><option value="w15">Week 15 · Aug 24 → Aug 30</option></select>
     <select id="filter-track">
       <option value="">All tracks</option>
@@ -7856,7 +7855,7 @@ function groupSortValue(task, key, group) {
 
 function renderList() {
   const body = document.getElementById('list-body');
-  const q = document.getElementById('list-search').value.trim().toLowerCase();
+  const q = globalSearchQuery;
   const fWeek = document.getElementById('filter-week').value;
   const fTrack = document.getElementById('filter-track').value;
   const fOwner = document.getElementById('filter-owner').value;
@@ -11190,9 +11189,6 @@ let globalSearchQuery = '';
 function onGlobalSearchInput() {
   const el = document.getElementById('global-search');
   globalSearchQuery = el.value.trim().toLowerCase();
-  // mirror into list-search field if it exists, so existing list filtering still works
-  const listSearch = document.getElementById('list-search');
-  if (listSearch) listSearch.value = el.value;
   renderActive();
 }
 function matchesSearch(task) {
@@ -12184,7 +12180,6 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 // ============================================================
 // LIST CONTROLS
 // ============================================================
-document.getElementById('list-search').addEventListener('input', () => renderList());
 document.getElementById('filter-week').addEventListener('change', () => renderList());
 document.getElementById('filter-track').addEventListener('change', () => renderList());
 document.getElementById('filter-owner').addEventListener('change', () => renderList());
