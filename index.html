@@ -38,7 +38,6 @@
     width: 100%;
   }
   /* Hide project-specific header when on Budget or Design tabs */
-  body.not-project-tab .masthead,
   body.not-project-tab .meta-row,
   body.not-project-tab .timeline-section,
   body.not-project-tab .gantt-wrap,
@@ -1135,6 +1134,34 @@
     letter-spacing: -0.015em;
     padding-bottom: 8px;
     border-bottom: 1px solid var(--rule);
+  }
+  /* Mood-board sections (always present, each with an add affordance) */
+  .mb-section { margin-bottom: 28px; }
+  .mb-section-head {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+    margin: 28px 0 14px; padding-bottom: 8px; border-bottom: 1px solid var(--rule);
+  }
+  .mb-section-head .mb-section-title { margin: 0; padding: 0; border: none; }
+  .mb-section-add {
+    flex: none; background: transparent; border: 1px dashed var(--rule);
+    border-radius: 100px; padding: 6px 14px; cursor: pointer;
+    font-family: 'Manrope', sans-serif; font-size: 12px; font-weight: 600; color: var(--ink-soft);
+  }
+  .mb-section-add:hover { color: var(--clay); border-color: var(--clay-soft); }
+  .mb-photo-grid .photo, .mb-current-strip .photo { position: relative; }
+  .mb-photo-del {
+    position: absolute; top: 6px; right: 6px; z-index: 2;
+    width: 24px; height: 24px; border-radius: 50%;
+    background: rgba(30,45,60,0.6); color: white; border: none; cursor: pointer;
+    font-size: 15px; line-height: 1; display: flex; align-items: center; justify-content: center;
+    opacity: 0; transition: opacity 0.15s;
+  }
+  .photo:hover .mb-photo-del { opacity: 1; }
+  .mb-photo-del:hover { background: var(--behind); }
+  .mb-photo-tag {
+    position: absolute; bottom: 6px; left: 6px; z-index: 2;
+    background: rgba(30,45,60,0.72); color: white; border-radius: 100px;
+    padding: 2px 8px; font-size: 10px; font-weight: 600; letter-spacing: 0.02em;
   }
   .mb-buy-grid {
     display: grid;
@@ -3597,7 +3624,13 @@
   </div>
 </div>
 
-<!-- ============ TABS (primary nav, directly under progress) ============ -->
+<!-- ============ MASTHEAD (persistent app header — same place on every tab) ============ -->
+<header class="masthead">
+  <h1 class="title">Chicago <em>→</em> Wisconsin</h1>
+  <span class="masthead-tag">The Move · 2026</span>
+</header>
+
+<!-- ============ TABS (primary nav, directly under the title) ============ -->
 <div class="tab-bar">
   <div class="tab-bar-inner">
     <button class="tab-btn active" data-tab="project">Plan</button>
@@ -3605,12 +3638,6 @@
     <button class="tab-btn" data-tab="design">Design</button>
   </div>
 </div>
-
-<!-- ============ MASTHEAD ============ -->
-<header class="masthead">
-  <h1 class="title">Chicago <em>→</em> Wisconsin</h1>
-  <span class="masthead-tag">The Move · 2026</span>
-</header>
 
 <!-- ============ META ROW ============ -->
 <div class="meta-row" id="meta-row"></div>
@@ -8569,7 +8596,7 @@ function renderMoodboard() {
   const rooms = state.inspiration[mbFloor] || [];
   chipsBox.innerHTML = '';
   if (rooms.length === 0) {
-    chipsBox.innerHTML = `<div style="color:var(--ink-faint);font-style:italic;font-size:13px;">No rooms on this floor yet. Add some in Design Vision first.</div>`;
+    chipsBox.innerHTML = `<div style="color:var(--ink-faint);font-style:italic;font-size:13px;">No rooms on this floor yet — click <strong>+ Add room</strong> to create one.</div>`;
   }
   if (mbRoomId && !rooms.some(r => r.id === mbRoomId)) mbRoomId = null;
   if (!mbRoomId && rooms.length > 0) mbRoomId = rooms[0].id;
@@ -8612,28 +8639,49 @@ function renderMoodboard() {
     return;
   }
   const insp = room.inspirationPhotos || [];
-  const buys = room.buyList || [];
   const currents = room.currentPhotos || [];
-  const totalBuy = buys.reduce((s, i) => s + (Number(i.price) || 0), 0);
-  const boughtCount = buys.filter(i => i.bought).length;
+  const roomBudgetItems = (state.budget?.items || []).filter(i => i.room === room.id);
+  const productImages = roomBudgetItems.filter(i => i.image).map(i => ({ url: i.image, caption: i.label || '', _budget: true }));
+  const totalBuy = roomBudgetItems.reduce((s, i) => s + (Number(i.estimated) || 0), 0);
   const meta = [];
-  meta.push(`<span class="stat"><strong>${insp.length}</strong> photos</span>`);
-  if (buys.length) meta.push(`<span class="stat"><strong>${buys.length}</strong> to buy · ${fmtMoney(totalBuy)}</span>`);
-  if (boughtCount) meta.push(`<span class="stat"><strong>${boughtCount}</strong> bought</span>`);
-  if (currents.length) meta.push(`<span class="stat"><strong>${currents.length}</strong> current home photos</span>`);
+  meta.push(`<span class="stat"><strong>${insp.length + productImages.length}</strong> images</span>`);
+  if (roomBudgetItems.length) meta.push(`<span class="stat"><strong>${roomBudgetItems.length}</strong> to buy · ${fmtMoney(totalBuy)}</span>`);
+  if (currents.length) meta.push(`<span class="stat"><strong>${currents.length}</strong> current photos</span>`);
   const desc = room.description || '';
   const placeholderText = `What's the vibe for ${room.name || 'this room'}? Click here to describe its mood, materials, colors, function…`;
-  const paint = Array.isArray(room.paintColors) ? room.paintColors : [];
   board.innerHTML = `
     <div class="mb-board-header">
-      <div class="mb-board-title">${escapeHTML(room.name || 'Unnamed')}</div>
+      <input type="text" class="mb-room-title-input" id="mb-room-title-input" value="${escapeHTML(room.name || '')}" placeholder="Room name">
+      <div class="mb-room-header-actions"><button class="mb-room-del-btn" id="mb-room-del" title="Delete this room">×</button></div>
       <div class="mb-board-meta">${meta.join('')}</div>
     </div>
     <div class="mb-description ${desc ? '' : 'empty'}" contenteditable="true" spellcheck="true" data-placeholder="${escapeHTML(placeholderText)}" id="mb-desc">${escapeHTML(desc)}</div>
-    ${paint.length ? '<div class="mb-section-title">Paint palette</div>' + '<div id="mb-room-palette-host"></div>' : ''}
-    ${insp.length === 0 ? '<div class="mb-empty">No inspiration photos yet. Upload some in Design Vision.</div>' : '<div class="mb-section-title">Inspiration</div><div class="mb-photo-grid" id="mb-photo-grid"></div>'}
-    ${buys.length ? '<div class="mb-section-title">To buy</div><div class="mb-buy-grid" id="mb-buy-grid"></div>' : ''}
-    ${currents.length ? '<div class="mb-section-title">Current home</div><div class="mb-current-strip" id="mb-current-strip"></div>' : ''}
+
+    <div class="mb-section">
+      <div class="mb-section-head"><span class="mb-section-title">Paint palette</span></div>
+      <div id="mb-room-palette-host"></div>
+    </div>
+
+    <div class="mb-section">
+      <div class="mb-section-head">
+        <span class="mb-section-title">Inspiration &amp; products</span>
+        <button class="mb-section-add" id="mb-upload-insp">+ Upload photos</button>
+      </div>
+      <div id="mb-images-host"></div>
+    </div>
+
+    <div class="mb-section">
+      <div class="mb-section-head"><span class="mb-section-title">To buy</span></div>
+      <div id="mb-buy-table-host"></div>
+    </div>
+
+    <div class="mb-section">
+      <div class="mb-section-head">
+        <span class="mb-section-title">Current home</span>
+        <button class="mb-section-add" id="mb-add-current">+ Add from listing</button>
+      </div>
+      <div id="mb-current-host"></div>
+    </div>
   `;
   const descEl = board.querySelector('#mb-desc');
   descEl.addEventListener('blur', () => {
@@ -8680,21 +8728,41 @@ function renderMoodboard() {
   // Upload photos button
   board.querySelector('#mb-upload-insp').addEventListener('click', () => openInspirationUpload(room));
 
-  // Photo masonry
-  if (insp.length) {
-    const grid = document.getElementById('mb-photo-grid');
-    insp.forEach((p, i) => {
+  // Combined images: uploaded inspiration photos (removable) + product images pulled from the budget
+  const imagesHost = document.getElementById('mb-images-host');
+  const allImages = [
+    ...insp.map((p, i) => ({ url: p.url, caption: p.caption || '', _type: 'insp', _idx: i })),
+    ...productImages.map(p => ({ url: p.url, caption: p.caption, _type: 'budget' }))
+  ];
+  if (allImages.length === 0) {
+    imagesHost.innerHTML = `<div class="mb-empty">No images yet. Click <strong>+ Upload photos</strong> above — or add a product image to a to-buy item and it shows up here automatically.</div>`;
+  } else {
+    const grid = document.createElement('div');
+    grid.className = 'mb-photo-grid';
+    allImages.forEach((p, gi) => {
       const fig = document.createElement('div');
       fig.className = 'photo';
-      fig.innerHTML = `<img src="${escapeHTML(p.url)}" alt="${escapeHTML(p.caption || '')}" loading="lazy">`;
-      fig.addEventListener('click', () => openLightbox(insp, i));
+      fig.innerHTML = `<img src="${escapeHTML(p.url)}" alt="${escapeHTML(p.caption)}" loading="lazy">` +
+        (p._type === 'budget'
+          ? '<span class="mb-photo-tag">🛒 to-buy</span>'
+          : '<button class="mb-photo-del" title="Remove photo">×</button>');
+      fig.querySelector('img').addEventListener('click', () => openLightbox(allImages, gi));
+      const del = fig.querySelector('.mb-photo-del');
+      if (del) del.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (!confirm('Remove this photo?')) return;
+        room.inspirationPhotos.splice(p._idx, 1);
+        persist(); renderMoodboard();
+      });
       grid.appendChild(fig);
     });
+    imagesHost.appendChild(grid);
   }
+
   // To buy table (synced with budget)
   document.getElementById('mb-buy-table-host').appendChild(renderMbBuyTable(room, roomBudgetItems));
 
-  // Current photos strip
+  // Current home photos (removable) + add-from-listing
   const curHost = document.getElementById('mb-current-host');
   if (currents.length) {
     const strip = document.createElement('div');
@@ -8702,14 +8770,21 @@ function renderMoodboard() {
     currents.forEach((p, i) => {
       const fig = document.createElement('div');
       fig.className = 'photo';
-      fig.innerHTML = `<img src="${escapeHTML(p.url)}" alt="${escapeHTML(p.caption || '')}" loading="lazy" style="object-position:center ${p.posY ?? 50}%">`;
-      fig.addEventListener('click', () => openLightbox(currents, i));
+      fig.innerHTML = `<img src="${escapeHTML(p.url)}" alt="${escapeHTML(p.caption || '')}" loading="lazy" style="object-position:center ${p.posY ?? 50}%"><button class="mb-photo-del" title="Remove">×</button>`;
+      fig.querySelector('img').addEventListener('click', () => openLightbox(currents, i));
+      fig.querySelector('.mb-photo-del').addEventListener('click', (e) => {
+        e.stopPropagation();
+        room.currentPhotos.splice(i, 1);
+        persist(); renderMoodboard();
+      });
       strip.appendChild(fig);
     });
     curHost.appendChild(strip);
   } else {
-    curHost.innerHTML = '<div style="font-size:12px;color:var(--ink-faint);font-style:italic;padding:8px;">No current-home photos for this room yet. Assign some from the Listing images tab.</div>';
+    curHost.innerHTML = '<div class="mb-empty">No current-home photos yet. Click <strong>+ Add from listing</strong> to pull from your listing photos.</div>';
   }
+  const addCurBtn = document.getElementById('mb-add-current');
+  if (addCurBtn) addCurBtn.addEventListener('click', () => switchDesignSubtab('greenview'));
 }
 
 function renderMbBuyTable(room, items) {
@@ -11232,7 +11307,7 @@ function renderOverallMoodboard(board) {
     </div>
     <div class="mb-description ${desc ? '' : 'empty'}" contenteditable="true" spellcheck="true" data-placeholder="Describe the overall vision for the house — style, palette, feel, anchor pieces…" id="mb-desc-overall">${escapeHTML(desc)}</div>
     ${universalPalette.length ? '<div class="mb-section-title">Universal palette (applies to every room)</div>' + '<div id="mb-universal-palette-host"></div>' : ''}
-    ${sample.length ? '<div class="mb-section-title">A glimpse from each room</div><div class="mb-photo-grid" id="mb-overall-grid"></div>' : '<div class="mb-empty">Add rooms and inspiration in Design Vision and they\'ll surface here.</div>'}
+    ${sample.length ? '<div class="mb-section-title">A glimpse from each room</div><div class="mb-photo-grid" id="mb-overall-grid"></div>' : '<div class="mb-empty">Pick a floor above, add rooms, and their images will surface here.</div>'}
   `;
   const descEl = board.querySelector('#mb-desc-overall');
   descEl.addEventListener('blur', () => {
