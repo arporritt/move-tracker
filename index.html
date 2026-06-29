@@ -1481,6 +1481,27 @@
     cursor: pointer; color: var(--ink-soft); width: 28px; height: 28px; font-size: 13px;
   }
   .pt-actions button:hover { border-color: var(--clay); color: var(--clay); }
+  .pt-input {
+    width: 100%; border: 1px solid transparent; background: transparent;
+    padding: 5px 7px; border-radius: 5px; min-width: 0;
+    font-family: 'Manrope', sans-serif; font-size: 13px; color: var(--ink); outline: none;
+  }
+  .pt-input:hover { border-color: var(--rule-soft); }
+  .pt-input:focus { border-color: var(--clay); background: white; }
+  .pt-loc-input { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); font-weight: 700; }
+  .pt-name-input { font-family: 'Fraunces', serif; font-size: 15px; letter-spacing: -0.01em; }
+  .pt-sw-input, .pt-hex-input { font-variant-numeric: tabular-nums; font-size: 12.5px; letter-spacing: 0.04em; }
+  .pt-name-cell { display: flex; align-items: center; gap: 4px; min-width: 0; }
+  .pt-sw-link { color: var(--clay); text-decoration: none; flex: none; font-size: 13px; }
+  .pt-sw-cell { display: flex; align-items: center; gap: 3px; }
+  .pt-sw-cell > span { color: var(--ink-faint); font-size: 11px; font-weight: 700; flex: none; }
+  .pt-swatch-input {
+    width: 34px; height: 34px; padding: 0; border: 1px solid var(--rule);
+    border-radius: 8px; cursor: pointer; background: none; -webkit-appearance: none; appearance: none;
+  }
+  .pt-swatch-input::-webkit-color-swatch-wrapper { padding: 0; }
+  .pt-swatch-input::-webkit-color-swatch { border: none; border-radius: 7px; }
+  .pt-swatch-input::-moz-color-swatch { border: none; border-radius: 7px; }
   @media (max-width: 900px) {
     .mb-photo-grid { column-count: 2; }
   }
@@ -3591,7 +3612,7 @@
 <!-- ============ TABS ============ -->
 <div class="tab-bar">
   <div class="tab-bar-inner">
-    <button class="tab-btn active" data-tab="project">Project plan</button>
+    <button class="tab-btn active" data-tab="project">Plan</button>
     <button class="tab-btn" data-tab="budget">Budget</button>
     <button class="tab-btn" data-tab="design">Design</button>
   </div>
@@ -7419,6 +7440,11 @@ async function initApp() {
     updateSyncStatus('saved');
   }
   if (loader) loader.style.display = 'none';
+  // Always open to the top of the Plan tab
+  if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+  const projectBtn = document.querySelector('.tab-btn[data-tab="project"]');
+  if (projectBtn && !projectBtn.classList.contains('active')) projectBtn.click();
+  window.scrollTo(0, 0);
   setInterval(refreshFromCloud, 20000);
 }
 
@@ -10490,17 +10516,48 @@ function renderPaletteTable(entries) {
     const row = document.createElement('div');
     row.className = 'palette-table-row';
     row.innerHTML = `
-      <div class="pt-swatch" style="background:${escapeHTML(c.hex || '#ccc')}"></div>
-      <div class="pt-loc">${escapeHTML(c.location || '—')}</div>
-      <div class="pt-name">${escapeHTML(c.name || 'Unnamed')}${c.url ? ` <a href="${escapeHTML(c.url)}" target="_blank" rel="noopener" title="View on Sherwin-Williams">↗</a>` : ''}</div>
-      <div class="pt-sw">${c.sw ? 'SW ' + escapeHTML(c.sw) : '—'}</div>
-      <div class="pt-hex">${escapeHTML((c.hex || '').toUpperCase())}</div>
+      <input type="color" class="pt-swatch-input" value="${safeHexForInput(c.hex)}" title="Pick color">
+      <input type="text" class="pt-input pt-loc-input" value="${escapeHTML(c.location || '')}" placeholder="Location">
+      <div class="pt-name-cell">
+        <input type="text" class="pt-input pt-name-input" value="${escapeHTML(c.name || '')}" placeholder="Color name">
+        <a class="pt-sw-link" target="_blank" rel="noopener" title="View on Sherwin-Williams" href="${escapeHTML(c.url || '')}" style="${c.url ? '' : 'display:none;'}">↗</a>
+      </div>
+      <div class="pt-sw-cell"><span>SW</span><input type="text" class="pt-input pt-sw-input" value="${escapeHTML(c.sw || '')}" placeholder="0000"></div>
+      <input type="text" class="pt-input pt-hex-input" value="${escapeHTML((c.hex || '').toUpperCase())}" placeholder="#hex">
       <div class="pt-rooms"></div>
       <div class="pt-actions">
-        <button data-act="edit" title="Edit color">✎</button>
         ${universalRef ? '' : `<button data-act="assign" title="Assign to room">＋</button>`}
       </div>
     `;
+    // Mutable identity for this row so successive inline edits keep matching the stored copies (no full re-render = no focus loss)
+    let cur = { ...c };
+    const swatchInput = row.querySelector('.pt-swatch-input');
+    const hexInput = row.querySelector('.pt-hex-input');
+    const swLink = row.querySelector('.pt-sw-link');
+    function apply(patch) {
+      const prev = cur;
+      cur = { ...cur, ...patch };
+      if ('hex' in patch) {
+        let h = (cur.hex || '').trim();
+        if (h && !h.startsWith('#')) h = '#' + h;
+        cur.hex = h || '#CCCCCC';
+      }
+      cur.url = paletteUrlFor(cur.name, cur.sw);
+      replaceColorEverywhere(prev, cur, false);
+      if (cur.url) { swLink.href = cur.url; swLink.style.display = ''; } else { swLink.style.display = 'none'; }
+    }
+    row.querySelector('.pt-loc-input').addEventListener('change', e => apply({ location: e.target.value.trim() }));
+    row.querySelector('.pt-name-input').addEventListener('change', e => apply({ name: e.target.value.trim() }));
+    row.querySelector('.pt-sw-input').addEventListener('change', e => apply({ sw: e.target.value.trim() }));
+    hexInput.addEventListener('change', e => {
+      apply({ hex: e.target.value });
+      hexInput.value = (cur.hex || '').toUpperCase();
+      swatchInput.value = safeHexForInput(cur.hex);
+    });
+    swatchInput.addEventListener('change', e => {
+      apply({ hex: e.target.value });
+      hexInput.value = (cur.hex || '').toUpperCase();
+    });
     const roomsBox = row.querySelector('.pt-rooms');
     if (universalRef) {
       const chip = document.createElement('span');
@@ -10514,17 +10571,16 @@ function renderPaletteTable(entries) {
       chip.className = 'palette-room-chip';
       chip.innerHTML = `${escapeHTML(ref.roomName || 'Room')} <button title="Remove from room">×</button>`;
       chip.querySelector('button').addEventListener('click', () => {
-        if (!confirm(`Remove "${c.name}" from ${ref.roomName}?`)) return;
-        removeColorFromRoom(c, ref.floor, ref.roomId);
+        if (!confirm(`Remove "${cur.name}" from ${ref.roomName}?`)) return;
+        removeColorFromRoom(cur, ref.floor, ref.roomId);
       });
       roomsBox.appendChild(chip);
     });
     if (!universalRef && uniqueRoomRefs.length === 0) {
       roomsBox.innerHTML = '<span class="pt-unused">—</span>';
     }
-    row.querySelector('[data-act="edit"]').addEventListener('click', () => editColorEverywhere(c));
     const assignBtn = row.querySelector('[data-act="assign"]');
-    if (assignBtn) assignBtn.addEventListener('click', () => assignColorToRoom(c));
+    if (assignBtn) assignBtn.addEventListener('click', () => assignColorToRoom(cur));
     body.appendChild(row);
   });
   return wrap;
@@ -10579,6 +10635,30 @@ function colorMatches(a, b) {
          (a.location || '') === (b.location || '');
 }
 
+function paletteUrlFor(name, sw) {
+  const slug = (name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  return (sw && name) ? `https://www.sherwin-williams.com/en-us/color/color-family/all/SW${sw}-${slug}` : '';
+}
+
+// Replace every instance (universal + per-room) of oldColor with updated. Used by both prompt-edit and inline-edit.
+function replaceColorEverywhere(oldColor, updated, reRender = true) {
+  if (Array.isArray(state.overallVision.universalPalette)) {
+    state.overallVision.universalPalette = state.overallVision.universalPalette.map(p => colorMatches(p, oldColor) ? { ...updated } : p);
+  }
+  for (const f of ['basement','ground','upper']) {
+    (state.inspiration[f] || []).forEach(r => {
+      if (Array.isArray(r.paintColors)) r.paintColors = r.paintColors.map(p => colorMatches(p, oldColor) ? { ...updated } : p);
+    });
+  }
+  persist();
+  if (reRender) renderPalette();
+}
+
+function safeHexForInput(hex) {
+  const h = (hex || '').trim();
+  return /^#[0-9a-fA-F]{6}$/.test(h) ? h : '#cccccc';
+}
+
 function removeColorFromRoom(c, floor, roomId) {
   const room = (state.inspiration[floor] || []).find(r => r.id === roomId);
   if (!room || !Array.isArray(room.paintColors)) return;
@@ -10621,20 +10701,8 @@ function editColorEverywhere(c) {
   if (hex === null) return;
   hex = (hex || '').trim();
   if (hex && !hex.startsWith('#')) hex = '#' + hex;
-  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-  const url = sw && name ? `https://www.sherwin-williams.com/en-us/color/color-family/all/SW${sw}-${slug}` : '';
-  const updated = { location: location.trim(), name: name.trim(), sw: sw.trim(), hex: hex || '#CCCCCC', url };
-  // Replace everywhere it appears
-  if (Array.isArray(state.overallVision.universalPalette)) {
-    state.overallVision.universalPalette = state.overallVision.universalPalette.map(p => colorMatches(p, c) ? updated : p);
-  }
-  for (const f of ['basement','ground','upper']) {
-    (state.inspiration[f] || []).forEach(r => {
-      if (Array.isArray(r.paintColors)) r.paintColors = r.paintColors.map(p => colorMatches(p, c) ? updated : p);
-    });
-  }
-  persist();
-  renderPalette();
+  const updated = { location: location.trim(), name: name.trim(), sw: sw.trim(), hex: hex || '#CCCCCC', url: paletteUrlFor(name.trim(), sw.trim()) };
+  replaceColorEverywhere(c, updated);
 }
 
 function addNewPaletteColor() {
