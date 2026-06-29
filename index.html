@@ -3222,6 +3222,66 @@
     color: var(--ink); cursor: pointer; transition: all 0.15s;
   }
   .floor-pick-btns button:hover { border-color: var(--clay); background: rgba(122,160,194,0.08); }
+  /* ===== Shared polished picker (people / rooms / colors) ===== */
+  .picker {
+    background: var(--bg-card); border-radius: 16px;
+    box-shadow: 0 24px 60px -20px rgba(30,45,60,0.5);
+    width: 100%; max-width: 400px; display: flex; flex-direction: column;
+    max-height: 76vh; overflow: hidden;
+  }
+  .picker-label {
+    font-size: 12px; color: var(--ink-faint); font-weight: 600;
+    padding: 16px 18px 0;
+  }
+  .picker-label strong { color: var(--ink-soft); font-weight: 700; }
+  .picker-search {
+    margin: 10px 16px 8px; padding: 10px 13px;
+    border: 1px solid var(--rule); border-radius: 10px;
+    font-family: 'Manrope', sans-serif; font-size: 15px; color: var(--ink);
+    outline: none; background: var(--bg);
+  }
+  .picker-search:focus { border-color: var(--clay); background: white; }
+  .picker-list { overflow-y: auto; padding: 4px 8px 8px; flex: 1; }
+  .picker-list .picker-group-label {
+    font-size: 9.5px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--ink-faint); font-weight: 700; padding: 10px 10px 4px;
+  }
+  .picker-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 9px 10px; border-radius: 10px; cursor: pointer;
+  }
+  .picker-row:hover { background: rgba(122,160,194,0.08); }
+  .picker-row.selected { background: rgba(74,142,149,0.12); }
+  .picker-check {
+    width: 20px; height: 20px; border-radius: 6px; border: 2px solid var(--rule);
+    flex: none; display: flex; align-items: center; justify-content: center;
+    color: white; font-size: 13px; transition: all 0.12s;
+  }
+  .picker-row.selected .picker-check { background: var(--forest); border-color: var(--forest); }
+  .picker-avatar {
+    width: 34px; height: 34px; border-radius: 50%; flex: none;
+    display: flex; align-items: center; justify-content: center;
+    color: white; font-size: 12px; font-weight: 700; letter-spacing: 0.02em;
+  }
+  .picker-name { font-size: 15px; color: var(--ink); font-weight: 500; flex: 1; min-width: 0; }
+  .picker-row.add-new .picker-name { color: var(--clay); font-weight: 600; }
+  .picker-empty { padding: 18px; text-align: center; color: var(--ink-faint); font-style: italic; font-size: 13px; }
+  .picker-footer {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 12px 16px; border-top: 1px solid var(--rule-soft);
+  }
+  .picker-clear {
+    background: transparent; border: 1px solid var(--rule); border-radius: 10px;
+    padding: 8px 14px; font-family: 'Manrope', sans-serif; font-size: 13px;
+    font-weight: 600; color: var(--ink-soft); cursor: pointer;
+  }
+  .picker-clear:hover { border-color: var(--ink-soft); color: var(--ink); }
+  .picker-done {
+    background: var(--forest); border: none; border-radius: 10px;
+    padding: 9px 22px; font-family: 'Manrope', sans-serif; font-size: 13px;
+    font-weight: 700; color: white; cursor: pointer;
+  }
+  .picker-done:hover { background: #3d767d; }
 
   /* ============ FOOTER ============ */
   footer {
@@ -7728,6 +7788,17 @@ function renderTaskRow(task) {
 
 const OWNER_OPTIONS = ['Allie', 'Thomas', 'Both'];
 
+// Colored initials avatar for a name (used by the polished pickers)
+function avatarData(name) {
+  const n = (name || '?').trim();
+  const parts = n.split(/\s+/).filter(Boolean);
+  let initials = (parts[0]?.[0] || '') + (parts.length > 1 ? parts[parts.length - 1][0] : (parts[0]?.[1] || ''));
+  initials = (initials || '?').toUpperCase();
+  const palette = ['#4F7DA3','#4A8E95','#5A6890','#C75C4C','#7E8FA0','#5C8BAB','#94B0C9','#8F7AA0','#6B8E6F'];
+  let h = 0; for (let i = 0; i < n.length; i++) h = (h * 31 + n.charCodeAt(i)) >>> 0;
+  return { initials, bg: palette[h % palette.length] };
+}
+
 function getCustomOwners() {
   const set = new Set();
   if (Array.isArray(state.customOwners)) state.customOwners.forEach(o => o && set.add(o));
@@ -7815,57 +7886,63 @@ function handleOwnerSelectChange(sel) {
 }
 
 function showOwnerPicker(anchorEl, task) {
-  const existing = document.getElementById('owner-picker');
-  if (existing) existing.remove();
-  const menu = document.createElement('div');
-  menu.id = 'owner-picker';
-  menu.className = 'owner-picker';
-  const customs = getCustomOwners();
-  const options = [...OWNER_OPTIONS, ...customs, '__other', '__clear'];
-  options.forEach(opt => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'owner-picker-opt';
-    if (opt === '__other') btn.textContent = 'Other…';
-    else if (opt === '__clear') { btn.textContent = 'Unassigned'; btn.classList.add('is-clear'); }
-    else btn.textContent = opt;
-    const current = (task.owner || '');
-    if (opt === current) btn.classList.add('current');
-    if (opt === '__clear' && !current) btn.classList.add('current');
-    btn.addEventListener('click', ev => {
-      ev.preventDefault();
-      ev.stopPropagation();
-      let val;
-      if (opt === '__other') {
-        const v = prompt('Owner name:', current);
-        if (v === null) { menu.remove(); return; }
-        val = v.trim();
-        if (val) rememberCustomOwner(val);
-      } else if (opt === '__clear') {
-        val = '';
-      } else {
-        val = opt;
-      }
-      task.owner = val;
-      persist();
-      renderActive();
-      menu.remove();
+  let selected = task.owner || '';
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay active';
+  overlay.innerHTML = `
+    <div class="picker">
+      <div class="picker-label">Owner${task.label ? ` · <strong>${escapeHTML((task.label || '').slice(0, 40))}</strong>` : ''}</div>
+      <input type="text" class="picker-search" placeholder="Search people…" autocomplete="off">
+      <div class="picker-list"></div>
+      <div class="picker-footer">
+        <button class="picker-clear" data-act="clear">Unassign</button>
+        <button class="picker-done" data-act="done">Done</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  const listEl = overlay.querySelector('.picker-list');
+  const searchEl = overlay.querySelector('.picker-search');
+
+  function draw() {
+    const q = searchEl.value.trim().toLowerCase();
+    const everyone = [...new Set([...OWNER_OPTIONS, ...getCustomOwners()].filter(Boolean))];
+    const matches = everyone.filter(o => o.toLowerCase().includes(q));
+    listEl.innerHTML = '';
+    matches.forEach(name => {
+      const a = avatarData(name);
+      const row = document.createElement('div');
+      row.className = 'picker-row' + (name === selected ? ' selected' : '');
+      row.innerHTML = `
+        <span class="picker-check">${name === selected ? '✓' : ''}</span>
+        <span class="picker-avatar" style="background:${a.bg}">${a.initials}</span>
+        <span class="picker-name">${escapeHTML(name)}</span>
+      `;
+      row.addEventListener('click', () => { selected = (selected === name ? '' : name); draw(); });
+      listEl.appendChild(row);
     });
-    menu.appendChild(btn);
-  });
-  const rect = anchorEl.getBoundingClientRect();
-  menu.style.top = (rect.bottom + 6) + 'px';
-  menu.style.left = Math.min(rect.left, window.innerWidth - 180) + 'px';
-  document.body.appendChild(menu);
-  setTimeout(() => {
-    function close(ev) {
-      if (!menu.contains(ev.target)) {
-        menu.remove();
-        document.removeEventListener('click', close);
-      }
+    // Offer to add a brand-new person when the search doesn't match
+    const typed = searchEl.value.trim();
+    if (typed && !everyone.some(o => o.toLowerCase() === typed.toLowerCase())) {
+      const row = document.createElement('div');
+      row.className = 'picker-row add-new';
+      row.innerHTML = `<span class="picker-check"></span><span class="picker-avatar" style="background:var(--ink-faint)">+</span><span class="picker-name">Add “${escapeHTML(typed)}”</span>`;
+      row.addEventListener('click', () => { rememberCustomOwner(typed); selected = typed; searchEl.value = ''; draw(); });
+      listEl.appendChild(row);
     }
-    document.addEventListener('click', close);
-  }, 0);
+    if (!matches.length && !typed) listEl.innerHTML = '<div class="picker-empty">No people yet — type a name to add one.</div>';
+  }
+  draw();
+
+  function close() { overlay.remove(); document.removeEventListener('keydown', onKey); }
+  function commit() { task.owner = selected; persist(); renderActive(); close(); }
+  function onKey(e) { if (e.key === 'Escape') close(); else if (e.key === 'Enter') commit(); }
+  document.addEventListener('keydown', onKey);
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  overlay.querySelector('[data-act="clear"]').addEventListener('click', () => { selected = ''; commit(); });
+  overlay.querySelector('[data-act="done"]').addEventListener('click', commit);
+  searchEl.addEventListener('input', draw);
+  setTimeout(() => searchEl.focus(), 0);
 }
 
 function moveTask(srcId, dstId, position) {
@@ -8837,46 +8914,56 @@ function moveBudgetItemToRoom(item) {
 
 // Single-select room chooser modal. onPick receives a roomId or null (Unassigned).
 function pickRoomModal(title, currentRoomId, onPick) {
-  const groups = ['basement','ground','upper'].map(f => {
-    const list = (state.inspiration?.[f] || []);
-    if (!list.length) return '';
-    return `<div class="room-pick-group">
-      <div class="room-pick-floor">${FLOOR_LABELS[f]}</div>
-      <div class="room-pick-rooms">${list.map(r => `
-        <label class="room-pick-item">
-          <input type="radio" name="pick-room" value="${r.id}" ${currentRoomId === r.id ? 'checked' : ''}>
-          <span>${escapeHTML(r.name || 'Unnamed')}</span>
-        </label>`).join('')}</div>
-    </div>`;
-  }).join('');
+  let selected = currentRoomId || null;
+  const rooms = [];
+  for (const f of ['basement','ground','upper']) {
+    (state.inspiration?.[f] || []).forEach(r => rooms.push({ id: r.id, name: r.name || 'Unnamed', floor: f }));
+  }
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay active';
   overlay.innerHTML = `
-    <div class="modal">
-      <h3>${escapeHTML(title)}</h3>
-      <label class="room-pick-item room-pick-universal">
-        <input type="radio" name="pick-room" value="" ${!currentRoomId ? 'checked' : ''}>
-        <span>— Unassigned (no room)</span>
-      </label>
-      <div class="room-pick-list">${groups || '<div class="room-pick-sub" style="margin:0;">No rooms yet — add them in the Design tab.</div>'}</div>
-      <div class="modal-buttons">
-        <button class="btn-cancel" data-act="cancel">Cancel</button>
-        <button class="btn-save" data-act="save">Save</button>
+    <div class="picker">
+      <div class="picker-label">${escapeHTML(title)}</div>
+      <input type="text" class="picker-search" placeholder="Search rooms…" autocomplete="off">
+      <div class="picker-list"></div>
+      <div class="picker-footer">
+        <button class="picker-clear" data-act="clear">Unassign</button>
+        <button class="picker-done" data-act="done">Done</button>
       </div>
     </div>
   `;
   document.body.appendChild(overlay);
+  const listEl = overlay.querySelector('.picker-list');
+  const searchEl = overlay.querySelector('.picker-search');
+  function draw() {
+    const q = searchEl.value.trim().toLowerCase();
+    listEl.innerHTML = '';
+    ['basement','ground','upper'].forEach(f => {
+      const list = rooms.filter(r => r.floor === f && r.name.toLowerCase().includes(q));
+      if (!list.length) return;
+      const lbl = document.createElement('div'); lbl.className = 'picker-group-label'; lbl.textContent = FLOOR_LABELS[f];
+      listEl.appendChild(lbl);
+      list.forEach(r => {
+        const a = avatarData(r.name);
+        const row = document.createElement('div');
+        row.className = 'picker-row' + (selected === r.id ? ' selected' : '');
+        row.innerHTML = `<span class="picker-check">${selected === r.id ? '✓' : ''}</span><span class="picker-avatar" style="background:${a.bg}">${a.initials}</span><span class="picker-name">${escapeHTML(r.name)}</span>`;
+        row.addEventListener('click', () => { selected = (selected === r.id ? null : r.id); draw(); });
+        listEl.appendChild(row);
+      });
+    });
+    if (!listEl.children.length) listEl.innerHTML = '<div class="picker-empty">No rooms — add them in the Design tab.</div>';
+  }
+  draw();
   function close() { overlay.remove(); document.removeEventListener('keydown', onKey); }
-  function onKey(e) { if (e.key === 'Escape') close(); }
+  function commit() { close(); onPick(selected); }
+  function onKey(e) { if (e.key === 'Escape') close(); else if (e.key === 'Enter') commit(); }
   document.addEventListener('keydown', onKey);
   overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
-  overlay.querySelector('[data-act="cancel"]').addEventListener('click', close);
-  overlay.querySelector('[data-act="save"]').addEventListener('click', () => {
-    const sel = overlay.querySelector('input[name="pick-room"]:checked');
-    const val = sel ? sel.value : '';
-    close();
-    onPick(val || null);
-  });
+  overlay.querySelector('[data-act="clear"]').addEventListener('click', () => { selected = null; commit(); });
+  overlay.querySelector('[data-act="done"]').addEventListener('click', commit);
+  searchEl.addEventListener('input', draw);
+  setTimeout(() => searchEl.focus(), 0);
 }
 
 // Floor chooser modal for creating a new room. onPick receives 'basement'|'ground'|'upper' or null.
@@ -11017,84 +11104,86 @@ function assignColorToRoom(c) {
       has: Array.isArray(r.paintColors) && r.paintColors.some(p => colorMatches(p, c))
     }));
   }
-  const isUniversal = (state.overallVision.universalPalette || []).some(u => colorMatches(u, c));
-
-  const groupsHtml = ['basement','ground','upper'].map(f => {
-    const list = rooms.filter(r => r.floor === f);
-    if (!list.length) return '';
-    return `<div class="room-pick-group">
-      <div class="room-pick-floor">${FLOOR_LABELS[f]}</div>
-      <div class="room-pick-rooms">${list.map(r => `
-        <label class="room-pick-item">
-          <input type="checkbox" data-room="${r.id}" data-floor="${r.floor}" ${r.has ? 'checked' : ''}>
-          <span>${escapeHTML(r.name)}</span>
-        </label>`).join('')}</div>
-    </div>`;
-  }).join('');
-  const roomsSection = rooms.length
-    ? `<div class="room-pick-list">${groupsHtml}</div>`
-    : `<div class="room-pick-sub" style="margin:0;">No rooms yet — add rooms in the Design tab, or mark this color “Every room” below.</div>`;
+  let universal = (state.overallVision.universalPalette || []).some(u => colorMatches(u, c));
+  const checked = new Set(rooms.filter(r => r.has).map(r => r.id));
 
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay active';
   overlay.innerHTML = `
-    <div class="modal">
-      <h3>Assign ${escapeHTML(c.name || 'color')}</h3>
-      <div class="room-pick-sub">
-        <span class="room-pick-swatch" style="background:${escapeHTML(c.hex || '#ccc')}"></span>
-        SW ${escapeHTML(c.sw || '')} · choose where this color is used
-      </div>
-      <label class="room-pick-item room-pick-universal">
-        <input type="checkbox" data-universal ${isUniversal ? 'checked' : ''}>
-        <span>★ Every room <span style="color:var(--ink-faint);font-weight:400;">(applies universally)</span></span>
-      </label>
-      <div class="room-pick-rooms-wrap ${isUniversal ? 'dimmed' : ''}">${roomsSection}</div>
-      <div class="modal-buttons">
-        <button class="btn-cancel" data-act="cancel">Cancel</button>
-        <button class="btn-save" data-act="save">Save</button>
+    <div class="picker">
+      <div class="picker-label"><span class="room-pick-swatch" style="background:${escapeHTML(c.hex || '#ccc')};vertical-align:middle;margin-right:6px;"></span>Assign <strong>${escapeHTML(c.name || 'color')}</strong> to rooms</div>
+      <input type="text" class="picker-search" placeholder="Search rooms…" autocomplete="off">
+      <div class="picker-list"></div>
+      <div class="picker-footer">
+        <button class="picker-clear" data-act="clear">Clear all</button>
+        <button class="picker-done" data-act="done">Done</button>
       </div>
     </div>
   `;
   document.body.appendChild(overlay);
-
-  const universalChk = overlay.querySelector('[data-universal]');
-  const roomsWrap = overlay.querySelector('.room-pick-rooms-wrap');
-  function syncDim() {
-    roomsWrap.classList.toggle('dimmed', universalChk.checked);
-    roomsWrap.querySelectorAll('input[data-room]').forEach(chk => { chk.disabled = universalChk.checked; });
+  const listEl = overlay.querySelector('.picker-list');
+  const searchEl = overlay.querySelector('.picker-search');
+  function draw() {
+    const q = searchEl.value.trim().toLowerCase();
+    listEl.innerHTML = '';
+    const uni = document.createElement('div');
+    uni.className = 'picker-row' + (universal ? ' selected' : '');
+    uni.innerHTML = `<span class="picker-check">${universal ? '✓' : ''}</span><span class="picker-avatar" style="background:var(--forest)">★</span><span class="picker-name">Every room (universal)</span>`;
+    uni.addEventListener('click', () => { universal = !universal; draw(); });
+    listEl.appendChild(uni);
+    if (universal) {
+      const note = document.createElement('div');
+      note.className = 'picker-empty';
+      note.textContent = 'Applies to every room. Uncheck to pick specific rooms.';
+      listEl.appendChild(note);
+      return;
+    }
+    ['basement','ground','upper'].forEach(f => {
+      const list = rooms.filter(r => r.floor === f && r.name.toLowerCase().includes(q));
+      if (!list.length) return;
+      const lbl = document.createElement('div'); lbl.className = 'picker-group-label'; lbl.textContent = FLOOR_LABELS[f];
+      listEl.appendChild(lbl);
+      list.forEach(r => {
+        const a = avatarData(r.name);
+        const on = checked.has(r.id);
+        const row = document.createElement('div');
+        row.className = 'picker-row' + (on ? ' selected' : '');
+        row.innerHTML = `<span class="picker-check">${on ? '✓' : ''}</span><span class="picker-avatar" style="background:${a.bg}">${a.initials}</span><span class="picker-name">${escapeHTML(r.name)}</span>`;
+        row.addEventListener('click', () => { if (checked.has(r.id)) checked.delete(r.id); else checked.add(r.id); draw(); });
+        listEl.appendChild(row);
+      });
+    });
+    if (!rooms.length) listEl.appendChild(Object.assign(document.createElement('div'), { className: 'picker-empty', textContent: 'No rooms yet — add them in the Design tab, or use Every room.' }));
   }
-  universalChk.addEventListener('change', syncDim);
-  syncDim();
+  draw();
 
   function close() { overlay.remove(); document.removeEventListener('keydown', onKey); }
-  function onKey(e) { if (e.key === 'Escape') close(); }
-  document.addEventListener('keydown', onKey);
-  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
-  overlay.querySelector('[data-act="cancel"]').addEventListener('click', close);
-  overlay.querySelector('[data-act="save"]').addEventListener('click', () => {
-    // Make sure the color exists in the master list (handles brand-new colors)
+  function onKey(e) { if (e.key === 'Escape') close(); else if (e.key === 'Enter') commit(); }
+  function commit() {
     if (!state.overallVision.palette.some(p => colorMatches(p, c))) {
       state.overallVision.palette.push({ location: c.location || '', name: c.name || '', sw: c.sw || '', hex: c.hex || '#CCCCCC', url: c.url || paletteUrlFor(c.name, c.sw) });
     }
-    const wantUniversal = universalChk.checked;
-    const inUniversal = state.overallVision.universalPalette.some(u => colorMatches(u, c));
-    if (wantUniversal && !inUniversal) state.overallVision.universalPalette.push({ ...c });
-    if (!wantUniversal && inUniversal) state.overallVision.universalPalette = state.overallVision.universalPalette.filter(u => !colorMatches(u, c));
-
-    if (!wantUniversal) {
-      overlay.querySelectorAll('input[data-room]').forEach(chk => {
-        const room = (state.inspiration[chk.dataset.floor] || []).find(r => r.id === chk.dataset.room);
+    const inUni = state.overallVision.universalPalette.some(u => colorMatches(u, c));
+    if (universal && !inUni) state.overallVision.universalPalette.push({ ...c });
+    if (!universal && inUni) state.overallVision.universalPalette = state.overallVision.universalPalette.filter(u => !colorMatches(u, c));
+    if (!universal) {
+      rooms.forEach(info => {
+        const room = (state.inspiration[info.floor] || []).find(r => r.id === info.id);
         if (!room) return;
         if (!Array.isArray(room.paintColors)) room.paintColors = [];
         const hasNow = room.paintColors.some(p => colorMatches(p, c));
-        if (chk.checked && !hasNow) room.paintColors.push({ ...c });
-        else if (!chk.checked && hasNow) room.paintColors = room.paintColors.filter(p => !colorMatches(p, c));
+        if (checked.has(info.id) && !hasNow) room.paintColors.push({ ...c });
+        else if (!checked.has(info.id) && hasNow) room.paintColors = room.paintColors.filter(p => !colorMatches(p, c));
       });
     }
-    persist();
-    close();
-    renderPalette();
-  });
+    persist(); close(); renderPalette();
+  }
+  document.addEventListener('keydown', onKey);
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  overlay.querySelector('[data-act="clear"]').addEventListener('click', () => { checked.clear(); universal = false; draw(); });
+  overlay.querySelector('[data-act="done"]').addEventListener('click', commit);
+  searchEl.addEventListener('input', draw);
+  setTimeout(() => searchEl.focus(), 0);
 }
 
 function editColorEverywhere(c) {
