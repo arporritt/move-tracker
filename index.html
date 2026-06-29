@@ -11211,11 +11211,10 @@ function buildActualsTable(items) {
 
 function renderActualsRow(item) {
   const row = document.createElement('div');
-  row.className = 'actuals-row';
-  // Category options = allocation categories + base home cats
-  const baseCats = HOME_CATEGORIES;
   const allocCats = (state.budget.allocations || []).map(a => a.category).filter(Boolean);
-  const allCats = [...new Set([...allocCats, ...baseCats, item.category].filter(Boolean))];
+  row.className = 'actuals-row';
+  // Category options = allocation categories ONLY (allocation table is source of truth)
+  const allCats = [...new Set([...allocCats, item.category].filter(Boolean))];
   const catDatalistId = 'actuals-cat-options';
   const catOpts = allCats.map(c => `<option value="${escapeHTML(c)}">`).join('');
   // Room options
@@ -11242,8 +11241,15 @@ function renderActualsRow(item) {
   row.querySelector('.cat').addEventListener('change', e => {
     const newCat = e.target.value.trim();
     item.category = newCat;
-    if (newCat && !PURCHASE_CATEGORIES.includes(newCat) && !SALE_CATEGORIES.includes(newCat) && !HOME_CATEGORIES.includes(newCat)) {
-      setCategoryScope(newCat, 'home');
+    if (newCat) {
+      // If category isn't already in the allocation table, add it automatically
+      const exists = (state.budget.allocations || []).some(a => (a.category || '').toLowerCase() === newCat.toLowerCase());
+      if (!exists) {
+        state.budget.allocations.push({ id: 'a_' + Math.random().toString(36).slice(2,8), category: newCat, budget: 0 });
+      }
+      if (!PURCHASE_CATEGORIES.includes(newCat) && !SALE_CATEGORIES.includes(newCat) && !HOME_CATEGORIES.includes(newCat)) {
+        setCategoryScope(newCat, 'home');
+      }
     }
     persist();
     renderBudget();
