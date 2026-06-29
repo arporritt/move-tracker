@@ -2220,7 +2220,7 @@
   .budget-cat-total .sep { color: var(--ink-faint); margin: 0 6px; }
   .budget-line {
     display: grid;
-    grid-template-columns: minmax(0,1.6fr) 130px 130px 110px 110px 60px 32px;
+    grid-template-columns: 24px minmax(0,1.6fr) 130px 130px 110px 110px 60px 32px;
     gap: 10px;
     padding: 5px 16px;
     border-top: 1px solid var(--rule-soft);
@@ -2229,13 +2229,70 @@
     font-size: 12.5px;
   }
   .budget-line .budget-input { padding: 4px 7px; font-size: 12.5px; }
+  .budget-line .expand-btn {
+    background: transparent; border: none; cursor: pointer;
+    color: var(--ink-faint); font-size: 11px;
+    padding: 0; width: 22px; height: 22px;
+    border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .budget-line .expand-btn:hover { background: rgba(122,160,194,0.12); color: var(--ink); }
+  .budget-line .expand-btn.open { color: var(--clay); }
+  .budget-details-row {
+    background: rgba(122,160,194,0.05);
+    padding: 12px 24px 14px;
+    border-top: 1px dashed var(--rule);
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 12px 16px;
+  }
+  .budget-details-row .full { grid-column: 1 / -1; }
+  .budget-details-row label {
+    display: flex; flex-direction: column; gap: 3px;
+    font-size: 9.5px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--ink-faint); font-weight: 700;
+  }
+  .budget-details-row input, .budget-details-row textarea {
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 6px 9px;
+    font-family: 'Manrope', sans-serif;
+    font-size: 12.5px;
+    outline: none;
+    background: white;
+    text-transform: none;
+    letter-spacing: 0;
+    color: var(--ink);
+    font-weight: 400;
+  }
+  .budget-details-row input:focus, .budget-details-row textarea:focus { border-color: var(--clay); }
+  .budget-details-row textarea {
+    min-height: 56px;
+    resize: vertical;
+    font-family: 'Manrope', sans-serif;
+  }
+  .budget-details-row .link-row {
+    display: flex; gap: 6px; align-items: center;
+  }
+  .budget-details-row .link-row input { flex: 1; }
+  .budget-details-row .link-row a {
+    color: var(--clay); text-decoration: none;
+    padding: 6px 10px;
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    font-size: 12px;
+  }
+  .budget-details-row .link-row a:hover { background: var(--clay); color: white; border-color: var(--clay); }
+  @media (max-width: 720px) {
+    .budget-details-row { grid-template-columns: 1fr; }
+  }
   .budget-line.no-room,
   .budget-cols.no-room {
-    grid-template-columns: minmax(0,1.6fr) 110px 110px 60px 32px;
+    grid-template-columns: 24px minmax(0,1.6fr) 130px 110px 110px 60px 32px;
   }
   @media (max-width: 720px) {
     .budget-line.no-room, .budget-cols.no-room {
-      grid-template-columns: 1fr 80px 80px 36px 24px;
+      grid-template-columns: 20px 1fr 90px 80px 80px 36px 24px;
     }
   }
   .budget-line:first-of-type { border-top: none; }
@@ -2283,18 +2340,18 @@
   .budget-add:hover { color: var(--clay); background: rgba(122,160,194,0.06); }
   .budget-cols {
     display: grid;
-    grid-template-columns: minmax(0,1.6fr) 130px 130px 110px 110px 60px 32px;
+    grid-template-columns: 24px minmax(0,1.6fr) 130px 130px 110px 110px 60px 32px;
     gap: 10px;
     padding: 6px 16px 4px;
     font-size: 9.5px; letter-spacing: 0.14em; text-transform: uppercase;
     color: var(--ink-faint); font-weight: 600;
   }
-  .budget-cols div:nth-child(4),
-  .budget-cols div:nth-child(5) { text-align: right; }
-  .budget-cols div:nth-child(6) { text-align: center; }
+  .budget-cols div:nth-child(5),
+  .budget-cols div:nth-child(6) { text-align: right; }
+  .budget-cols div:nth-child(7) { text-align: center; }
   @media (max-width: 720px) {
     .budget-summary { grid-template-columns: repeat(2, 1fr); }
-    .budget-line, .budget-cols { grid-template-columns: 1fr 90px 90px 80px 80px 36px 24px; gap: 6px; padding-left: 12px; padding-right: 12px; }
+    .budget-line, .budget-cols { grid-template-columns: 20px 1fr 90px 90px 80px 80px 36px 24px; gap: 6px; padding-left: 12px; padding-right: 12px; }
   }
 
   /* Unified budget table */
@@ -10848,7 +10905,7 @@ function buildUnifiedBudgetTable(items, baseCats, actualsOnly) {
       </label>
     </div>
     <div class="budget-cols ${showRoomCol ? '' : 'no-room'}">
-      <div>Item</div><div>Category</div>${showRoomCol ? '<div>Room</div>' : ''}<div>Estimated</div><div>Actual</div><div>Paid</div><div></div>
+      <div></div><div>Item</div><div>Category</div>${showRoomCol ? '<div>Room</div>' : ''}<div>Estimated</div><div>Actual</div><div>Paid</div><div></div>
     </div>
     <div class="bt-body"></div>
     ${actualsOnly ? '' : `<div class="add-line-bar"><button data-act="add">+ Add line item</button></div>`}
@@ -10880,9 +10937,62 @@ function buildUnifiedBudgetTable(items, baseCats, actualsOnly) {
   return wrap;
 }
 
+function renderBudgetDetailsRow(item) {
+  const details = document.createElement('div');
+  details.className = 'budget-details-row';
+  const linkVal = item.link || (item.note && /^https?:\/\//.test(item.note) ? item.note : '');
+  details.innerHTML = `
+    <label class="link-row" style="grid-column:1 / -1;">
+      Link / source URL
+      <span class="link-row" style="display:flex;gap:6px;width:100%;">
+        <input type="url" data-field="link" placeholder="https://…" value="${escapeHTML(linkVal)}">
+        ${linkVal ? `<a href="${escapeHTML(linkVal)}" target="_blank" rel="noopener">Open ↗</a>` : ''}
+      </span>
+    </label>
+    <label>
+      Vendor
+      <input type="text" data-field="vendor" placeholder="e.g., Wayfair, Lowe's" value="${escapeHTML(item.vendor || '')}">
+    </label>
+    <label>
+      Confirmation / order #
+      <input type="text" data-field="confirmation" placeholder="e.g., #A12345" value="${escapeHTML(item.confirmation || '')}">
+    </label>
+    <label>
+      Purchase date
+      <input type="date" data-field="purchaseDate" value="${escapeHTML(item.purchaseDate || '')}">
+    </label>
+    <label class="full">
+      Notes
+      <textarea data-field="note" placeholder="Anything else worth remembering…">${escapeHTML(item.note && !linkVal ? item.note : (item.notes || ''))}</textarea>
+    </label>
+  `;
+  details.querySelectorAll('[data-field]').forEach(el => {
+    el.addEventListener('change', e => {
+      const f = e.target.getAttribute('data-field');
+      if (f === 'link') {
+        item.link = e.target.value.trim();
+        // keep note separate from link
+      } else if (f === 'note') {
+        item.notes = e.target.value;
+        // if old note was a link, preserve it as link; otherwise clear legacy note
+        if (!item.link && /^https?:\/\//.test(item.note || '')) item.link = item.note;
+        item.note = item.notes;
+      } else {
+        item[f] = e.target.value.trim();
+      }
+      persist();
+      renderBudget();
+    });
+  });
+  return details;
+}
+
 function renderBudgetTableBody(body, items, groupBy) {
   if (groupBy === 'none') {
-    items.forEach(item => body.appendChild(renderBudgetLine(item)));
+    items.forEach(item => {
+      body.appendChild(renderBudgetLine(item));
+      if (budgetExpandedIds.has(item.id)) body.appendChild(renderBudgetDetailsRow(item));
+    });
     return;
   }
   const groups = {};
@@ -10911,15 +11021,21 @@ function renderBudgetTableBody(body, items, groupBy) {
       <div class="bt-group-totals"><strong>${fmtMoney(est)}</strong> budget · <strong>${fmtMoney(act)}</strong> spent</div>
     `;
     body.appendChild(header);
-    list.forEach(item => body.appendChild(renderBudgetLine(item)));
+    list.forEach(item => {
+      body.appendChild(renderBudgetLine(item));
+      if (budgetExpandedIds.has(item.id)) body.appendChild(renderBudgetDetailsRow(item));
+    });
   });
 }
+
+const budgetExpandedIds = new Set();
 
 function renderBudgetLine(item) {
   const row = document.createElement('div');
   const hideRoom = isPurchaseCategory(item.category) || isSaleCategory(item.category) || budgetSubtab !== 'home';
   row.className = 'budget-line' + (item.paid ? ' is-paid' : '') + (hideRoom ? ' no-room' : '');
   row.dataset.id = item.id;
+  const isExpanded = budgetExpandedIds.has(item.id);
   // Category — typeable input with autocomplete (built-ins + previously-added custom ones for this scope)
   const baseCats = budgetSubtab === 'purchase' ? PURCHASE_CATEGORIES : budgetSubtab === 'sale' ? SALE_CATEGORIES : HOME_CATEGORIES;
   const customCats = customCategoriesForScope(budgetSubtab);
@@ -10929,20 +11045,17 @@ function renderBudgetLine(item) {
   let roomCellHtml = '';
   if (!hideRoom) {
     const roomMap = getBudgetRoomMap();
-    const roomsByFloor = { basement: [], ground: [], upper: [] };
-    for (const [id, r] of roomMap) roomsByFloor[r.floor].push({ id, name: r.name });
-    let roomOpts = `<option value="">— None —</option>`;
-    for (const f of ['basement','ground','upper']) {
-      if (roomsByFloor[f].length === 0) continue;
-      roomOpts += `<optgroup label="${FLOOR_LABELS[f]}">`;
-      roomsByFloor[f].forEach(r => {
-        roomOpts += `<option value="${r.id}"${item.room === r.id ? ' selected' : ''}>${escapeHTML(r.name || 'Unnamed')}</option>`;
-      });
-      roomOpts += `</optgroup>`;
-    }
-    roomCellHtml = `<select class="budget-input room">${roomOpts}</select>`;
+    const allRooms = [];
+    for (const [id, r] of roomMap) allRooms.push({ id, name: r.name, floor: r.floor });
+    const currentRoom = item.room ? allRooms.find(r => r.id === item.room) : null;
+    const currentRoomName = currentRoom ? currentRoom.name : '';
+    const roomOpts = allRooms.map(r => `<option value="${escapeHTML(r.name)}">`).join('');
+    const roomListId = 'room-options-list';
+    roomCellHtml = `<input type="text" class="budget-input room" list="${roomListId}" placeholder="Type or pick room" value="${escapeHTML(currentRoomName)}">
+    <datalist id="${roomListId}">${roomOpts}</datalist>`;
   }
   row.innerHTML = `
+    <button class="expand-btn ${isExpanded ? 'open' : ''}" data-act="expand" title="${isExpanded ? 'Collapse' : 'Expand for notes/link'}">${isExpanded ? '▾' : '▸'}</button>
     <input type="text" class="budget-input label" placeholder="Line item name" value="${escapeHTML(item.label || '')}">
     <input type="text" class="budget-input cat" list="${datalistId}" placeholder="Type or pick category" value="${escapeHTML(item.category || '')}">
     <datalist id="${datalistId}">${catOpts}</datalist>
@@ -10963,8 +11076,39 @@ function renderBudgetLine(item) {
   });
   row.querySelector('.label').addEventListener('change', e => { item.label = e.target.value.trim(); persist(); });
   if (!hideRoom) row.querySelector('.room').addEventListener('change', e => {
-    item.room = e.target.value || null;
-    persist();
+    const typed = e.target.value.trim();
+    if (!typed) { item.room = null; persist(); renderBudget(); return; }
+    const allRooms = [];
+    for (const f of ['basement','ground','upper']) {
+      (state.inspiration?.[f] || []).forEach(r => allRooms.push({ id: r.id, name: r.name, floor: f }));
+    }
+    const existing = allRooms.find(r => (r.name || '').toLowerCase() === typed.toLowerCase());
+    if (existing) {
+      item.room = existing.id;
+      persist(); renderBudget();
+    } else {
+      const floor = prompt(`Create new room "${typed}" — which floor?\n  b = Basement\n  g = Ground\n  u = Upper`, 'g');
+      if (floor === null) { renderBudget(); return; }
+      const fmap = { b: 'basement', g: 'ground', u: 'upper' };
+      const floorKey = fmap[(floor.toLowerCase().trim()[0])];
+      if (!floorKey) { alert('Floor must be b, g, or u'); renderBudget(); return; }
+      ensureInspirationState();
+      const newRoom = {
+        id: 'r_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,6),
+        name: typed,
+        inspirationPhotos: [],
+        currentPhotos: [],
+        paintColors: state.overallVision?.universalPalette ? [...state.overallVision.universalPalette] : []
+      };
+      state.inspiration[floorKey].push(newRoom);
+      item.room = newRoom.id;
+      persist();
+      renderBudget();
+    }
+  });
+  row.querySelector('[data-act="expand"]').addEventListener('click', () => {
+    if (budgetExpandedIds.has(item.id)) budgetExpandedIds.delete(item.id);
+    else budgetExpandedIds.add(item.id);
     renderBudget();
   });
   row.querySelector('.estimated').addEventListener('change', e => {
