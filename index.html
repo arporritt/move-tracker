@@ -179,12 +179,32 @@
   /* ============ META ROW ============ */
   .meta-row {
     max-width: 1240px; margin: 24px auto 0; padding: 0 40px;
-    display: grid; grid-template-columns: repeat(4, 1fr);
+    display: flex; flex-wrap: wrap; align-items: stretch;
     border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule);
   }
-  .meta-cell { padding: 12px 24px 12px 0; border-right: 1px solid var(--rule); }
+  .meta-cell { flex: 1 1 0; min-width: 120px; padding: 12px 24px 12px 0; border-right: 1px solid var(--rule); position: relative; }
   .meta-cell:last-child { border-right: none; padding-right: 0; }
   .meta-cell:not(:first-child) { padding-left: 24px; }
+  .milestone-cell .meta-edit {
+    position: absolute; top: 8px; right: 10px;
+    background: transparent; border: none; cursor: pointer;
+    color: var(--ink-faint); font-size: 12px; opacity: 0;
+    width: 22px; height: 22px; border-radius: 5px; transition: opacity 0.15s;
+  }
+  .milestone-cell:hover .meta-edit { opacity: 1; }
+  .milestone-cell .meta-edit:hover { background: rgba(122,160,194,0.14); color: var(--ink); }
+  .meta-add-cell { flex: 0 0 auto; display: flex; align-items: center; }
+  .meta-add-btn {
+    background: transparent; border: 1px dashed var(--rule); border-radius: 100px;
+    padding: 6px 12px; font-family: 'Manrope', sans-serif; font-size: 11px;
+    color: var(--ink-faint); cursor: pointer; white-space: nowrap;
+  }
+  .meta-add-btn:hover { color: var(--clay); border-color: var(--clay-soft); }
+  .meta-countdown.done {
+    color: var(--forest); font-weight: 700; font-style: normal;
+    font-family: 'Manrope', sans-serif; font-size: 10.5px;
+    text-transform: uppercase; letter-spacing: 0.06em;
+  }
   .meta-label { font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-faint); font-weight: 600; margin-bottom: 4px; }
   .meta-value { font-family: 'Fraunces', serif; font-size: 19px; color: var(--ink); font-variation-settings: "opsz" 36; }
   .meta-value .small { font-size: 11.5px; color: var(--ink-faint); font-family: 'Manrope', sans-serif; margin-left: 4px; }
@@ -3554,24 +3574,7 @@
 </header>
 
 <!-- ============ META ROW ============ -->
-<div class="meta-row">
-  <div class="meta-cell">
-    <div class="meta-label">CHI Closing</div>
-    <div class="meta-value">Jun 24 <span class="small">Wed</span></div>
-    <div class="meta-countdown" data-date="2026-06-24">in 41 days</div>
-  </div>
-  <div class="meta-cell">
-    <div class="meta-label">WI Closing</div>
-    <div class="meta-value">Jun 26 <span class="small">Fri</span></div>
-    <div class="meta-countdown" data-date="2026-06-26">in 45 days</div>
-  </div>
-  <div class="meta-cell">
-    <div class="meta-label">Move Out (CHI)</div>
-    <div class="meta-value">Jul 31 <span class="small">Fri</span></div>
-    <div class="meta-countdown" data-date="2026-07-31">in 76 days</div>
-  </div>
-  <div class="meta-cell"><div class="meta-label">Total Tasks</div><div class="meta-value" id="total-tasks">195</div></div>
-</div>
+<div class="meta-row" id="meta-row"></div>
 
 <!-- ============ GANTT STRIP ============ -->
 <div class="gantt-wrap">
@@ -8131,7 +8134,8 @@ function updateAllCounters() {
   document.getElementById('total-count').textContent = ' / ' + total;
   document.getElementById('pct-count').textContent = pct + '%';
   document.getElementById('overall-fill').style.width = pct + '%';
-  document.getElementById('total-tasks').textContent = String(total).padStart(3, '0');
+  const totalTasksEl = document.getElementById('total-tasks');
+  if (totalTasksEl) totalTasksEl.textContent = String(total).padStart(3, '0');
   const bEl = document.getElementById('behind-count');
   bEl.textContent = behind > 0 ? `${behind} behind` : '';
 }
@@ -8151,29 +8155,114 @@ function updateImportMeta() {
   }
 }
 
-function updateCountdowns() {
+const MILESTONE_SEED = [
+  { label: 'CHI Closing', date: '2026-06-24' },
+  { label: 'WI Closing', date: '2026-06-26' },
+  { label: 'Move Out (CHI)', date: '2026-07-31' }
+];
+function ensureMilestones() {
+  if (!Array.isArray(state.milestones)) {
+    state.milestones = MILESTONE_SEED.map(m => ({ id: 'm_' + Math.random().toString(36).slice(2,8), ...m }));
+  }
+}
+
+// Countdown text + state class for a given YYYY-MM-DD date
+function countdownFor(dateStr) {
   const today = todayDate();
   today.setHours(0, 0, 0, 0);
-  document.querySelectorAll('.meta-countdown').forEach(el => {
-    const target = new Date(el.dataset.date + 'T00:00:00');
-    const days = Math.round((target - today) / (1000 * 60 * 60 * 24));
-    el.classList.remove('past', 'today', 'imminent');
-    if (days < 0) {
-      el.textContent = Math.abs(days) === 1 ? 'yesterday' : Math.abs(days) + ' days ago';
-      el.classList.add('past');
-    } else if (days === 0) {
-      el.textContent = 'today';
-      el.classList.add('today');
-    } else if (days === 1) {
-      el.textContent = 'tomorrow';
-      el.classList.add('imminent');
-    } else if (days <= 7) {
-      el.textContent = 'in ' + days + ' days';
-      el.classList.add('imminent');
-    } else {
-      el.textContent = 'in ' + days + ' days';
-    }
+  const target = new Date(dateStr + 'T00:00:00');
+  if (isNaN(target)) return { text: '—', cls: '' };
+  const days = Math.round((target - today) / (1000 * 60 * 60 * 24));
+  if (days < 0) return { text: '✓ done', cls: 'done' };
+  if (days === 0) return { text: 'today', cls: 'today' };
+  if (days === 1) return { text: 'tomorrow', cls: 'imminent' };
+  if (days <= 7) return { text: 'in ' + days + ' days', cls: 'imminent' };
+  return { text: 'in ' + days + ' days', cls: '' };
+}
+
+function renderMeta() {
+  ensureMilestones();
+  const row = document.getElementById('meta-row');
+  if (!row) return;
+  row.innerHTML = '';
+  state.milestones.forEach(m => {
+    const dt = new Date((m.date || '') + 'T00:00:00');
+    const valid = !isNaN(dt);
+    const dayNum = valid ? dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Set date';
+    const weekday = valid ? dt.toLocaleDateString('en-US', { weekday: 'short' }) : '';
+    const cd = countdownFor(m.date);
+    const cell = document.createElement('div');
+    cell.className = 'meta-cell milestone-cell';
+    cell.innerHTML = `
+      <div class="meta-label">${escapeHTML(m.label || 'Milestone')}</div>
+      <div class="meta-value">${dayNum}${weekday ? ` <span class="small">${weekday}</span>` : ''}</div>
+      <div class="meta-countdown ${cd.cls}">${cd.text}</div>
+      <button class="meta-edit" title="Edit milestone">✎</button>
+    `;
+    cell.querySelector('.meta-edit').addEventListener('click', () => openMilestoneModal(m));
+    row.appendChild(cell);
   });
+  // Add-milestone cell
+  const addCell = document.createElement('div');
+  addCell.className = 'meta-cell meta-add-cell';
+  addCell.innerHTML = `<button class="meta-add-btn" title="Add milestone">+ Milestone</button>`;
+  addCell.querySelector('.meta-add-btn').addEventListener('click', () => openMilestoneModal(null));
+  row.appendChild(addCell);
+  // Total tasks cell (kept)
+  const totalCell = document.createElement('div');
+  totalCell.className = 'meta-cell';
+  totalCell.innerHTML = `<div class="meta-label">Total Tasks</div><div class="meta-value" id="total-tasks">${String(state.tasks.length).padStart(3,'0')}</div>`;
+  row.appendChild(totalCell);
+}
+// Back-compat alias used by existing call sites
+function updateCountdowns() { renderMeta(); }
+
+function openMilestoneModal(milestone) {
+  const isNew = !milestone;
+  const m = milestone || { label: '', date: '' };
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay active';
+  overlay.innerHTML = `
+    <div class="modal" style="max-width:420px;">
+      <h3>${isNew ? 'Add milestone' : 'Edit milestone'}</h3>
+      <div class="modal-row">
+        <label>Name</label>
+        <input type="text" id="ms-label" placeholder="e.g., Movers arrive" value="${escapeHTML(m.label || '')}">
+      </div>
+      <div class="modal-row">
+        <label>Date</label>
+        <input type="date" id="ms-date" value="${escapeHTML(m.date || '')}">
+      </div>
+      <div class="modal-buttons">
+        ${isNew ? '' : '<button class="btn-delete" data-act="delete">Delete</button>'}
+        <button class="btn-cancel" data-act="cancel">Cancel</button>
+        <button class="btn-save" data-act="save">Save</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  function close() { overlay.remove(); document.removeEventListener('keydown', onKey); }
+  function onKey(e) { if (e.key === 'Escape') close(); }
+  document.addEventListener('keydown', onKey);
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  overlay.querySelector('[data-act="cancel"]').addEventListener('click', close);
+  const delBtn = overlay.querySelector('[data-act="delete"]');
+  if (delBtn) delBtn.addEventListener('click', () => {
+    state.milestones = state.milestones.filter(x => x.id !== milestone.id);
+    persist(); close(); renderMeta();
+  });
+  overlay.querySelector('[data-act="save"]').addEventListener('click', () => {
+    const label = overlay.querySelector('#ms-label').value.trim();
+    const date = overlay.querySelector('#ms-date').value;
+    if (!label) { overlay.querySelector('#ms-label').focus(); return; }
+    if (isNew) {
+      state.milestones.push({ id: 'm_' + Math.random().toString(36).slice(2,8), label, date });
+    } else {
+      milestone.label = label; milestone.date = date;
+    }
+    persist(); close(); renderMeta();
+  });
+  setTimeout(() => overlay.querySelector('#ms-label').focus(), 0);
 }
 
 // ============================================================
