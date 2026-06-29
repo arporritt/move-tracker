@@ -11214,10 +11214,11 @@ function renderActualsRow(item) {
   const row = document.createElement('div');
   const allocCats = (state.budget.allocations || []).map(a => a.category).filter(Boolean);
   row.className = 'actuals-row';
-  // Category options = allocation categories ONLY (allocation table is source of truth)
-  const allCats = [...new Set([...allocCats, item.category].filter(Boolean))];
-  const catDatalistId = 'actuals-cat-options';
-  const catOpts = allCats.map(c => `<option value="${escapeHTML(c)}">`).join('');
+  // Category is locked to allocation categories — no free text. If item has a category not in allocations, include it as a stale option so it stays selected until changed.
+  const includeOrphan = item.category && !allocCats.includes(item.category) ? [item.category] : [];
+  const allCats = [...allocCats, ...includeOrphan];
+  const catOpts = `<option value="" disabled${item.category ? '' : ' selected'}>Pick category…</option>` +
+    allCats.map(c => `<option value="${escapeHTML(c)}"${item.category === c ? ' selected' : ''}>${escapeHTML(c)}</option>`).join('');
   // Room options
   const allRooms = [];
   for (const f of ['basement','ground','upper']) {
@@ -11230,8 +11231,7 @@ function renderActualsRow(item) {
   const spent = effectiveActual(item);
   row.innerHTML = `
     <input type="text" class="alloc-input label" placeholder="What did you buy?" value="${escapeHTML(item.label || '')}">
-    <input type="text" class="alloc-input cat" list="${catDatalistId}" placeholder="Category" value="${escapeHTML(item.category || '')}">
-    <datalist id="${catDatalistId}">${catOpts}</datalist>
+    <select class="alloc-input cat">${catOpts}</select>
     <input type="text" class="alloc-input room" list="${roomDatalistId}" placeholder="Room (optional)" value="${escapeHTML(currentRoomName)}">
     <datalist id="${roomDatalistId}">${roomOpts}</datalist>
     <input type="text" class="alloc-input amount" placeholder="$—" value="${spent ? fmtMoney(spent) : ''}">
@@ -11240,18 +11240,7 @@ function renderActualsRow(item) {
   `;
   row.querySelector('.label').addEventListener('change', e => { item.label = e.target.value.trim(); persist(); });
   row.querySelector('.cat').addEventListener('change', e => {
-    const newCat = e.target.value.trim();
-    item.category = newCat;
-    if (newCat) {
-      // If category isn't already in the allocation table, add it automatically
-      const exists = (state.budget.allocations || []).some(a => (a.category || '').toLowerCase() === newCat.toLowerCase());
-      if (!exists) {
-        state.budget.allocations.push({ id: 'a_' + Math.random().toString(36).slice(2,8), category: newCat, budget: 0 });
-      }
-      if (!PURCHASE_CATEGORIES.includes(newCat) && !SALE_CATEGORIES.includes(newCat) && !HOME_CATEGORIES.includes(newCat)) {
-        setCategoryScope(newCat, 'home');
-      }
-    }
+    item.category = e.target.value;
     persist();
     renderBudget();
   });
