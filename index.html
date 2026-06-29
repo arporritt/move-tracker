@@ -2609,64 +2609,69 @@
   .budget-charts {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 12px;
-    margin-bottom: 16px;
+    gap: 16px;
+    margin-bottom: 18px;
   }
   .budget-chart-card {
     background: var(--bg-card);
     border: 1px solid var(--rule);
-    border-radius: 12px;
-    padding: 12px 18px;
+    border-radius: 14px;
+    padding: 20px 22px;
     box-shadow: var(--shadow);
   }
-  .bar-row { margin-bottom: 8px; }
   .budget-chart-title {
     font-family: 'Fraunces', serif;
-    font-weight: 500;
-    font-size: 16px;
+    font-weight: 400;
+    font-size: 17px;
     color: var(--ink);
-    margin-bottom: 16px;
+    margin: 0 0 18px;
     letter-spacing: -0.01em;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--rule-soft);
   }
-  .bar-row { margin-bottom: 12px; }
+  .bar-row { margin-bottom: 14px; }
   .bar-row:last-child { margin-bottom: 0; }
   .bar-row-header {
     display: flex; justify-content: space-between; align-items: baseline;
-    margin-bottom: 4px;
+    margin-bottom: 6px; gap: 12px;
   }
   .bar-row-label {
-    font-size: 12.5px; color: var(--ink); font-weight: 600;
+    font-size: 13px; color: var(--ink); font-weight: 600;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     flex: 1; min-width: 0;
+    letter-spacing: -0.005em;
   }
   .bar-row-amount {
-    font-size: 11px; color: var(--ink-soft);
+    font-size: 12px; color: var(--ink-soft);
     font-variant-numeric: tabular-nums;
-    margin-left: 10px; white-space: nowrap;
+    white-space: nowrap;
+    display: inline-flex; align-items: baseline; gap: 6px;
   }
-  .bar-row-amount .actual-num { color: var(--ink); font-weight: 600; }
-  .bar-row-amount .over { color: var(--behind); font-weight: 700; }
+  .bar-row-amount .actual-num { color: var(--ink); font-weight: 700; font-size: 13px; }
+  .bar-row-amount .muted { color: var(--ink-faint); font-weight: 500; }
+  .bar-row-amount .over {
+    color: var(--behind); font-weight: 700;
+    background: rgba(199, 92, 76, 0.1);
+    padding: 1px 6px; border-radius: 4px; font-size: 11px;
+  }
   .bar-bg {
     position: relative;
-    height: 10px;
+    height: 8px;
     background: var(--rule-soft);
     border-radius: 100px;
     overflow: hidden;
   }
-  .bar-fill-est {
-    position: absolute; top: 0; left: 0; bottom: 0;
-    background: rgba(122,160,194,0.35);
-    transition: width 0.3s ease;
-  }
   .bar-fill-act {
     position: absolute; top: 0; left: 0; bottom: 0;
-    background: var(--clay);
-    transition: width 0.3s ease;
+    background: linear-gradient(90deg, #7AA0C2, #4F7DA3);
+    border-radius: 100px;
+    transition: width 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
   }
-  .bar-fill-act.over { background: var(--behind); }
+  .bar-fill-act.over { background: linear-gradient(90deg, #D88474, var(--behind)); }
+  .bar-fill-act.no-budget { background: var(--ink-faint); opacity: 0.5; }
   .bar-empty-state {
-    text-align: center; padding: 20px;
-    color: var(--ink-faint); font-style: italic; font-size: 12.5px;
+    text-align: center; padding: 28px 20px;
+    color: var(--ink-faint); font-style: italic; font-size: 13px;
   }
   @media (max-width: 720px) {
     .budget-charts { grid-template-columns: 1fr; }
@@ -10952,59 +10957,111 @@ function effectiveActual(i) {
 function renderBudgetCharts(items) {
   const container = document.getElementById('budget-charts');
   if (!container) return;
-  // Aggregate by Category
-  const byCat = {};
+
+  // Aggregate spending by category from purchase items
+  const spentByCat = {};
   items.forEach(i => {
     const k = i.category || 'Other';
-    if (!byCat[k]) byCat[k] = { estimated: 0, actual: 0 };
-    byCat[k].estimated += Number(i.estimated) || 0;
-    byCat[k].actual += effectiveActual(i);
+    spentByCat[k] = (spentByCat[k] || 0) + effectiveActual(i);
   });
-  // Aggregate by Room
+
+  // For Home subtab, budget comes from allocation table; otherwise sum item.estimated
+  const budgetByCat = {};
+  if (budgetSubtab === 'home') {
+    (state.budget.allocations || []).forEach(a => {
+      budgetByCat[a.category] = (budgetByCat[a.category] || 0) + (Number(a.budget) || 0);
+    });
+  } else {
+    items.forEach(i => {
+      const k = i.category || 'Other';
+      budgetByCat[k] = (budgetByCat[k] || 0) + (Number(i.estimated) || 0);
+    });
+  }
+
+  const catKeys = new Set([...Object.keys(budgetByCat), ...Object.keys(spentByCat)]);
+  const byCat = {};
+  catKeys.forEach(k => { byCat[k] = { budget: budgetByCat[k] || 0, spent: spentByCat[k] || 0 }; });
+
+  // Aggregate spending by room (no per-room budget)
   const roomMap = getBudgetRoomMap();
   const byRoom = {};
   items.forEach(i => {
-    const k = i.room ? (roomMap.get(i.room)?.name || 'Unknown room') : '— Unassigned';
-    if (!byRoom[k]) byRoom[k] = { estimated: 0, actual: 0 };
-    byRoom[k].estimated += Number(i.estimated) || 0;
-    byRoom[k].actual += effectiveActual(i);
+    const k = i.room ? (roomMap.get(i.room)?.name || 'Unknown room') : 'Unassigned';
+    byRoom[k] = (byRoom[k] || 0) + effectiveActual(i);
   });
+
   container.innerHTML = `
     <div class="budget-chart-card">
-      <div class="budget-chart-title">Spend by Category</div>
+      <div class="budget-chart-title">Spend by category</div>
       <div id="bars-cat"></div>
     </div>
     <div class="budget-chart-card">
-      <div class="budget-chart-title">Spend by Room</div>
+      <div class="budget-chart-title">Spend by room</div>
       <div id="bars-room"></div>
     </div>
   `;
-  renderBars(document.getElementById('bars-cat'), byCat);
-  renderBars(document.getElementById('bars-room'), byRoom);
+  renderBudgetBars(document.getElementById('bars-cat'), byCat, { withBudget: true });
+  renderRoomBars(document.getElementById('bars-room'), byRoom);
 }
 
-function renderBars(container, dataMap) {
-  const entries = Object.entries(dataMap).sort((a, b) => b[1].estimated - a[1].estimated);
+function renderBudgetBars(container, dataMap, opts = {}) {
+  // Sort: spent desc, then budget desc; drop entries with both zero
+  const entries = Object.entries(dataMap)
+    .filter(([_, v]) => v.spent > 0 || v.budget > 0)
+    .sort((a, b) => (b[1].spent - a[1].spent) || (b[1].budget - a[1].budget));
   if (entries.length === 0) {
-    container.innerHTML = '<div class="bar-empty-state">No data yet</div>';
+    container.innerHTML = '<div class="bar-empty-state">No spending yet</div>';
     return;
   }
-  const max = Math.max(...entries.map(([_, v]) => Math.max(v.estimated, v.actual))) || 1;
   entries.forEach(([name, v]) => {
-    const estPct = (v.estimated / max) * 100;
-    const actPct = (v.actual / max) * 100;
-    const over = v.actual > v.estimated && v.estimated > 0;
-    const overAmt = v.actual - v.estimated;
+    const pct = v.budget > 0 ? Math.min(100, (v.spent / v.budget) * 100) : (v.spent > 0 ? 100 : 0);
+    const over = v.budget > 0 && v.spent > v.budget;
+    const overAmt = v.spent - v.budget;
+    const noBudget = v.budget === 0 && v.spent > 0;
     const row = document.createElement('div');
     row.className = 'bar-row';
     row.innerHTML = `
       <div class="bar-row-header">
         <span class="bar-row-label">${escapeHTML(name)}</span>
-        <span class="bar-row-amount"><span class="actual-num">${fmtMoney(v.actual)}</span> / ${fmtMoney(v.estimated)}${over ? ` <span class="over">+${fmtMoney(overAmt)}</span>` : ''}</span>
+        <span class="bar-row-amount">
+          <span class="actual-num">${fmtMoney(v.spent)}</span>${v.budget > 0 ? ` <span class="muted">of ${fmtMoney(v.budget)}</span>` : ''}
+          ${over ? `<span class="over">+${fmtMoney(overAmt)}</span>` : ''}
+          ${noBudget ? `<span class="muted">no budget</span>` : ''}
+        </span>
       </div>
       <div class="bar-bg">
-        <div class="bar-fill-est" style="width:${estPct}%"></div>
-        <div class="bar-fill-act ${over ? 'over' : ''}" style="width:${actPct}%"></div>
+        <div class="bar-fill-act ${over ? 'over' : ''} ${noBudget ? 'no-budget' : ''}" style="width:${pct}%"></div>
+      </div>
+    `;
+    container.appendChild(row);
+  });
+}
+
+function renderRoomBars(container, dataMap) {
+  const entries = Object.entries(dataMap)
+    .filter(([_, v]) => v > 0)
+    .sort((a, b) => b[1] - a[1]);
+  if (entries.length === 0) {
+    container.innerHTML = '<div class="bar-empty-state">No spending tagged to a room yet</div>';
+    return;
+  }
+  const max = Math.max(...entries.map(([_, v]) => v)) || 1;
+  const total = entries.reduce((s, [_, v]) => s + v, 0);
+  entries.forEach(([name, v]) => {
+    const pct = (v / max) * 100;
+    const share = total > 0 ? Math.round((v / total) * 100) : 0;
+    const row = document.createElement('div');
+    row.className = 'bar-row';
+    row.innerHTML = `
+      <div class="bar-row-header">
+        <span class="bar-row-label">${escapeHTML(name)}</span>
+        <span class="bar-row-amount">
+          <span class="actual-num">${fmtMoney(v)}</span>
+          <span class="muted">${share}%</span>
+        </span>
+      </div>
+      <div class="bar-bg">
+        <div class="bar-fill-act" style="width:${pct}%"></div>
       </div>
     `;
     container.appendChild(row);
