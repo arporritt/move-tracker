@@ -11167,8 +11167,8 @@ function renderAllocRow(alloc, spent) {
 function buildActualsTable(items) {
   const wrap = document.createElement('div');
   wrap.className = 'actuals-table-wrap';
-  // Show items that have actual > 0 OR are marked paid (these are "actuals")
-  const actuals = items.filter(i => effectiveActual(i) > 0);
+  // "Actuals" = anything marked paid OR with an actual > 0 (paid items at $0 count too — they're new entries you're filling in)
+  const actuals = items.filter(i => i.paid || Number(i.actual) > 0);
   const total = actuals.reduce((s, i) => s + effectiveActual(i), 0);
   wrap.innerHTML = `
     <div class="actuals-toolbar">
@@ -11188,13 +11188,14 @@ function buildActualsTable(items) {
   actuals.forEach(item => body.appendChild(renderActualsRow(item)));
   wrap.querySelector('[data-act="add-actual"]').addEventListener('click', () => {
     if (!state.budget) state.budget = { items: [] };
+    if (!Array.isArray(state.budget.items)) state.budget.items = [];
     const newItem = {
       id: 'b_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,6),
       category: (state.budget.allocations || [])[0]?.category || 'Other',
       label: '',
       estimated: 0,
       actual: 0,
-      paid: true, // a "purchase" entry — default to paid
+      paid: true,
       room: null,
       note: ''
     };
@@ -11202,8 +11203,8 @@ function buildActualsTable(items) {
     persist();
     renderBudget();
     setTimeout(() => {
-      const inputs = document.querySelectorAll('.actuals-row .alloc-input');
-      if (inputs[inputs.length - 5]) inputs[inputs.length - 5].focus();
+      const newRow = document.querySelector(`.actuals-row .label[value=""], .actuals-row:last-child .alloc-input.label`);
+      if (newRow) { newRow.focus(); newRow.select?.(); }
     }, 0);
   });
   return wrap;
