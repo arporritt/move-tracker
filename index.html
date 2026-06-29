@@ -68,7 +68,7 @@
     transition: all 0.15s;
   }
   .mb-room-chip:hover { border-color: var(--clay-soft); color: var(--clay); }
-  .mb-room-chip.active { background: var(--ink); color: white; border-color: var(--ink); }
+  .mb-room-chip.active { background: var(--forest); color: white; border-color: var(--forest); }
   .mb-room-chip .count { margin-left: 5px; opacity: 0.6; font-size: 10px; }
   body {
     font-family: 'Manrope', -apple-system, sans-serif;
@@ -923,10 +923,11 @@
     transition: all 0.15s;
   }
   .floor-segment-btn:hover { color: var(--ink); }
+  /* Level 3 nav (floor pickers inside a sub-view) = teal/forest */
   .floor-segment-btn.active {
-    background: white;
-    color: var(--ink);
-    box-shadow: 0 1px 3px rgba(30,45,60,0.10);
+    background: rgba(74,142,149,0.14);
+    color: var(--forest);
+    box-shadow: inset 0 0 0 1px rgba(74,142,149,0.35);
   }
 
   /* ============ MOOD BOARDS ============ */
@@ -953,10 +954,11 @@
     transition: all 0.15s;
   }
   .mb-room-chip:hover { border-color: var(--clay-soft); color: var(--clay); }
+  /* Level 3 nav (room chips inside a floor) = teal/forest */
   .mb-room-chip.active {
-    background: var(--ink);
+    background: var(--forest);
     color: white;
-    border-color: var(--ink);
+    border-color: var(--forest);
   }
   .mb-room-chip .count {
     margin-left: 6px; opacity: 0.6; font-size: 10.5px;
@@ -1328,7 +1330,8 @@
     transition: all 0.15s;
   }
   .dn-btn:hover { color: var(--ink); background: rgba(122,160,194,0.10); }
-  .dn-btn.active { background: var(--ink); color: white; }
+  /* Level 2 nav (sub-tabs) = indigo/plum, distinct from the navy Level-1 tabs */
+  .dn-btn.active { background: var(--plum); color: white; }
   .dn-sep {
     width: 1px;
     height: 18px;
@@ -1533,9 +1536,10 @@
     transition: all 0.15s;
   }
   .floor-tab-btn:hover { color: var(--ink); }
+  /* Level 2 nav (Plan & Budget sub-tabs) = indigo/plum, matching the Design sub-nav */
   .floor-tab-btn.active {
-    color: var(--clay);
-    border-bottom-color: var(--clay);
+    color: var(--plum);
+    border-bottom-color: var(--plum);
   }
   .rooms-container {
     display: grid;
