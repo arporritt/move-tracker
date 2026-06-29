@@ -3144,6 +3144,12 @@
   }
   .room-pick-item:hover { background: rgba(122,160,194,0.08); }
   .room-pick-item input { width: 17px; height: 17px; accent-color: var(--forest); cursor: pointer; flex: none; }
+  .room-pick-universal {
+    border: 1px solid var(--rule); border-radius: 8px;
+    margin-bottom: 14px; font-weight: 600;
+    background: rgba(74,142,149,0.06);
+  }
+  .room-pick-rooms-wrap.dimmed { opacity: 0.4; pointer-events: none; }
 
   /* ============ FOOTER ============ */
   footer {
@@ -10446,39 +10452,47 @@ function openInspirationManage(room) {
 let paletteView = 'gallery';
 try { const v = localStorage.getItem('mt-palette-view'); if (v === 'table' || v === 'gallery') paletteView = v; } catch (e) {}
 
+// Master color list lives in state.overallVision.palette — colors exist here independently of room assignment,
+// so removing a color from a room never deletes the color. Seeds itself from any existing universal/room colors.
+function ensurePaletteMaster() {
+  if (!state.overallVision) state.overallVision = {};
+  if (!state.inspiration) state.inspiration = { basement: [], ground: [], upper: [] };
+  if (!Array.isArray(state.overallVision.universalPalette)) state.overallVision.universalPalette = [];
+  if (!Array.isArray(state.overallVision.palette)) state.overallVision.palette = [];
+  const master = state.overallVision.palette;
+  const addToMaster = c => {
+    if (!master.some(m => colorMatches(m, c))) {
+      master.push({ location: c.location || '', name: c.name || '', sw: c.sw || '', hex: c.hex || '#CCCCCC', url: c.url || paletteUrlFor(c.name, c.sw) });
+    }
+  };
+  (state.overallVision.universalPalette || []).forEach(addToMaster);
+  for (const f of ['basement','ground','upper']) {
+    (state.inspiration[f] || []).forEach(room => (room.paintColors || []).forEach(addToMaster));
+  }
+}
+
 function renderPalette() {
   ensureInspirationState();
-  if (!state.overallVision) state.overallVision = {};
-  if (!Array.isArray(state.overallVision.universalPalette)) state.overallVision.universalPalette = [];
+  ensurePaletteMaster();
   const board = document.getElementById('palette-board');
 
-  // Build inventory: map key (sw+name) → { color, locations: [{floor, room, location}] }
-  const inv = new Map();
-  function addRef(c, floor, room, location) {
-    const key = (c.sw || '') + '|' + (c.name || '').toLowerCase();
-    if (!inv.has(key)) inv.set(key, { color: { ...c, location: c.location || location }, refs: [] });
-    inv.get(key).refs.push({ floor, roomId: room ? room.id : null, roomName: room ? room.name : null, location: c.location || location });
-  }
-  // Universal palette → applies to all rooms
-  (state.overallVision.universalPalette || []).forEach(c => {
-    addRef(c, null, null, c.location);
-  });
-  // Per-room palettes
-  for (const f of ['basement','ground','upper']) {
-    (state.inspiration[f] || []).forEach(room => {
-      (room.paintColors || []).forEach(c => {
-        // Skip if this matches a universal palette entry (same name+sw+location)
-        const isUniv = (state.overallVision.universalPalette || []).some(u =>
-          u.sw === c.sw && (u.name || '').toLowerCase() === (c.name || '').toLowerCase() && (u.location || '') === (c.location || '')
-        );
-        if (isUniv) return;
-        addRef(c, f, room, c.location);
-      });
-    });
-  }
-
-  // Render
-  const entries = [...inv.values()].sort((a, b) => (a.color.name || '').localeCompare(b.color.name || ''));
+  // Build entries from the master list; compute where each color is used.
+  const entries = state.overallVision.palette.map(color => {
+    const universal = (state.overallVision.universalPalette || []).some(u => colorMatches(u, color));
+    const refs = [];
+    if (universal) {
+      refs.push({ roomId: null }); // universalRef marker
+    } else {
+      for (const f of ['basement','ground','upper']) {
+        (state.inspiration[f] || []).forEach(room => {
+          if ((room.paintColors || []).some(p => colorMatches(p, color))) {
+            refs.push({ floor: f, roomId: room.id, roomName: room.name });
+          }
+        });
+      }
+    }
+    return { color, refs, universal };
+  }).sort((a, b) => (a.color.name || '').localeCompare(b.color.name || ''));
   board.innerHTML = `
     <div class="palette-section-header">
       <h3>Paint Inventory</h3>
@@ -10544,7 +10558,8 @@ function renderPaletteTable(entries) {
       <input type="text" class="pt-input pt-hex-input" value="${escapeHTML((c.hex || '').toUpperCase())}" placeholder="#hex">
       <div class="pt-rooms"></div>
       <div class="pt-actions">
-        ${universalRef ? '' : `<button data-act="assign" title="Assign to room">＋</button>`}
+        <button data-act="assign" title="Assign to rooms">＋</button>
+        <button data-act="del-color" title="Delete color from palette">×</button>
       </div>
     `;
     // Mutable identity for this row so successive inline edits keep matching the stored copies (no full re-render = no focus loss)
@@ -10599,6 +10614,8 @@ function renderPaletteTable(entries) {
     }
     const assignBtn = row.querySelector('[data-act="assign"]');
     if (assignBtn) assignBtn.addEventListener('click', () => assignColorToRoom(cur));
+    const delColorBtn = row.querySelector('[data-act="del-color"]');
+    if (delColorBtn) delColorBtn.addEventListener('click', () => deletePaletteColor(cur));
     body.appendChild(row);
   });
   return wrap;
@@ -10623,8 +10640,9 @@ function renderPaletteCard(entry) {
         ${universalRef ? '<span class="palette-room-chip" style="background:rgba(74,142,149,0.14);color:var(--forest);">★ Every room (universal)</span>' : ''}
       </div>
       <div style="display:flex;gap:6px;margin-top:10px;">
-        <button class="palette-add-room edit-color-btn">✎ Edit color</button>
-        ${universalRef ? '' : `<button class="palette-add-room add-room-btn">+ Assign to room</button>`}
+        <button class="palette-add-room edit-color-btn">✎ Edit</button>
+        <button class="palette-add-room add-room-btn">+ Assign</button>
+        <button class="palette-add-room del-color-btn" title="Delete color" style="margin-left:auto;">Delete</button>
       </div>
     </div>
   `;
@@ -10640,10 +10658,8 @@ function renderPaletteCard(entry) {
     roomsBox.appendChild(chip);
   });
   card.querySelector('.edit-color-btn').addEventListener('click', () => editColorEverywhere(c));
-  const addBtn = card.querySelector('.add-room-btn');
-  if (addBtn) {
-    addBtn.addEventListener('click', () => assignColorToRoom(c));
-  }
+  card.querySelector('.add-room-btn').addEventListener('click', () => assignColorToRoom(c));
+  card.querySelector('.del-color-btn').addEventListener('click', () => deletePaletteColor(c));
   return card;
 }
 
@@ -10658,8 +10674,11 @@ function paletteUrlFor(name, sw) {
   return (sw && name) ? `https://www.sherwin-williams.com/en-us/color/color-family/all/SW${sw}-${slug}` : '';
 }
 
-// Replace every instance (universal + per-room) of oldColor with updated. Used by both prompt-edit and inline-edit.
+// Replace every instance (master + universal + per-room) of oldColor with updated. Used by both prompt-edit and inline-edit.
 function replaceColorEverywhere(oldColor, updated, reRender = true) {
+  if (Array.isArray(state.overallVision.palette)) {
+    state.overallVision.palette = state.overallVision.palette.map(p => colorMatches(p, oldColor) ? { ...updated } : p);
+  }
   if (Array.isArray(state.overallVision.universalPalette)) {
     state.overallVision.universalPalette = state.overallVision.universalPalette.map(p => colorMatches(p, oldColor) ? { ...updated } : p);
   }
@@ -10677,6 +10696,7 @@ function safeHexForInput(hex) {
   return /^#[0-9a-fA-F]{6}$/.test(h) ? h : '#cccccc';
 }
 
+// Unassign a color from one room (the color stays in the master palette).
 function removeColorFromRoom(c, floor, roomId) {
   const room = (state.inspiration[floor] || []).find(r => r.id === roomId);
   if (!room || !Array.isArray(room.paintColors)) return;
@@ -10685,7 +10705,26 @@ function removeColorFromRoom(c, floor, roomId) {
   renderPalette();
 }
 
+// Delete a color from the palette entirely (master + universal + every room).
+function deletePaletteColor(c) {
+  if (!confirm(`Delete "${c.name || 'this color'}" from the palette completely? It will be removed from every room too.`)) return;
+  if (Array.isArray(state.overallVision.palette)) {
+    state.overallVision.palette = state.overallVision.palette.filter(p => !colorMatches(p, c));
+  }
+  if (Array.isArray(state.overallVision.universalPalette)) {
+    state.overallVision.universalPalette = state.overallVision.universalPalette.filter(p => !colorMatches(p, c));
+  }
+  for (const f of ['basement','ground','upper']) {
+    (state.inspiration[f] || []).forEach(r => {
+      if (Array.isArray(r.paintColors)) r.paintColors = r.paintColors.filter(p => !colorMatches(p, c));
+    });
+  }
+  persist();
+  renderPalette();
+}
+
 function assignColorToRoom(c) {
+  ensurePaletteMaster();
   const rooms = [];
   for (const f of ['basement','ground','upper']) {
     (state.inspiration[f] || []).forEach(r => rooms.push({
@@ -10693,7 +10732,7 @@ function assignColorToRoom(c) {
       has: Array.isArray(r.paintColors) && r.paintColors.some(p => colorMatches(p, c))
     }));
   }
-  if (rooms.length === 0) { alert('No rooms exist yet. Add some in the Design tab first.'); return; }
+  const isUniversal = (state.overallVision.universalPalette || []).some(u => colorMatches(u, c));
 
   const groupsHtml = ['basement','ground','upper'].map(f => {
     const list = rooms.filter(r => r.floor === f);
@@ -10707,6 +10746,9 @@ function assignColorToRoom(c) {
         </label>`).join('')}</div>
     </div>`;
   }).join('');
+  const roomsSection = rooms.length
+    ? `<div class="room-pick-list">${groupsHtml}</div>`
+    : `<div class="room-pick-sub" style="margin:0;">No rooms yet — add rooms in the Design tab, or mark this color “Every room” below.</div>`;
 
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay active';
@@ -10715,9 +10757,13 @@ function assignColorToRoom(c) {
       <h3>Assign ${escapeHTML(c.name || 'color')}</h3>
       <div class="room-pick-sub">
         <span class="room-pick-swatch" style="background:${escapeHTML(c.hex || '#ccc')}"></span>
-        SW ${escapeHTML(c.sw || '')} · check the rooms that use this color
+        SW ${escapeHTML(c.sw || '')} · choose where this color is used
       </div>
-      <div class="room-pick-list">${groupsHtml}</div>
+      <label class="room-pick-item room-pick-universal">
+        <input type="checkbox" data-universal ${isUniversal ? 'checked' : ''}>
+        <span>★ Every room <span style="color:var(--ink-faint);font-weight:400;">(applies universally)</span></span>
+      </label>
+      <div class="room-pick-rooms-wrap ${isUniversal ? 'dimmed' : ''}">${roomsSection}</div>
       <div class="modal-buttons">
         <button class="btn-cancel" data-act="cancel">Cancel</button>
         <button class="btn-save" data-act="save">Save</button>
@@ -10726,20 +10772,40 @@ function assignColorToRoom(c) {
   `;
   document.body.appendChild(overlay);
 
+  const universalChk = overlay.querySelector('[data-universal]');
+  const roomsWrap = overlay.querySelector('.room-pick-rooms-wrap');
+  function syncDim() {
+    roomsWrap.classList.toggle('dimmed', universalChk.checked);
+    roomsWrap.querySelectorAll('input[data-room]').forEach(chk => { chk.disabled = universalChk.checked; });
+  }
+  universalChk.addEventListener('change', syncDim);
+  syncDim();
+
   function close() { overlay.remove(); document.removeEventListener('keydown', onKey); }
   function onKey(e) { if (e.key === 'Escape') close(); }
   document.addEventListener('keydown', onKey);
   overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
   overlay.querySelector('[data-act="cancel"]').addEventListener('click', close);
   overlay.querySelector('[data-act="save"]').addEventListener('click', () => {
-    overlay.querySelectorAll('input[data-room]').forEach(chk => {
-      const room = (state.inspiration[chk.dataset.floor] || []).find(r => r.id === chk.dataset.room);
-      if (!room) return;
-      if (!Array.isArray(room.paintColors)) room.paintColors = [];
-      const hasNow = room.paintColors.some(p => colorMatches(p, c));
-      if (chk.checked && !hasNow) room.paintColors.push({ ...c });
-      else if (!chk.checked && hasNow) room.paintColors = room.paintColors.filter(p => !colorMatches(p, c));
-    });
+    // Make sure the color exists in the master list (handles brand-new colors)
+    if (!state.overallVision.palette.some(p => colorMatches(p, c))) {
+      state.overallVision.palette.push({ location: c.location || '', name: c.name || '', sw: c.sw || '', hex: c.hex || '#CCCCCC', url: c.url || paletteUrlFor(c.name, c.sw) });
+    }
+    const wantUniversal = universalChk.checked;
+    const inUniversal = state.overallVision.universalPalette.some(u => colorMatches(u, c));
+    if (wantUniversal && !inUniversal) state.overallVision.universalPalette.push({ ...c });
+    if (!wantUniversal && inUniversal) state.overallVision.universalPalette = state.overallVision.universalPalette.filter(u => !colorMatches(u, c));
+
+    if (!wantUniversal) {
+      overlay.querySelectorAll('input[data-room]').forEach(chk => {
+        const room = (state.inspiration[chk.dataset.floor] || []).find(r => r.id === chk.dataset.room);
+        if (!room) return;
+        if (!Array.isArray(room.paintColors)) room.paintColors = [];
+        const hasNow = room.paintColors.some(p => colorMatches(p, c));
+        if (chk.checked && !hasNow) room.paintColors.push({ ...c });
+        else if (!chk.checked && hasNow) room.paintColors = room.paintColors.filter(p => !colorMatches(p, c));
+      });
+    }
     persist();
     close();
     renderPalette();
@@ -10762,29 +10828,19 @@ function editColorEverywhere(c) {
 }
 
 function addNewPaletteColor() {
-  const location = prompt('Where will this color go? (e.g., Walls, Ceiling, Trim, Doors, Wainscot)', '');
-  if (location === null || !location.trim()) return;
-  const name = prompt('SW color name (e.g., Alabaster):', '');
-  if (name === null || !name.trim()) return;
-  const sw = prompt('SW number (e.g., 7008):', '');
-  if (sw === null) return;
-  let hex = prompt('Hex color (e.g., #EDEAE0):', '#CCCCCC');
-  if (hex === null) return;
-  hex = (hex || '').trim();
-  if (hex && !hex.startsWith('#')) hex = '#' + hex;
-  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-  const url = sw && name ? `https://www.sherwin-williams.com/en-us/color/color-family/all/SW${sw}-${slug}` : '';
-  const color = { location: location.trim(), name: name.trim(), sw: sw.trim(), hex: hex || '#CCCCCC', url };
-  // Ask: universal (every room) or assign to specific rooms?
-  const scope = prompt('Apply to:\n\n1. Every room (universal)\n2. Specific rooms\n\nEnter 1 or 2:', '2');
-  if (scope === '1') {
-    if (!Array.isArray(state.overallVision.universalPalette)) state.overallVision.universalPalette = [];
-    state.overallVision.universalPalette.push(color);
-    persist(); renderPalette();
-  } else {
-    assignColorToRoom(color);
-    // Also save to universal if user later assigns it, but for now: assignColorToRoom takes care of it
-  }
+  ensurePaletteMaster();
+  // Add a blank color to the master list, then let the user fill it in inline (table) or via the assign modal.
+  const color = { location: '', name: 'New color', sw: '', hex: '#CCCCCC', url: '' };
+  state.overallVision.palette.push(color);
+  persist();
+  paletteView = 'table';
+  try { localStorage.setItem('mt-palette-view', 'table'); } catch (e) {}
+  renderPalette();
+  // Focus the name field of the new (last, since it sorts by name… so find it) row
+  setTimeout(() => {
+    const names = document.querySelectorAll('.palette-table-row .pt-name-input');
+    names.forEach(n => { if (n.value === 'New color') { n.focus(); n.select(); } });
+  }, 0);
 }
 
 function renderPaintPalette(colors, onChange) {
