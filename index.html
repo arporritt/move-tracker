@@ -344,11 +344,10 @@
 
   /* ============ TABS ============ */
   .tab-bar {
-    position: sticky; top: 70px; z-index: 50;
+    position: sticky; top: 69px; z-index: 55;
     background: rgba(238,243,246,0.92);
     backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
     border-bottom: 1px solid var(--rule);
-    margin-top: 24px;
   }
   .tab-bar-inner {
     max-width: 1240px; margin: 0 auto; padding: 10px 40px;
@@ -3532,6 +3531,15 @@
   </div>
 </div>
 
+<!-- ============ TABS (primary nav, directly under progress) ============ -->
+<div class="tab-bar">
+  <div class="tab-bar-inner">
+    <button class="tab-btn active" data-tab="project">Plan</button>
+    <button class="tab-btn" data-tab="budget">Budget</button>
+    <button class="tab-btn" data-tab="design">Design</button>
+  </div>
+</div>
+
 <!-- ============ MASTHEAD ============ -->
 <header class="masthead">
   <div class="masthead-top">
@@ -3637,14 +3645,6 @@
   <span class="legend-item"><span class="legend-swatch" style="background: var(--behind);"></span> Behind</span>
 </div>
 
-<!-- ============ TABS ============ -->
-<div class="tab-bar">
-  <div class="tab-bar-inner">
-    <button class="tab-btn active" data-tab="project">Plan</button>
-    <button class="tab-btn" data-tab="budget">Budget</button>
-    <button class="tab-btn" data-tab="design">Design</button>
-  </div>
-</div>
 
 <!-- ============ PROJECT PLAN (wraps weeks + list) ============ -->
 <div class="tab-content active" id="tab-project">
