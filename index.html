@@ -2174,8 +2174,8 @@
     border: 1px solid var(--rule);
     border-radius: 14px;
     box-shadow: var(--shadow);
-    padding: 24px 28px;
-    margin-bottom: 28px;
+    padding: 16px 22px;
+    margin-bottom: 16px;
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     gap: 24px;
@@ -2221,12 +2221,14 @@
   .budget-line {
     display: grid;
     grid-template-columns: minmax(0,1.6fr) 130px 130px 110px 110px 60px 32px;
-    gap: 12px;
-    padding: 10px 20px;
+    gap: 10px;
+    padding: 5px 16px;
     border-top: 1px solid var(--rule-soft);
     align-items: center;
     transition: background 0.1s;
+    font-size: 12.5px;
   }
+  .budget-line .budget-input { padding: 4px 7px; font-size: 12.5px; }
   .budget-line.no-room,
   .budget-cols.no-room {
     grid-template-columns: minmax(0,1.6fr) 110px 110px 60px 32px;
@@ -2282,9 +2284,9 @@
   .budget-cols {
     display: grid;
     grid-template-columns: minmax(0,1.6fr) 130px 130px 110px 110px 60px 32px;
-    gap: 12px;
-    padding: 10px 20px 6px;
-    font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
+    gap: 10px;
+    padding: 6px 16px 4px;
+    font-size: 9.5px; letter-spacing: 0.14em; text-transform: uppercase;
     color: var(--ink-faint); font-weight: 600;
   }
   .budget-cols div:nth-child(4),
@@ -2343,7 +2345,7 @@
   }
   .group-by-control select:focus { border-color: var(--clay); }
   .bt-group-header {
-    padding: 12px 20px;
+    padding: 7px 16px;
     background: rgba(122,160,194,0.10);
     display: flex; justify-content: space-between; align-items: baseline;
     border-top: 1px solid var(--rule);
@@ -2400,16 +2402,17 @@
   .budget-charts {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 16px;
-    margin-bottom: 24px;
+    gap: 12px;
+    margin-bottom: 16px;
   }
   .budget-chart-card {
     background: var(--bg-card);
     border: 1px solid var(--rule);
     border-radius: 12px;
-    padding: 18px 22px;
+    padding: 12px 18px;
     box-shadow: var(--shadow);
   }
+  .bar-row { margin-bottom: 8px; }
   .budget-chart-title {
     font-family: 'Fraunces', serif;
     font-weight: 500;
@@ -8164,7 +8167,7 @@ function renderMbBuyTable(room, items) {
   const wrap = document.createElement('div');
   wrap.className = 'mb-buy-table';
   const totalBudget = items.reduce((s, i) => s + (Number(i.estimated) || 0), 0);
-  const totalActual = items.reduce((s, i) => s + (Number(i.actual) || 0), 0);
+  const totalActual = items.reduce((s, i) => s + effectiveActual(i), 0);
   wrap.innerHTML = `
     <div class="mb-buy-table-head">
       <div>Item</div>
@@ -10675,6 +10678,13 @@ function getBudgetRoomMap() {
   return map;
 }
 
+function effectiveActual(i) {
+  // If "paid" is checked but no actual amount entered, treat the estimated as spent
+  const a = Number(i.actual) || 0;
+  if (a > 0) return a;
+  return i.paid ? (Number(i.estimated) || 0) : 0;
+}
+
 function renderBudgetCharts(items) {
   const container = document.getElementById('budget-charts');
   if (!container) return;
@@ -10684,7 +10694,7 @@ function renderBudgetCharts(items) {
     const k = i.category || 'Other';
     if (!byCat[k]) byCat[k] = { estimated: 0, actual: 0 };
     byCat[k].estimated += Number(i.estimated) || 0;
-    byCat[k].actual += Number(i.actual) || 0;
+    byCat[k].actual += effectiveActual(i);
   });
   // Aggregate by Room
   const roomMap = getBudgetRoomMap();
@@ -10693,7 +10703,7 @@ function renderBudgetCharts(items) {
     const k = i.room ? (roomMap.get(i.room)?.name || 'Unknown room') : '— Unassigned';
     if (!byRoom[k]) byRoom[k] = { estimated: 0, actual: 0 };
     byRoom[k].estimated += Number(i.estimated) || 0;
-    byRoom[k].actual += Number(i.actual) || 0;
+    byRoom[k].actual += effectiveActual(i);
   });
   container.innerHTML = `
     <div class="budget-chart-card">
@@ -10749,10 +10759,11 @@ function renderBudget() {
   });
   renderBudgetCharts(items);
 
-  // Summary
+  // Summary — actuals roll up paid items (paid + no manual actual = treats estimated as spent)
   const totalEst = items.reduce((s, i) => s + (Number(i.estimated) || 0), 0);
-  const totalActual = items.reduce((s, i) => s + (Number(i.actual) || 0), 0);
-  const totalPaid = items.filter(i => i.paid).reduce((s, i) => s + (Number(i.actual) || Number(i.estimated) || 0), 0);
+  const totalActual = items.reduce((s, i) => s + effectiveActual(i), 0);
+  const totalPaid = items.filter(i => i.paid).reduce((s, i) => s + effectiveActual(i), 0);
+  const actualsCount = items.filter(i => effectiveActual(i) > 0).length;
   const delta = totalEst - totalActual;
   const deltaCls = delta >= 0 ? 'delta-pos' : 'delta-neg';
   const deltaPrefix = delta >= 0 ? 'under by ' : 'over by ';
@@ -10766,7 +10777,7 @@ function renderBudget() {
     <div class="budget-sum-cell">
       <div class="budget-sum-label">Actual total</div>
       <div class="budget-sum-value">${fmtMoney(totalActual)}</div>
-      <div class="budget-sum-sub">${items.filter(i => Number(i.actual) > 0).length} with actuals</div>
+      <div class="budget-sum-sub">${actualsCount} with actuals</div>
     </div>
     <div class="budget-sum-cell">
       <div class="budget-sum-label">Paid so far</div>
@@ -10783,18 +10794,13 @@ function renderBudget() {
   const baseCats = budgetSubtab === 'purchase' ? PURCHASE_CATEGORIES : budgetSubtab === 'sale' ? SALE_CATEGORIES : HOME_CATEGORIES;
   const c = document.getElementById('budget-categories');
   c.innerHTML = '';
-  // Build the unified BUDGET table
-  c.appendChild(buildUnifiedBudgetTable(items, baseCats, /*actualsOnly=*/false));
-  // Build the ACTUALS table (only items with actual > 0)
-  const actualItems = items.filter(i => Number(i.actual) > 0);
-  if (actualItems.length > 0) {
-    c.appendChild(buildUnifiedBudgetTable(actualItems, baseCats, /*actualsOnly=*/true));
-  }
+  // Build the unified BUDGET table (Actuals table removed — totals roll up paid items inline)
+  c.appendChild(buildUnifiedBudgetTable(items, baseCats, false));
 }
 
 function buildUnifiedBudgetTable(items, baseCats, actualsOnly) {
   const totalEst = items.reduce((s, i) => s + (Number(i.estimated) || 0), 0);
-  const totalActual = items.reduce((s, i) => s + (Number(i.actual) || 0), 0);
+  const totalActual = items.reduce((s, i) => s + effectiveActual(i), 0);
   const variance = totalEst - totalActual;
   const overBy = variance < 0;
   const showRoomCol = budgetSubtab === 'home';
@@ -10875,7 +10881,7 @@ function renderBudgetTableBody(body, items, groupBy) {
   });
   entries.forEach(([name, list], idx) => {
     const est = list.reduce((s, i) => s + (Number(i.estimated) || 0), 0);
-    const act = list.reduce((s, i) => s + (Number(i.actual) || 0), 0);
+    const act = list.reduce((s, i) => s + effectiveActual(i), 0);
     const header = document.createElement('div');
     header.className = 'bt-group-header' + (idx === 0 ? ' first' : '');
     header.innerHTML = `
