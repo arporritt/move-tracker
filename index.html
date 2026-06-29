@@ -3173,6 +3173,14 @@
     background: rgba(74,142,149,0.06);
   }
   .room-pick-rooms-wrap.dimmed { opacity: 0.4; pointer-events: none; }
+  .floor-pick-btns { display: flex; flex-direction: column; gap: 8px; }
+  .floor-pick-btns button {
+    text-align: left; padding: 12px 16px; border-radius: 10px;
+    border: 1px solid var(--rule); background: var(--bg-card);
+    font-family: 'Manrope', sans-serif; font-size: 14px; font-weight: 600;
+    color: var(--ink); cursor: pointer; transition: all 0.15s;
+  }
+  .floor-pick-btns button:hover { border-color: var(--clay); background: rgba(122,160,194,0.08); }
 
   /* ============ FOOTER ============ */
   footer {
@@ -8724,19 +8732,101 @@ function renderMbBuyTable(room, items) {
 }
 
 function moveBudgetItemToRoom(item) {
-  const choices = [];
-  for (const f of ['basement','ground','upper']) {
-    (state.inspiration?.[f] || []).forEach(r => choices.push({ id: r.id, label: `${FLOOR_LABELS[f]} / ${r.name || 'Unnamed'}` }));
-  }
-  const list = choices.map((c, i) => `${i+1}. ${c.label}`).join('\n');
-  const choice = prompt(`Move "${item.label || 'this item'}" to which room?\n\n${list}\n\n0. Unassigned (no room)\n\nEnter number:`, '');
-  if (choice === null || choice === '') return;
-  const idx = parseInt(choice);
-  if (isNaN(idx)) return;
-  if (idx === 0) { item.room = null; }
-  else if (choices[idx - 1]) { item.room = choices[idx - 1].id; }
-  persist();
-  renderMoodboard();
+  pickRoomModal(`Move "${item.label || 'this item'}" to…`, item.room || null, (roomId) => {
+    item.room = roomId;
+    persist();
+    renderMoodboard();
+  });
+}
+
+// Single-select room chooser modal. onPick receives a roomId or null (Unassigned).
+function pickRoomModal(title, currentRoomId, onPick) {
+  const groups = ['basement','ground','upper'].map(f => {
+    const list = (state.inspiration?.[f] || []);
+    if (!list.length) return '';
+    return `<div class="room-pick-group">
+      <div class="room-pick-floor">${FLOOR_LABELS[f]}</div>
+      <div class="room-pick-rooms">${list.map(r => `
+        <label class="room-pick-item">
+          <input type="radio" name="pick-room" value="${r.id}" ${currentRoomId === r.id ? 'checked' : ''}>
+          <span>${escapeHTML(r.name || 'Unnamed')}</span>
+        </label>`).join('')}</div>
+    </div>`;
+  }).join('');
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay active';
+  overlay.innerHTML = `
+    <div class="modal">
+      <h3>${escapeHTML(title)}</h3>
+      <label class="room-pick-item room-pick-universal">
+        <input type="radio" name="pick-room" value="" ${!currentRoomId ? 'checked' : ''}>
+        <span>— Unassigned (no room)</span>
+      </label>
+      <div class="room-pick-list">${groups || '<div class="room-pick-sub" style="margin:0;">No rooms yet — add them in the Design tab.</div>'}</div>
+      <div class="modal-buttons">
+        <button class="btn-cancel" data-act="cancel">Cancel</button>
+        <button class="btn-save" data-act="save">Save</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  function close() { overlay.remove(); document.removeEventListener('keydown', onKey); }
+  function onKey(e) { if (e.key === 'Escape') close(); }
+  document.addEventListener('keydown', onKey);
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  overlay.querySelector('[data-act="cancel"]').addEventListener('click', close);
+  overlay.querySelector('[data-act="save"]').addEventListener('click', () => {
+    const sel = overlay.querySelector('input[name="pick-room"]:checked');
+    const val = sel ? sel.value : '';
+    close();
+    onPick(val || null);
+  });
+}
+
+// Floor chooser modal for creating a new room. onPick receives 'basement'|'ground'|'upper' or null.
+function pickFloorModal(roomName, onPick) {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay active';
+  overlay.innerHTML = `
+    <div class="modal" style="max-width:420px;">
+      <h3>New room: ${escapeHTML(roomName)}</h3>
+      <div class="room-pick-sub" style="margin:-8px 0 16px;">Which floor is this room on?</div>
+      <div class="floor-pick-btns">
+        <button data-floor="basement">Basement</button>
+        <button data-floor="ground">Ground floor</button>
+        <button data-floor="upper">Upper floor</button>
+      </div>
+      <div class="modal-buttons">
+        <button class="btn-cancel" data-act="cancel">Cancel</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  function close() { overlay.remove(); document.removeEventListener('keydown', onKey); }
+  function onKey(e) { if (e.key === 'Escape') { close(); onPick(null); } }
+  document.addEventListener('keydown', onKey);
+  overlay.addEventListener('click', e => { if (e.target === overlay) { close(); onPick(null); } });
+  overlay.querySelector('[data-act="cancel"]').addEventListener('click', () => { close(); onPick(null); });
+  overlay.querySelectorAll('.floor-pick-btns button').forEach(btn => {
+    btn.addEventListener('click', () => { close(); onPick(btn.dataset.floor); });
+  });
+}
+
+// Create a new room on a chosen floor (via modal), then run onCreated(room).
+function createRoomViaModal(typedName, onCreated) {
+  pickFloorModal(typedName, (floorKey) => {
+    if (!floorKey) { onCreated(null); return; }
+    ensureInspirationState();
+    const newRoom = {
+      id: 'r_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,6),
+      name: typedName,
+      inspirationPhotos: [],
+      currentPhotos: [],
+      paintColors: state.overallVision?.universalPalette ? [...state.overallVision.universalPalette] : []
+    };
+    state.inspiration[floorKey].push(newRoom);
+    onCreated(newRoom);
+  });
 }
 
 function renderActive() {
@@ -10912,18 +11002,53 @@ function assignColorToRoom(c) {
 }
 
 function editColorEverywhere(c) {
-  const location = prompt('Where does this color go? (e.g., Walls, Ceiling, Trim, Doors, Wainscot)', c.location || '');
-  if (location === null) return;
-  const name = prompt('SW color name:', c.name || '');
-  if (name === null) return;
-  const sw = prompt('SW number:', c.sw || '');
-  if (sw === null) return;
-  let hex = prompt('Hex color:', c.hex || '#CCCCCC');
-  if (hex === null) return;
-  hex = (hex || '').trim();
-  if (hex && !hex.startsWith('#')) hex = '#' + hex;
-  const updated = { location: location.trim(), name: name.trim(), sw: sw.trim(), hex: hex || '#CCCCCC', url: paletteUrlFor(name.trim(), sw.trim()) };
-  replaceColorEverywhere(c, updated);
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay active';
+  overlay.innerHTML = `
+    <div class="modal" style="max-width:440px;">
+      <h3>Edit color</h3>
+      <div class="modal-row" style="display:flex;gap:12px;align-items:flex-end;">
+        <div style="flex:none;">
+          <label>Swatch</label>
+          <input type="color" id="ce-swatch" value="${safeHexForInput(c.hex)}" style="width:52px;height:40px;padding:0;border:1px solid var(--rule);border-radius:6px;cursor:pointer;background:none;">
+        </div>
+        <div style="flex:1;">
+          <label>Hex</label>
+          <input type="text" id="ce-hex" value="${escapeHTML((c.hex || '').toUpperCase())}" placeholder="#EDEAE0">
+        </div>
+      </div>
+      <div class="modal-row"><label>Color name</label><input type="text" id="ce-name" value="${escapeHTML(c.name || '')}" placeholder="e.g., Alabaster"></div>
+      <div class="modal-row"><label>SW number</label><input type="text" id="ce-sw" value="${escapeHTML(c.sw || '')}" placeholder="e.g., 7008"></div>
+      <div class="modal-row"><label>Location</label><input type="text" id="ce-loc" value="${escapeHTML(c.location || '')}" placeholder="e.g., Walls, Trim, Ceiling"></div>
+      <div class="modal-buttons">
+        <button class="btn-cancel" data-act="cancel">Cancel</button>
+        <button class="btn-save" data-act="save">Save</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  const swatch = overlay.querySelector('#ce-swatch');
+  const hexInput = overlay.querySelector('#ce-hex');
+  swatch.addEventListener('input', () => { hexInput.value = swatch.value.toUpperCase(); });
+  hexInput.addEventListener('change', () => {
+    let v = hexInput.value.trim(); if (v && !v.startsWith('#')) v = '#' + v;
+    swatch.value = safeHexForInput(v);
+  });
+  function close() { overlay.remove(); document.removeEventListener('keydown', onKey); }
+  function onKey(e) { if (e.key === 'Escape') close(); }
+  document.addEventListener('keydown', onKey);
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  overlay.querySelector('[data-act="cancel"]').addEventListener('click', close);
+  overlay.querySelector('[data-act="save"]').addEventListener('click', () => {
+    const name = overlay.querySelector('#ce-name').value.trim();
+    const sw = overlay.querySelector('#ce-sw').value.trim();
+    const location = overlay.querySelector('#ce-loc').value.trim();
+    let hex = hexInput.value.trim(); if (hex && !hex.startsWith('#')) hex = '#' + hex;
+    const updated = { location, name, sw, hex: hex || '#CCCCCC', url: paletteUrlFor(name, sw) };
+    close();
+    replaceColorEverywhere(c, updated);
+  });
+  setTimeout(() => overlay.querySelector('#ce-name').focus(), 0);
 }
 
 function addNewPaletteColor() {
@@ -11903,22 +12028,11 @@ function renderActualsRow(item) {
       item.room = existing.id;
       persist(); renderBudget();
     } else {
-      const floor = prompt(`Create new room "${typed}" — which floor?\n  b = Basement\n  g = Ground\n  u = Upper`, 'g');
-      if (floor === null) { renderBudget(); return; }
-      const fmap = { b: 'basement', g: 'ground', u: 'upper' };
-      const floorKey = fmap[(floor.toLowerCase().trim()[0])];
-      if (!floorKey) { alert('Floor must be b, g, or u'); renderBudget(); return; }
-      ensureInspirationState();
-      const newRoom = {
-        id: 'r_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,6),
-        name: typed,
-        inspirationPhotos: [],
-        currentPhotos: [],
-        paintColors: state.overallVision?.universalPalette ? [...state.overallVision.universalPalette] : []
-      };
-      state.inspiration[floorKey].push(newRoom);
-      item.room = newRoom.id;
-      persist(); renderBudget();
+      createRoomViaModal(typed, (room) => {
+        if (!room) { renderBudget(); return; }
+        item.room = room.id;
+        persist(); renderBudget();
+      });
     }
   });
   row.querySelector('.amount').addEventListener('change', e => {
@@ -12202,23 +12316,11 @@ function renderBudgetLine(item) {
       item.room = existing.id;
       persist(); renderBudget();
     } else {
-      const floor = prompt(`Create new room "${typed}" — which floor?\n  b = Basement\n  g = Ground\n  u = Upper`, 'g');
-      if (floor === null) { renderBudget(); return; }
-      const fmap = { b: 'basement', g: 'ground', u: 'upper' };
-      const floorKey = fmap[(floor.toLowerCase().trim()[0])];
-      if (!floorKey) { alert('Floor must be b, g, or u'); renderBudget(); return; }
-      ensureInspirationState();
-      const newRoom = {
-        id: 'r_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,6),
-        name: typed,
-        inspirationPhotos: [],
-        currentPhotos: [],
-        paintColors: state.overallVision?.universalPalette ? [...state.overallVision.universalPalette] : []
-      };
-      state.inspiration[floorKey].push(newRoom);
-      item.room = newRoom.id;
-      persist();
-      renderBudget();
+      createRoomViaModal(typed, (room) => {
+        if (!room) { renderBudget(); return; }
+        item.room = room.id;
+        persist(); renderBudget();
+      });
     }
   });
   row.querySelector('[data-act="expand"]').addEventListener('click', () => {
