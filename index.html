@@ -40,10 +40,50 @@
   /* Hide project-specific header when on Budget or Design tabs */
   body.not-project-tab .masthead,
   body.not-project-tab .meta-row,
+  body.not-project-tab .timeline-section,
   body.not-project-tab .gantt-wrap,
   body.not-project-tab .legend {
     display: none;
   }
+  /* This week / overdue focus strip */
+  .week-focus {
+    max-width: 1240px; margin: 4px auto 0; padding: 0 40px;
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+  }
+  .wf-pill {
+    padding: 7px 14px; border-radius: 100px; font-size: 13px; font-weight: 600;
+    font-family: 'Manrope', sans-serif;
+  }
+  .wf-overdue { background: rgba(214,85,62,0.12); color: var(--behind); }
+  .wf-clear { background: rgba(74,142,149,0.12); color: var(--forest); }
+  .wf-thisweek { background: var(--bg-card); border: 1px solid var(--rule); color: var(--ink-soft); cursor: pointer; }
+  .wf-thisweek strong { color: var(--ink); }
+  .wf-thisweek:hover { border-color: var(--clay); }
+  .wf-jump {
+    margin-left: auto; background: transparent; border: 1px solid var(--rule);
+    border-radius: 100px; padding: 7px 14px; font-family: 'Manrope', sans-serif;
+    font-size: 12px; font-weight: 600; color: var(--ink-soft); cursor: pointer;
+  }
+  .wf-jump:hover { border-color: var(--clay); color: var(--clay); }
+  @media (max-width: 600px) {
+    .week-focus { padding: 0 14px; }
+    .wf-jump { margin-left: 0; }
+  }
+  /* Collapsible timeline section */
+  .timeline-section { max-width: 1240px; margin: 18px auto 0; padding: 0 40px; }
+  .timeline-toggle {
+    display: flex; align-items: center; gap: 8px; width: 100%;
+    background: transparent; border: none; cursor: pointer;
+    padding: 6px 0; color: var(--ink-faint);
+    font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; font-weight: 700;
+    font-family: 'Manrope', sans-serif;
+  }
+  .timeline-toggle:hover { color: var(--ink); }
+  .tl-chevron { transition: transform 0.2s; font-size: 11px; }
+  .timeline-section.collapsed .tl-chevron { transform: rotate(-90deg); }
+  .timeline-section.collapsed .timeline-body { display: none; }
+  .timeline-body .gantt-wrap:first-child,
+  .timeline-body .gantt-wrap { margin-top: 6px; }
   body.not-project-tab .jump-now-btn { display: none; }
   /* Tighter design-nav padding when used standalone */
   body.not-project-tab .design-nav-wrap {
@@ -158,23 +198,21 @@
   .overall-fill { height: 100%; background: linear-gradient(90deg, var(--forest), var(--clay)); width: 0%; transition: width 0.4s ease; }
 
   /* ============ MASTHEAD ============ */
-  .masthead { max-width: 1240px; margin: 0 auto; padding: 32px 40px 16px; }
-  .masthead-top {
-    display: flex; justify-content: space-between; align-items: baseline;
-    border-bottom: 1px solid var(--ink);
-    padding-bottom: 10px; margin-bottom: 24px;
-    font-size: 10.5px; letter-spacing: 0.18em; text-transform: uppercase;
-    color: var(--ink-soft); font-weight: 500;
+  .masthead {
+    max-width: 1240px; margin: 0 auto; padding: 16px 40px 8px;
+    display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap;
   }
-  .masthead-top .right { display: flex; gap: 24px; }
   h1.title {
     font-family: 'Fraunces', serif; font-weight: 300;
-    font-size: clamp(40px, 6vw, 72px);
-    line-height: 0.95; letter-spacing: -0.035em;
-    font-variation-settings: "opsz" 144, "SOFT" 30;
+    font-size: clamp(26px, 3.4vw, 38px);
+    line-height: 1; letter-spacing: -0.03em;
+    font-variation-settings: "opsz" 72, "SOFT" 30;
   }
   h1.title em { font-style: italic; font-weight: 400; color: var(--clay); }
-  .lede { margin-top: 14px; font-size: 14.5px; color: var(--ink-soft); max-width: 700px; }
+  .masthead-tag {
+    font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--ink-faint); font-weight: 600;
+  }
 
   /* ============ META ROW ============ */
   .meta-row {
@@ -3570,20 +3608,20 @@
 
 <!-- ============ MASTHEAD ============ -->
 <header class="masthead">
-  <div class="masthead-top">
-    <span>The Move · 2026</span>
-    <div class="right">
-      <span>Chicago, IL ⟶ Wisconsin</span>
-      <span>Week by week</span>
-    </div>
-  </div>
   <h1 class="title">Chicago <em>→</em> Wisconsin</h1>
-  <p class="lede">Weekly plan, May 18 onward. CHI closes June 24; WI closes June 26; move out July 31.</p>
+  <span class="masthead-tag">The Move · 2026</span>
 </header>
 
 <!-- ============ META ROW ============ -->
 <div class="meta-row" id="meta-row"></div>
 
+<!-- ============ TIMELINE (collapsible: gantt + legend) ============ -->
+<div class="timeline-section" id="timeline-section">
+  <button class="timeline-toggle" id="timeline-toggle" type="button" onclick="toggleTimeline()">
+    <span class="tl-eyebrow">Timeline &amp; legend · 17 weeks</span>
+    <span class="tl-chevron">▾</span>
+  </button>
+  <div class="timeline-body" id="timeline-body">
 <!-- ============ GANTT STRIP ============ -->
 <div class="gantt-wrap">
   <div class="gantt-eyebrow">
@@ -3655,6 +3693,8 @@
   <span class="legend-item"><span class="legend-swatch" style="background: var(--family);"></span> Family · kids · dog</span>
   <span class="legend-item"><span class="legend-swatch" style="background: var(--behind);"></span> Behind</span>
 </div>
+  </div><!-- /timeline-body -->
+</div><!-- /timeline-section -->
 
 
 <!-- ============ PROJECT PLAN (wraps weeks + list) ============ -->
@@ -3667,6 +3707,7 @@
   </div>
 <!-- ============ WEEK VIEW ============ -->
 <div class="project-subtab-content active" id="tab-weeks">
+  <div class="week-focus" id="week-focus"></div>
   <div class="week-filters">
     <button class="week-filter-btn" data-filter="empty" onclick="toggleWeekFilter('empty')">Hide empty weeks</button>
     <button class="week-filter-btn" data-filter="past" onclick="toggleWeekFilter('past')">Hide past weeks</button>
@@ -7478,6 +7519,7 @@ async function initApp() {
     updateSyncStatus('saved');
   }
   if (loader) loader.style.display = 'none';
+  applyTimelineState();
   // Always open to the top of the Plan tab
   if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
   const projectBtn = document.querySelector('.tab-btn[data-tab="project"]');
@@ -7533,7 +7575,37 @@ function generateHeadline(weekTasks, fallback) {
   return picks.join(' · ');
 }
 
+function renderWeekFocus() {
+  const host = document.getElementById('week-focus');
+  if (!host) return;
+  const overdue = state.tasks.filter(isBehind);
+  const cw = currentWeekId() || 'now';
+  const cwTasks = state.tasks.filter(t => t.week === cw);
+  const open = cwTasks.filter(t => !t.done).length;
+  const total = cwTasks.length;
+  const cwLabel = (WEEKS.find(w => w.id === cw) || {}).label || 'This week';
+  host.innerHTML = `
+    <div class="wf-pill ${overdue.length ? 'wf-overdue' : 'wf-clear'}" id="wf-overdue">
+      ${overdue.length ? `⚠ ${overdue.length} overdue` : '✓ Nothing overdue'}
+    </div>
+    <div class="wf-pill wf-thisweek" id="wf-thisweek"><strong>${escapeHTML(cwLabel)}</strong> · ${open} open${total ? ' of ' + total : ''}</div>
+    <button class="wf-jump" onclick="jumpToCurrentWeek()">Jump to now →</button>
+  `;
+  if (overdue.length) {
+    const od = host.querySelector('#wf-overdue');
+    od.style.cursor = 'pointer';
+    od.title = 'Jump to the earliest overdue week';
+    od.addEventListener('click', () => {
+      const behindWeek = WEEKS.find(w => overdue.some(t => t.week === w.id));
+      const sec = behindWeek && document.getElementById(behindWeek.id);
+      if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+  host.querySelector('#wf-thisweek').addEventListener('click', () => jumpToCurrentWeek());
+}
+
 function renderWeeks() {
+  renderWeekFocus();
   const c = document.getElementById('weeks-container');
   c.innerHTML = '';
   const today = todayDate();
@@ -11414,6 +11486,21 @@ function matchesSearchBudget(item) {
   if (!globalSearchQuery) return true;
   const hay = ((item.label||'') + ' ' + (item.category||'') + ' ' + (item.note||'')).toLowerCase();
   return hay.includes(globalSearchQuery);
+}
+
+function applyTimelineState() {
+  const section = document.getElementById('timeline-section');
+  if (!section) return;
+  let collapsed = true; // default collapsed to keep the Plan focused on tasks
+  try { const v = localStorage.getItem('mt-timeline-collapsed'); if (v === 'false') collapsed = false; } catch (e) {}
+  section.classList.toggle('collapsed', collapsed);
+}
+function toggleTimeline() {
+  const section = document.getElementById('timeline-section');
+  if (!section) return;
+  const collapsed = !section.classList.contains('collapsed');
+  section.classList.toggle('collapsed', collapsed);
+  try { localStorage.setItem('mt-timeline-collapsed', collapsed ? 'true' : 'false'); } catch (e) {}
 }
 
 function jumpToCurrentWeek() {
