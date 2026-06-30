@@ -8735,10 +8735,15 @@ function renderMoodboard() {
 
     <div class="mb-section">
       <div class="mb-section-head">
-        <span class="mb-section-title">Inspiration &amp; products</span>
+        <span class="mb-section-title">Inspiration</span>
         <button class="mb-section-add" id="mb-upload-insp">+ Upload photos</button>
       </div>
-      <div id="mb-images-host"></div>
+      <div id="mb-insp-host"></div>
+    </div>
+
+    <div class="mb-section">
+      <div class="mb-section-head"><span class="mb-section-title">Product photos</span></div>
+      <div id="mb-products-host"></div>
     </div>
 
     <div class="mb-section">
@@ -8799,35 +8804,45 @@ function renderMoodboard() {
   // Upload photos button
   board.querySelector('#mb-upload-insp').addEventListener('click', () => openInspirationUpload(room));
 
-  // Combined images: uploaded inspiration photos (removable) + product images pulled from the budget
-  const imagesHost = document.getElementById('mb-images-host');
-  const allImages = [
-    ...insp.map((p, i) => ({ url: p.url, caption: p.caption || '', _type: 'insp', _idx: i })),
-    ...productImages.map(p => ({ url: p.url, caption: p.caption, _type: 'budget' }))
-  ];
-  if (allImages.length === 0) {
-    imagesHost.innerHTML = `<div class="mb-empty">No images yet. Click <strong>+ Upload photos</strong> above — or add a product image to a to-buy item and it shows up here automatically.</div>`;
+  // Inspiration photos (uploaded, removable)
+  const inspHost = document.getElementById('mb-insp-host');
+  if (insp.length === 0) {
+    inspHost.innerHTML = `<div class="mb-empty">No inspiration photos yet. Click <strong>+ Upload photos</strong> above.</div>`;
   } else {
     const grid = document.createElement('div');
     grid.className = 'mb-photo-grid';
-    allImages.forEach((p, gi) => {
+    const inspImgs = insp.map(p => ({ url: p.url, caption: p.caption || '' }));
+    insp.forEach((p, i) => {
       const fig = document.createElement('div');
       fig.className = 'photo';
-      fig.innerHTML = `<img src="${escapeHTML(p.url)}" alt="${escapeHTML(p.caption)}" loading="lazy">` +
-        (p._type === 'budget'
-          ? '<span class="mb-photo-tag">🛒 to-buy</span>'
-          : '<button class="mb-photo-del" title="Remove photo">×</button>');
-      fig.querySelector('img').addEventListener('click', () => openLightbox(allImages, gi));
-      const del = fig.querySelector('.mb-photo-del');
-      if (del) del.addEventListener('click', (e) => {
+      fig.innerHTML = `<img src="${escapeHTML(p.url)}" alt="${escapeHTML(p.caption || '')}" loading="lazy"><button class="mb-photo-del" title="Remove photo">×</button>`;
+      fig.querySelector('img').addEventListener('click', () => openLightbox(inspImgs, i));
+      fig.querySelector('.mb-photo-del').addEventListener('click', (e) => {
         e.stopPropagation();
         if (!confirm('Remove this photo?')) return;
-        room.inspirationPhotos.splice(p._idx, 1);
+        room.inspirationPhotos.splice(i, 1);
         persist(); renderMoodboard();
       });
       grid.appendChild(fig);
     });
-    imagesHost.appendChild(grid);
+    inspHost.appendChild(grid);
+  }
+
+  // Product photos (pulled from the budget's to-buy items — managed there)
+  const productsHost = document.getElementById('mb-products-host');
+  if (productImages.length === 0) {
+    productsHost.innerHTML = `<div class="mb-empty">No product photos yet. Add a product image to a to-buy item below and it shows up here automatically.</div>`;
+  } else {
+    const grid = document.createElement('div');
+    grid.className = 'mb-photo-grid';
+    productImages.forEach((p, i) => {
+      const fig = document.createElement('div');
+      fig.className = 'photo';
+      fig.innerHTML = `<img src="${escapeHTML(p.url)}" alt="${escapeHTML(p.caption)}" loading="lazy">${p.caption ? `<span class="mb-photo-tag">${escapeHTML(p.caption)}</span>` : ''}`;
+      fig.querySelector('img').addEventListener('click', () => openLightbox(productImages, i));
+      grid.appendChild(fig);
+    });
+    productsHost.appendChild(grid);
   }
 
   // To buy table (synced with budget)
