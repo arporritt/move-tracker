@@ -10891,7 +10891,7 @@ function ensurePaletteMaster() {
   let added = false;
   const addToMaster = c => {
     if (!master.some(m => colorMatches(m, c))) {
-      master.push({ location: c.location || '', name: c.name || '', sw: c.sw || '', hex: c.hex || '#CCCCCC', url: c.url || paletteUrlFor(c.name, c.sw) });
+      master.push({ location: c.location || '', name: c.name || '', sw: c.sw || '', hex: c.hex || '#CCCCCC', url: c.url || '' });
       added = true;
     }
   };
@@ -11001,6 +11001,7 @@ function renderPaletteTable(entries) {
       <input type="text" class="pt-input pt-hex-input" value="${escapeHTML((c.hex || '').toUpperCase())}" placeholder="#hex">
       <div class="pt-rooms"></div>
       <div class="pt-actions">
+        <button data-act="link" title="Set Sherwin-Williams link">🔗</button>
         <button data-act="assign" title="Assign to rooms">＋</button>
         <button data-act="del-color" title="Delete color from palette">×</button>
       </div>
@@ -11018,7 +11019,7 @@ function renderPaletteTable(entries) {
         if (h && !h.startsWith('#')) h = '#' + h;
         cur.hex = h || '#CCCCCC';
       }
-      cur.url = paletteUrlFor(cur.name, cur.sw);
+      // url is set manually (link button) — never auto-generated, so preserve it
       replaceColorEverywhere(prev, cur, false);
       if (cur.url) { swLink.href = cur.url; swLink.style.display = ''; } else { swLink.style.display = 'none'; }
     }
@@ -11055,6 +11056,8 @@ function renderPaletteTable(entries) {
     if (!universalRef && uniqueRoomRefs.length === 0) {
       roomsBox.innerHTML = '<span class="pt-unused">—</span>';
     }
+    const linkBtn = row.querySelector('[data-act="link"]');
+    if (linkBtn) linkBtn.addEventListener('click', () => openColorLinkModal(cur));
     const assignBtn = row.querySelector('[data-act="assign"]');
     if (assignBtn) assignBtn.addEventListener('click', () => assignColorToRoom(cur));
     const delColorBtn = row.querySelector('[data-act="del-color"]');
@@ -11148,8 +11151,47 @@ function colorMatches(a, b) {
 }
 
 function paletteUrlFor(name, sw) {
-  const slug = (name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-  return (sw && name) ? `https://www.sherwin-williams.com/en-us/color/color-family/all/SW${sw}-${slug}` : '';
+  // Auto-guessing the SW URL produced broken links, so links are now entered manually.
+  return '';
+}
+
+// Set/edit the Sherwin-Williams link for a color (applies to every instance of it).
+function openColorLinkModal(c) {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay active';
+  overlay.innerHTML = `
+    <div class="modal" style="max-width:460px;">
+      <h3>Sherwin-Williams link</h3>
+      <div class="room-pick-sub" style="margin:-8px 0 14px;">
+        <span class="room-pick-swatch" style="background:${escapeHTML(safeHexForInput(c.hex))}"></span>
+        ${escapeHTML(c.name || 'color')}${c.sw ? ' · SW ' + escapeHTML(c.sw) : ''}
+      </div>
+      <div class="modal-row">
+        <label>Paste the color's page URL</label>
+        <input type="url" id="cl-url" value="${escapeHTML(c.url || '')}" placeholder="https://www.sherwin-williams.com/…">
+      </div>
+      <div class="modal-buttons">
+        ${c.url ? '<button class="btn-delete" data-act="remove">Remove link</button>' : ''}
+        <button class="btn-cancel" data-act="cancel">Cancel</button>
+        <button class="btn-save" data-act="save">Save</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  function close() { overlay.remove(); document.removeEventListener('keydown', onKey); }
+  function save() {
+    const url = overlay.querySelector('#cl-url').value.trim();
+    close();
+    replaceColorEverywhere(c, { ...c, url });
+  }
+  function onKey(e) { if (e.key === 'Escape') close(); else if (e.key === 'Enter') save(); }
+  document.addEventListener('keydown', onKey);
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  overlay.querySelector('[data-act="cancel"]').addEventListener('click', close);
+  overlay.querySelector('[data-act="save"]').addEventListener('click', save);
+  const rm = overlay.querySelector('[data-act="remove"]');
+  if (rm) rm.addEventListener('click', () => { close(); replaceColorEverywhere(c, { ...c, url: '' }); });
+  setTimeout(() => overlay.querySelector('#cl-url').focus(), 0);
 }
 
 // Replace every instance (master + universal + per-room) of oldColor with updated. Used by both prompt-edit and inline-edit.
@@ -11280,7 +11322,7 @@ function assignColorToRoom(c) {
   function onKey(e) { if (e.key === 'Escape') close(); else if (e.key === 'Enter') commit(); }
   function commit() {
     if (!state.overallVision.palette.some(p => colorMatches(p, c))) {
-      state.overallVision.palette.push({ location: c.location || '', name: c.name || '', sw: c.sw || '', hex: c.hex || '#CCCCCC', url: c.url || paletteUrlFor(c.name, c.sw) });
+      state.overallVision.palette.push({ location: c.location || '', name: c.name || '', sw: c.sw || '', hex: c.hex || '#CCCCCC', url: c.url || '' });
     }
     const inUni = state.overallVision.universalPalette.some(u => colorMatches(u, c));
     if (universal && !inUni) state.overallVision.universalPalette.push({ ...c });
@@ -11324,6 +11366,7 @@ function editColorEverywhere(c) {
       <div class="modal-row"><label>Color name</label><input type="text" id="ce-name" value="${escapeHTML(c.name || '')}" placeholder="e.g., Alabaster"></div>
       <div class="modal-row"><label>SW number</label><input type="text" id="ce-sw" value="${escapeHTML(c.sw || '')}" placeholder="e.g., 7008"></div>
       <div class="modal-row"><label>Location</label><input type="text" id="ce-loc" value="${escapeHTML(c.location || '')}" placeholder="e.g., Walls, Trim, Ceiling"></div>
+      <div class="modal-row"><label>Sherwin-Williams link</label><input type="url" id="ce-url" value="${escapeHTML(c.url || '')}" placeholder="https://www.sherwin-williams.com/…"></div>
       <div class="modal-buttons">
         <button class="btn-cancel" data-act="cancel">Cancel</button>
         <button class="btn-save" data-act="save">Save</button>
@@ -11348,7 +11391,8 @@ function editColorEverywhere(c) {
     const sw = overlay.querySelector('#ce-sw').value.trim();
     const location = overlay.querySelector('#ce-loc').value.trim();
     let hex = hexInput.value.trim(); if (hex && !hex.startsWith('#')) hex = '#' + hex;
-    const updated = { location, name, sw, hex: hex || '#CCCCCC', url: paletteUrlFor(name, sw) };
+    const url = overlay.querySelector('#ce-url').value.trim();
+    const updated = { location, name, sw, hex: hex || '#CCCCCC', url };
     close();
     replaceColorEverywhere(c, updated);
   });
@@ -11490,14 +11534,14 @@ function openPaintColorEditor(colors, idx, onChange) {
   if (hex === null) return;
   hex = (hex || '').trim();
   if (hex && !hex.startsWith('#')) hex = '#' + hex;
-  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-  const url = sw && name ? `https://www.sherwin-williams.com/en-us/color/color-family/all/SW${sw}-${slug}` : '';
+  const url = prompt('Sherwin-Williams link (optional) — paste the color\'s page URL:', existing.url || '');
+  if (url === null) return;
   const updated = {
     location: location.trim(),
     name: name.trim(),
     sw: sw.trim(),
     hex: hex || '#CCCCCC',
-    url
+    url: url.trim()
   };
   if (idx >= 0) colors[idx] = updated;
   else colors.push(updated);
