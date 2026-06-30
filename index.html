@@ -1311,6 +1311,22 @@
     min-height: 156px;
   }
   .mb-swatch-add:hover { color: var(--clay); border-color: var(--clay-soft); background: rgba(166,160,148,0.14); }
+  /* Wallpaper cards */
+  .mb-wallpaper-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; }
+  .mb-wp-card { border: 1px solid var(--rule); border-radius: 12px; overflow: hidden; background: var(--bg-card); box-shadow: var(--shadow); }
+  .mb-wp-img { width: 100%; height: 140px; object-fit: cover; display: block; cursor: pointer; }
+  .mb-wp-placeholder { display: flex; align-items: center; justify-content: center; color: var(--ink-faint); font-style: italic; font-size: 12px; background: rgba(166,160,148,0.08); cursor: default; }
+  .mb-wp-body { padding: 10px 12px; }
+  .mb-wp-loc { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-faint); font-weight: 700; }
+  .mb-wp-name { font-family: 'Fraunces', serif; font-size: 15px; color: var(--ink); margin-top: 2px; letter-spacing: -0.01em; }
+  .mb-wp-actions { display: flex; gap: 6px; justify-content: flex-end; margin-top: 8px; }
+  .mb-wp-actions a, .mb-wp-actions button { background: transparent; border: none; cursor: pointer; color: var(--ink-faint); font-size: 14px; width: 26px; height: 26px; border-radius: 6px; display: flex; align-items: center; justify-content: center; text-decoration: none; }
+  .mb-wp-actions a:hover, .mb-wp-actions button:hover { color: var(--ink); background: rgba(166,160,148,0.14); }
+  .mb-wp-actions .del:hover { color: var(--behind); }
+  .mb-wallpaper-grid .mb-swatch-add { min-height: 0; }
+  .wp-thumb { width: 56px; height: 56px; border-radius: 8px; border: 1px solid var(--rule); background-size: cover; background-position: center; flex: none; display: flex; align-items: center; justify-content: center; color: var(--ink-faint); font-size: 20px; }
+  .bd-image-btns-upl { background: transparent; border: 1px solid var(--rule); border-radius: 6px; padding: 6px 11px; cursor: pointer; font-family: 'Manrope', sans-serif; font-size: 11.5px; color: var(--ink-soft); }
+  .bd-image-btns-upl:hover { border-color: var(--clay); color: var(--clay); }
 
   /* To-buy table in mood board */
   .mb-buy-table {
@@ -8742,6 +8758,11 @@ function renderMoodboard() {
     </div>
 
     <div class="mb-section">
+      <div class="mb-section-head"><span class="mb-section-title">Wallpaper</span></div>
+      <div id="mb-wallpaper-host"></div>
+    </div>
+
+    <div class="mb-section">
       <div class="mb-section-head">
         <span class="mb-section-title">Inspiration</span>
         <button class="mb-section-add" id="mb-upload-insp">+ Upload photos</button>
@@ -8790,6 +8811,9 @@ function renderMoodboard() {
       renderMoodboard();
     }));
   }
+  // Wallpaper
+  const wpHost = board.querySelector('#mb-wallpaper-host');
+  if (wpHost) wpHost.appendChild(renderRoomWallpaper(room));
   // Room title rename
   const titleInput = board.querySelector('#mb-room-title-input');
   titleInput.addEventListener('change', e => {
@@ -11432,6 +11456,108 @@ function addNewPaletteColor() {
     const names = document.querySelectorAll('.palette-table-row .pt-name-input');
     names.forEach(n => { if (n.value === 'New color') { n.focus(); n.select(); } });
   }, 0);
+}
+
+// Per-room wallpaper picks (name, where, link, image)
+function renderRoomWallpaper(room) {
+  if (!Array.isArray(room.wallpapers)) room.wallpapers = [];
+  const wrap = document.createElement('div');
+  wrap.className = 'mb-wallpaper-grid';
+  room.wallpapers.forEach((w, idx) => {
+    const card = document.createElement('div');
+    card.className = 'mb-wp-card';
+    card.innerHTML = `
+      ${w.image ? `<img class="mb-wp-img" src="${escapeHTML(w.image)}" alt="${escapeHTML(w.name || '')}" loading="lazy">` : `<div class="mb-wp-img mb-wp-placeholder">No image</div>`}
+      <div class="mb-wp-body">
+        ${w.location ? `<div class="mb-wp-loc">${escapeHTML(w.location)}</div>` : ''}
+        <div class="mb-wp-name">${escapeHTML(w.name || 'Wallpaper')}</div>
+        <div class="mb-wp-actions">
+          ${w.link ? `<a href="${escapeHTML(w.link)}" target="_blank" rel="noopener" title="Open link">↗</a>` : ''}
+          <button data-act="edit" title="Edit">✎</button>
+          <button class="del" data-act="del" title="Remove">×</button>
+        </div>
+      </div>
+    `;
+    card.querySelector('[data-act="edit"]').addEventListener('click', () => openWallpaperEditor(room, idx));
+    card.querySelector('[data-act="del"]').addEventListener('click', () => {
+      if (!confirm('Remove this wallpaper?')) return;
+      room.wallpapers.splice(idx, 1); persist(); renderMoodboard();
+    });
+    const img = card.querySelector('img.mb-wp-img');
+    if (img) img.addEventListener('click', () => openLightbox([{ url: w.image, caption: w.name || '' }], 0));
+    wrap.appendChild(card);
+  });
+  const add = document.createElement('button');
+  add.className = 'mb-swatch-add';
+  add.innerHTML = '+ Add wallpaper';
+  add.addEventListener('click', () => openWallpaperEditor(room, -1));
+  wrap.appendChild(add);
+  return wrap;
+}
+
+function openWallpaperEditor(room, idx) {
+  if (!Array.isArray(room.wallpapers)) room.wallpapers = [];
+  const existing = idx >= 0 ? room.wallpapers[idx] : { name: '', location: '', link: '', image: '' };
+  const draft = { image: existing.image || '' };
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay active';
+  overlay.innerHTML = `
+    <div class="modal" style="max-width:480px;">
+      <h3>${idx >= 0 ? 'Edit wallpaper' : 'Add wallpaper'}</h3>
+      <div class="modal-row"><label>Name / pattern</label><input type="text" id="wp-name" value="${escapeHTML(existing.name || '')}" placeholder="e.g., Morris &amp; Co. Willow Bough"></div>
+      <div class="modal-row"><label>Where</label><input type="text" id="wp-loc" value="${escapeHTML(existing.location || '')}" placeholder="e.g., Powder room · accent wall"></div>
+      <div class="modal-row"><label>Link</label><input type="url" id="wp-link" value="${escapeHTML(existing.link || '')}" placeholder="https://…"></div>
+      <div class="modal-row">
+        <label>Image</label>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <div id="wp-thumb" class="wp-thumb" style="${draft.image ? `background-image:url('${escapeHTML(draft.image)}')` : ''}">${draft.image ? '' : '＋'}</div>
+          <div style="flex:1;display:flex;flex-direction:column;gap:6px;">
+            <input type="url" id="wp-image" value="${escapeHTML(draft.image)}" placeholder="Paste image URL">
+            <button type="button" class="bd-image-btns-upl" id="wp-upload">Upload image</button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-buttons">
+        ${idx >= 0 ? '<button class="btn-delete" data-act="del">Delete</button>' : ''}
+        <button class="btn-cancel" data-act="cancel">Cancel</button>
+        <button class="btn-save" data-act="save">Save</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  const thumb = overlay.querySelector('#wp-thumb');
+  const imageInput = overlay.querySelector('#wp-image');
+  function setThumb(url) {
+    draft.image = url || '';
+    thumb.style.backgroundImage = draft.image ? `url('${draft.image}')` : '';
+    thumb.textContent = draft.image ? '' : '＋';
+  }
+  imageInput.addEventListener('change', () => setThumb(imageInput.value.trim()));
+  overlay.querySelector('#wp-upload').addEventListener('click', () => {
+    pickAndUploadItemImage(draft, () => { imageInput.value = draft.image; setThumb(draft.image); });
+  });
+  function close() { overlay.remove(); document.removeEventListener('keydown', onKey); }
+  function onKey(e) { if (e.key === 'Escape') close(); }
+  document.addEventListener('keydown', onKey);
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  overlay.querySelector('[data-act="cancel"]').addEventListener('click', close);
+  const del = overlay.querySelector('[data-act="del"]');
+  if (del) del.addEventListener('click', () => {
+    if (!confirm('Delete this wallpaper?')) return;
+    room.wallpapers.splice(idx, 1); persist(); close(); renderMoodboard();
+  });
+  overlay.querySelector('[data-act="save"]').addEventListener('click', () => {
+    const obj = {
+      name: overlay.querySelector('#wp-name').value.trim(),
+      location: overlay.querySelector('#wp-loc').value.trim(),
+      link: overlay.querySelector('#wp-link').value.trim(),
+      image: (imageInput.value.trim() || draft.image || '')
+    };
+    if (!obj.name && !obj.image && !obj.link) { close(); return; }
+    if (idx >= 0) room.wallpapers[idx] = obj; else room.wallpapers.push(obj);
+    persist(); close(); renderMoodboard();
+  });
+  setTimeout(() => overlay.querySelector('#wp-name').focus(), 0);
 }
 
 function renderPaintPalette(colors, onChange) {
