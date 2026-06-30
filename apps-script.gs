@@ -77,6 +77,22 @@ function doGet(e) {
   if (p !== PASSWORD) {
     return ContentService.createTextOutput('null').setMimeType(ContentService.MimeType.TEXT);
   }
+  // Pull the LRV from a Sherwin-Williams color page (server-side fetch avoids browser CORS).
+  if (e && e.parameter && e.parameter.action === 'getLrv') {
+    var out = { ok: false, lrv: '' };
+    try {
+      const url = e.parameter.url || '';
+      if (/^https?:\/\//.test(url)) {
+        const resp = UrlFetchApp.fetch(url, { muteHttpExceptions: true, followRedirects: true, headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15)' } });
+        const html = resp.getContentText();
+        var m = html.match(/"lrv"\s*:\s*"?(\d{1,3}(?:\.\d+)?)"?/i)
+             || html.match(/lrv["'\s:>=]{1,14}?(\d{1,3}(?:\.\d+)?)/i)
+             || html.match(/LRV[^0-9]{0,18}(\d{1,3}(?:\.\d+)?)/i);
+        if (m) { out.lrv = m[1]; out.ok = true; }
+      }
+    } catch (err) { out.error = String(err); }
+    return ContentService.createTextOutput(JSON.stringify(out)).setMimeType(ContentService.MimeType.JSON);
+  }
   const merged = readState_();
   return ContentService.createTextOutput(JSON.stringify(merged)).setMimeType(ContentService.MimeType.JSON);
 }
