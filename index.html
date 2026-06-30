@@ -3320,6 +3320,8 @@
   }
   .picker-name { font-size: 15px; color: var(--ink); font-weight: 500; flex: 1; min-width: 0; }
   .picker-row.add-new .picker-name { color: var(--clay); font-weight: 600; }
+  .pp-pick-swatch { width: 30px; height: 30px; border-radius: 7px; border: 1px solid var(--rule); flex: none; }
+  .pp-pick-meta { display: block; font-size: 11.5px; color: var(--ink-faint); font-weight: 500; margin-top: 1px; letter-spacing: 0.02em; }
   .picker-empty { padding: 18px; text-align: center; color: var(--ink-faint); font-style: italic; font-size: 13px; }
   .picker-footer {
     display: flex; justify-content: space-between; align-items: center;
@@ -11403,9 +11405,77 @@ function renderPaintPalette(colors, onChange) {
   const addBtn = document.createElement('button');
   addBtn.className = 'mb-swatch-add';
   addBtn.innerHTML = '+ Add paint color';
-  addBtn.addEventListener('click', () => openPaintColorEditor(colors, -1, onChange));
+  addBtn.addEventListener('click', () => openRoomPaintPicker(colors, onChange));
   wrap.appendChild(addBtn);
   return wrap;
+}
+
+// Pick paint colors for a room from the master palette (with swatches), multi-select.
+function openRoomPaintPicker(colors, onChange) {
+  ensurePaletteMaster();
+  const master = state.overallVision.palette || [];
+  const checked = new Set();
+  master.forEach((m, idx) => { if (colors.some(c => colorMatches(c, m))) checked.add(idx); });
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay active';
+  overlay.innerHTML = `
+    <div class="picker">
+      <div class="picker-label">Add paint colors to this room</div>
+      <input type="text" class="picker-search" placeholder="Search colors…" autocomplete="off">
+      <div class="picker-list"></div>
+      <div class="picker-footer">
+        <button class="picker-clear" data-act="new">+ New color</button>
+        <button class="picker-done" data-act="done">Done</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  const listEl = overlay.querySelector('.picker-list');
+  const searchEl = overlay.querySelector('.picker-search');
+  function draw() {
+    const q = searchEl.value.trim().toLowerCase();
+    listEl.innerHTML = '';
+    const matches = master.map((m, idx) => ({ m, idx })).filter(({ m }) =>
+      (m.name || '').toLowerCase().includes(q) || (m.location || '').toLowerCase().includes(q) || ('sw ' + (m.sw || '')).toLowerCase().includes(q));
+    if (!matches.length) {
+      listEl.innerHTML = `<div class="picker-empty">${master.length ? 'No colors match.' : 'No colors in the palette yet.'} Use “+ New color” to create one.</div>`;
+      return;
+    }
+    matches.forEach(({ m, idx }) => {
+      const on = checked.has(idx);
+      const row = document.createElement('div');
+      row.className = 'picker-row' + (on ? ' selected' : '');
+      const meta = [m.location, m.sw ? 'SW ' + m.sw : ''].filter(Boolean).join(' · ');
+      row.innerHTML = `
+        <span class="picker-check">${on ? '✓' : ''}</span>
+        <span class="pp-pick-swatch" style="background:${safeHexForInput(m.hex)}"></span>
+        <span class="picker-name">${escapeHTML(m.name || 'Unnamed')}${meta ? `<span class="pp-pick-meta">${escapeHTML(meta)}</span>` : ''}</span>
+      `;
+      row.addEventListener('click', () => { if (checked.has(idx)) checked.delete(idx); else checked.add(idx); draw(); });
+      listEl.appendChild(row);
+    });
+  }
+  draw();
+  function close() { overlay.remove(); document.removeEventListener('keydown', onKey); }
+  function onKey(e) { if (e.key === 'Escape') close(); else if (e.key === 'Enter') commit(); }
+  function commit() {
+    master.forEach((m, idx) => {
+      const has = colors.some(c => colorMatches(c, m));
+      if (checked.has(idx) && !has) colors.push({ ...m });
+      else if (!checked.has(idx) && has) {
+        for (let i = colors.length - 1; i >= 0; i--) if (colorMatches(colors[i], m)) colors.splice(i, 1);
+      }
+    });
+    close();
+    onChange();
+  }
+  document.addEventListener('keydown', onKey);
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  overlay.querySelector('[data-act="done"]').addEventListener('click', commit);
+  overlay.querySelector('[data-act="new"]').addEventListener('click', () => { close(); openPaintColorEditor(colors, -1, onChange); });
+  searchEl.addEventListener('input', draw);
+  setTimeout(() => searchEl.focus(), 0);
 }
 
 function openPaintColorEditor(colors, idx, onChange) {
