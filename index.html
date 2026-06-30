@@ -1582,6 +1582,12 @@
     color: var(--ink-faint); font-weight: 700; background: rgba(166,160,148,0.04);
   }
   .palette-table-row { border-top: 1px solid var(--rule-soft); font-size: 13px; }
+  .palette-group-header {
+    font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--ink-faint); font-weight: 700; padding: 13px 16px 6px;
+    background: rgba(166,160,148,0.06); border-top: 1px solid var(--rule);
+  }
+  .palette-table-body > .palette-group-header:first-child { border-top: none; }
   .palette-table-row.dragging { opacity: 0.4; }
   .palette-table-row.drag-over { border-top: 2px solid var(--clay); }
   .pt-drag {
@@ -10981,7 +10987,7 @@ function renderPaletteTable(entries) {
     </div>
   `;
   const body = wrap.querySelector('.palette-table-body');
-  entries.forEach(entry => {
+  function buildRow(entry) {
     const c = entry.color;
     const universalRef = entry.refs.find(r => !r.roomId);
     const roomRefs = entry.refs.filter(r => r.roomId);
@@ -11097,8 +11103,21 @@ function renderPaletteTable(entries) {
       persist();
       renderPalette();
     });
-    body.appendChild(row);
-  });
+    return row;
+  }
+  // Group into Assigned (used in a room or universal) and Unassigned
+  const assigned = entries.filter(e => e.refs.length > 0);
+  const unassigned = entries.filter(e => e.refs.length === 0);
+  function addGroup(label, list) {
+    if (!list.length) return;
+    const hdr = document.createElement('div');
+    hdr.className = 'palette-group-header';
+    hdr.textContent = `${label} · ${list.length}`;
+    body.appendChild(hdr);
+    list.forEach(e => body.appendChild(buildRow(e)));
+  }
+  addGroup('Assigned to rooms', assigned);
+  addGroup('Unassigned', unassigned);
   return wrap;
 }
 
