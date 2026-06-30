@@ -11238,23 +11238,24 @@ function openColorLinkModal(c) {
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay active';
   overlay.innerHTML = `
-    <div class="modal" style="max-width:460px;">
-      <h3>Sherwin-Williams link &amp; LRV</h3>
+    <div class="modal" style="max-width:480px;">
+      <h3>Sherwin-Williams details</h3>
       <div class="room-pick-sub" style="margin:-8px 0 14px;">
         <span class="room-pick-swatch" style="background:${escapeHTML(safeHexForInput(c.hex))}"></span>
-        ${escapeHTML(c.name || 'color')}${c.sw ? ' · SW ' + escapeHTML(c.sw) : ''}
+        ${escapeHTML(c.name || 'color')}
       </div>
       <div class="modal-row">
         <label>Color page URL</label>
         <input type="url" id="cl-url" value="${escapeHTML(c.url || '')}" placeholder="https://www.sherwin-williams.com/…">
       </div>
-      <div class="modal-row">
-        <label>LRV (light reflectance value)</label>
-        <div style="display:flex;gap:8px;align-items:center;">
-          <input type="text" id="cl-lrv" value="${escapeHTML(c.lrv != null ? String(c.lrv) : '')}" placeholder="e.g., 82" style="width:110px;">
-          <button type="button" class="bd-image-btns-upl" id="cl-pull">Pull from page</button>
-          <span id="cl-pull-msg" style="font-size:12px;color:var(--ink-faint);"></span>
-        </div>
+      <div class="modal-row" style="display:flex;align-items:center;gap:8px;">
+        <button type="button" class="bd-image-btns-upl" id="cl-pull">↓ Pull SW #, hex &amp; LRV from page</button>
+        <span id="cl-pull-msg" style="font-size:12px;color:var(--ink-faint);"></span>
+      </div>
+      <div class="modal-row" style="display:flex;gap:12px;">
+        <div style="flex:1;"><label>SW #</label><input type="text" id="cl-sw" value="${escapeHTML(c.sw || '')}" placeholder="e.g., 7008"></div>
+        <div style="flex:1;"><label>Hex</label><input type="text" id="cl-hex" value="${escapeHTML((c.hex || '').toUpperCase())}" placeholder="#EDEAE0"></div>
+        <div style="flex:1;"><label>LRV</label><input type="text" id="cl-lrv" value="${escapeHTML(c.lrv != null ? String(c.lrv) : '')}" placeholder="82"></div>
       </div>
       <div class="modal-buttons">
         ${c.url ? '<button class="btn-delete" data-act="remove">Remove link</button>' : ''}
@@ -11268,8 +11269,11 @@ function openColorLinkModal(c) {
   function save() {
     const url = overlay.querySelector('#cl-url').value.trim();
     const lrv = overlay.querySelector('#cl-lrv').value.trim();
+    const sw = overlay.querySelector('#cl-sw').value.trim();
+    let hex = overlay.querySelector('#cl-hex').value.trim();
+    if (hex && !hex.startsWith('#')) hex = '#' + hex;
     close();
-    replaceColorEverywhere(c, { ...c, url, lrv });
+    replaceColorEverywhere(c, { ...c, url, lrv, sw, hex: hex || c.hex });
   }
   function onKey(e) { if (e.key === 'Escape') close(); else if (e.key === 'Enter') save(); }
   document.addEventListener('keydown', onKey);
@@ -11283,22 +11287,29 @@ function openColorLinkModal(c) {
     const msg = overlay.querySelector('#cl-pull-msg');
     if (!/^https?:\/\//.test(url)) { msg.textContent = 'Add the URL first.'; return; }
     msg.textContent = 'Fetching…';
-    const lrv = await fetchLrvFromSW(url);
-    if (lrv) { overlay.querySelector('#cl-lrv').value = lrv; msg.textContent = '✓ pulled'; }
-    else { msg.textContent = "Couldn't read LRV — enter it manually."; }
+    const d = await fetchSWDetails(url);
+    if (d) {
+      const got = [];
+      if (d.sw) { overlay.querySelector('#cl-sw').value = d.sw; got.push('SW #'); }
+      if (d.hex) { overlay.querySelector('#cl-hex').value = d.hex; got.push('hex'); }
+      if (d.lrv) { overlay.querySelector('#cl-lrv').value = d.lrv; got.push('LRV'); }
+      msg.textContent = got.length ? ('✓ pulled ' + got.join(', ')) : "Couldn't read details — enter manually.";
+    } else {
+      msg.textContent = "Couldn't read the page — enter manually.";
+    }
   });
   setTimeout(() => overlay.querySelector('#cl-url').focus(), 0);
 }
 
-// Best-effort fetch of a Sherwin-Williams color page's LRV via the Apps Script backend (browser can't fetch SW directly).
+// Best-effort fetch of a Sherwin-Williams color page's details (LRV, SW#, hex) via the Apps Script backend.
 // Uses GET (never writes state) so it's harmless if the backend hasn't been redeployed with the getLrv handler yet.
-async function fetchLrvFromSW(url) {
+async function fetchSWDetails(url) {
   if (!SCRIPT_URL) return null;
   try {
     const q = SCRIPT_URL + '?p=' + encodeURIComponent(APP_PASSWORD) + '&action=getLrv&url=' + encodeURIComponent(url);
     const resp = await fetch(q);
     const json = await resp.json();
-    return (json && json.ok && json.lrv) ? String(json.lrv) : null;
+    return (json && json.ok) ? json : null;
   } catch (e) {
     return null;
   }
