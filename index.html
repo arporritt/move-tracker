@@ -1036,6 +1036,13 @@
     transition: all 0.15s;
   }
   .mb-room-del-btn:hover { color: var(--behind); border-color: var(--behind); background: rgba(214,85,62,0.08); }
+  .mb-room-move-btn {
+    background: transparent; border: 1px solid var(--rule); border-radius: 100px;
+    height: 32px; padding: 0 14px; color: var(--ink-soft); cursor: pointer;
+    font-family: 'Manrope', sans-serif; font-size: 12px; font-weight: 600;
+    white-space: nowrap; transition: all 0.15s;
+  }
+  .mb-room-move-btn:hover { color: var(--clay); border-color: var(--clay-soft); }
   .mb-description {
     background: var(--bg-card);
     border: 1px solid var(--rule);
@@ -8747,7 +8754,7 @@ function renderMoodboard() {
   board.innerHTML = `
     <div class="mb-board-header">
       <input type="text" class="mb-room-title-input" id="mb-room-title-input" value="${escapeHTML(room.name || '')}" placeholder="Room name">
-      <div class="mb-room-header-actions"><button class="mb-room-del-btn" id="mb-room-del" title="Delete this room">×</button></div>
+      <div class="mb-room-header-actions"><button class="mb-room-move-btn" id="mb-room-move" title="Move to another floor">⇄ Floor</button><button class="mb-room-del-btn" id="mb-room-del" title="Delete this room">×</button></div>
       <div class="mb-board-meta">${meta.join('')}</div>
     </div>
     <div class="mb-description ${desc ? '' : 'empty'}" contenteditable="true" spellcheck="true" data-placeholder="${escapeHTML(placeholderText)}" id="mb-desc">${escapeHTML(desc)}</div>
@@ -8833,6 +8840,9 @@ function renderMoodboard() {
     persist();
     renderMoodboard();
   });
+  // Move room to another floor
+  const moveBtn = board.querySelector('#mb-room-move');
+  if (moveBtn) moveBtn.addEventListener('click', () => moveRoomToFloor(room));
   // Upload photos button
   board.querySelector('#mb-upload-insp').addEventListener('click', () => openInspirationUpload(room));
 
@@ -9058,13 +9068,13 @@ function pickRoomModal(title, currentRoomId, onPick) {
   setTimeout(() => searchEl.focus(), 0);
 }
 
-// Floor chooser modal for creating a new room. onPick receives 'basement'|'ground'|'upper' or null.
-function pickFloorModal(roomName, onPick) {
+// Floor chooser modal. onPick receives 'basement'|'ground'|'upper' or null. opts.heading overrides the title.
+function pickFloorModal(roomName, onPick, opts = {}) {
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay active';
   overlay.innerHTML = `
     <div class="modal" style="max-width:420px;">
-      <h3>New room: ${escapeHTML(roomName)}</h3>
+      <h3>${escapeHTML(opts.heading || ('New room: ' + roomName))}</h3>
       <div class="room-pick-sub" style="margin:-8px 0 16px;">Which floor is this room on?</div>
       <div class="floor-pick-btns">
         <button data-floor="basement">Basement</button>
@@ -9102,6 +9112,28 @@ function createRoomViaModal(typedName, onCreated) {
     state.inspiration[floorKey].push(newRoom);
     onCreated(newRoom);
   });
+}
+
+// Move a room (and everything attached to it) to a different floor.
+function moveRoomToFloor(room) {
+  ensureInspirationState();
+  let curFloor = null;
+  for (const f of ['basement','ground','upper']) {
+    if ((state.inspiration[f] || []).some(r => r.id === room.id)) { curFloor = f; break; }
+  }
+  pickFloorModal(room.name || 'this room', (floorKey) => {
+    if (!floorKey || floorKey === curFloor || !curFloor) return;
+    state.inspiration[curFloor] = state.inspiration[curFloor].filter(r => r.id !== room.id);
+    if (!Array.isArray(state.inspiration[floorKey])) state.inspiration[floorKey] = [];
+    state.inspiration[floorKey].push(room);
+    mbFloor = floorKey;
+    mbRoomId = room.id;
+    try { localStorage.setItem('mt-mb-floor', floorKey); localStorage.setItem('mt-mb-room', room.id); } catch (e) {}
+    // keep the design nav highlight in sync
+    if (typeof designSubtab !== 'undefined') { designSubtab = floorKey; try { localStorage.setItem('mt-design-subtab', floorKey); } catch (e) {} }
+    persist();
+    renderMoodboard();
+  }, { heading: 'Move "' + (room.name || 'room') + '" to which floor?' });
 }
 
 function renderActive() {
