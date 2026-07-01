@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>Chicago → Wisconsin · Workplan</title>
+<title>565 Hub</title>
 <link rel="preconnect" href="https://fonts.googleapis.com/">
 <link rel="preconnect" href="https://fonts.gstatic.com/" crossorigin="">
 <link href="./Chicago to Wisconsin Move Workplan_files/css2" rel="stylesheet">
@@ -2755,6 +2755,15 @@
   .actuals-cols div:nth-child(6) { text-align: center; }
   .actuals-item { border-top: 1px solid var(--rule-soft); }
   .actuals-item .actuals-row { border-top: none; }
+  .actuals-group-header {
+    display: flex; justify-content: space-between; align-items: baseline;
+    padding: 11px 16px 6px; border-top: 1px solid var(--rule);
+    background: rgba(166,160,148,0.06);
+    font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--ink-faint); font-weight: 700;
+  }
+  .actuals-group-header .agh-sub { font-variant-numeric: tabular-nums; letter-spacing: 0.02em; color: var(--ink-soft); }
+  .actuals-body > .actuals-group-header:first-child { border-top: none; }
   .actuals-row .alloc-input { font-size: 12.5px; }
   .actuals-row .expand-btn, .budget-line .expand-btn {
     background: transparent; border: none; cursor: pointer;
@@ -3749,8 +3758,8 @@
 
 <!-- ============ MASTHEAD (persistent app header — same place on every tab) ============ -->
 <header class="masthead">
-  <h1 class="title">Chicago <em>→</em> Wisconsin</h1>
-  <span class="masthead-tag">The Move · 2026</span>
+  <h1 class="title">565 <em>Hub</em></h1>
+  <span class="masthead-tag">Chicago → Wisconsin · 2026</span>
 </header>
 
 <!-- ============ TABS (primary nav, directly under the title) ============ -->
@@ -12618,6 +12627,20 @@ function renderAllocRow(alloc, spent, forecast) {
   return row;
 }
 
+function actualsGroupKey(item, mode) {
+  const roomName = item.room ? (getBudgetRoomMap().get(item.room)?.name || 'Unknown room') : 'Unassigned';
+  const cat = item.category || 'Uncategorized';
+  const paidLabel = item.paid ? 'Paid' : 'Forecast';
+  switch (mode) {
+    case 'paid': return paidLabel;
+    case 'room': return roomName;
+    case 'category': return cat;
+    case 'room-paid': return roomName + ' · ' + paidLabel;
+    case 'category-paid': return cat + ' · ' + paidLabel;
+    default: return '';
+  }
+}
+
 function buildActualsTable(items) {
   const wrap = document.createElement('div');
   wrap.className = 'actuals-table-wrap';
@@ -12626,10 +12649,16 @@ function buildActualsTable(items) {
   const actuals = items;
   const purchSpent = actuals.filter(i => i.paid).reduce((s, i) => s + effectiveActual(i), 0);
   const purchForecast = actuals.filter(i => !i.paid).reduce((s, i) => s + effectiveActual(i), 0);
+  let groupBy = 'none';
+  try { groupBy = localStorage.getItem('mt-actuals-groupby') || 'none'; } catch (e) {}
+  const GROUP_OPTS = [['none','None'],['paid','Paid / Forecast'],['room','Room'],['category','Category'],['room-paid','Room + Paid'],['category-paid','Category + Paid']];
   wrap.innerHTML = `
     <div class="actuals-toolbar">
       <div class="actuals-title">Purchases</div>
       <div class="actuals-totals"><span><strong>${fmtMoney(purchSpent)}</strong> spent</span><span><strong>${fmtMoney(purchForecast)}</strong> forecast</span><span>${actuals.length} item${actuals.length === 1 ? '' : 's'}</span></div>
+      <label class="group-by-control">Group by
+        <select class="group-by-select">${GROUP_OPTS.map(([v,l]) => `<option value="${v}"${groupBy===v?' selected':''}>${l}</option>`).join('')}</select>
+      </label>
     </div>
     <div class="actuals-cols">
       <div></div><div>Item</div><div>Category</div><div>Room</div><div>Amount</div><div>Paid</div><div></div>
@@ -12638,15 +12667,42 @@ function buildActualsTable(items) {
     <div class="actuals-add-bar"><button data-act="add-actual">+ Add purchase</button></div>
   `;
   const body = wrap.querySelector('.actuals-body');
-  if (actuals.length === 0) {
-    body.innerHTML = `<div style="padding:18px;text-align:center;color:var(--ink-faint);font-style:italic;font-size:13px;">No purchases recorded yet. Click "+ Add purchase" to log one.</div>`;
-  }
-  actuals.forEach(item => {
+  function appendItem(item) {
     const itemWrap = document.createElement('div');
     itemWrap.className = 'actuals-item';
     itemWrap.appendChild(renderActualsRow(item));
     if (budgetExpandedIds.has(item.id)) itemWrap.appendChild(renderBudgetDetailsRow(item));
     body.appendChild(itemWrap);
+  }
+  if (actuals.length === 0) {
+    body.innerHTML = `<div style="padding:18px;text-align:center;color:var(--ink-faint);font-style:italic;font-size:13px;">No purchases recorded yet. Click "+ Add purchase" to log one.</div>`;
+  } else if (groupBy === 'none') {
+    actuals.forEach(appendItem);
+  } else {
+    const groups = new Map();
+    actuals.forEach(item => {
+      const key = actualsGroupKey(item, groupBy);
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(item);
+    });
+    const keys = [...groups.keys()].sort((a, b) => {
+      const la = /unassigned|uncategor/i.test(a), lb = /unassigned|uncategor/i.test(b);
+      if (la !== lb) return la ? 1 : -1;
+      return a.localeCompare(b);
+    });
+    keys.forEach(key => {
+      const list = groups.get(key);
+      const sub = list.reduce((s, i) => s + effectiveActual(i), 0);
+      const hdr = document.createElement('div');
+      hdr.className = 'actuals-group-header';
+      hdr.innerHTML = `<span>${escapeHTML(key)}</span><span class="agh-sub">${fmtMoney(sub)} · ${list.length}</span>`;
+      body.appendChild(hdr);
+      list.forEach(appendItem);
+    });
+  }
+  wrap.querySelector('.group-by-select').addEventListener('change', e => {
+    try { localStorage.setItem('mt-actuals-groupby', e.target.value); } catch (err) {}
+    renderBudget();
   });
   wrap.querySelector('[data-act="add-actual"]').addEventListener('click', () => {
     if (!state.budget) state.budget = { items: [] };
