@@ -2757,6 +2757,26 @@
   .actuals-cols .ac-sort { cursor: pointer; user-select: none; transition: color 0.12s; }
   .actuals-cols .ac-sort:hover { color: var(--ink); }
   .actuals-cols .ac-arrow { margin-left: 4px; color: var(--clay); }
+  .actuals-filters {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    padding: 8px 16px; border-bottom: 1px solid var(--rule-soft);
+    background: rgba(166,160,148,0.04);
+  }
+  .actuals-filters .af-label {
+    font-size: 9.5px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--ink-faint); font-weight: 700; margin-right: 2px;
+  }
+  .actuals-filters select {
+    border: 1px solid var(--rule); border-radius: 8px; padding: 5px 9px;
+    font-family: 'Manrope', sans-serif; font-size: 12px; color: var(--ink);
+    background: var(--bg-card); cursor: pointer; outline: none;
+  }
+  .actuals-filters select:focus { border-color: var(--clay); }
+  .actuals-filters .af-clear {
+    background: transparent; border: none; color: var(--clay); cursor: pointer;
+    font-family: 'Manrope', sans-serif; font-size: 12px; font-weight: 600; padding: 4px 6px;
+  }
+  .actuals-filters .af-clear:hover { text-decoration: underline; }
   .actuals-row .priority { font-size: 11.5px; font-weight: 600; }
   .actuals-row .priority.pri-high { color: var(--behind); }
   .actuals-row .priority.pri-med { color: var(--gold); }
@@ -12657,6 +12677,21 @@ function actualsSortValue(item, key) {
     default: return '';
   }
 }
+function actualsMatchesFilters(item, f) {
+  if (f.paid === 'paid' && !item.paid) return false;
+  if (f.paid === 'forecast' && item.paid) return false;
+  if (f.priority) {
+    if (f.priority === 'none') { if (item.priority) return false; }
+    else if (item.priority !== f.priority) return false;
+  }
+  if (f.category && (item.category || '') !== f.category) return false;
+  if (f.room) {
+    if (f.room === 'unassigned') { if (item.room) return false; }
+    else if (item.room !== f.room) return false;
+  }
+  return true;
+}
+
 function sortActuals(list, sort) {
   if (!sort || !sort.key) return list;
   const dir = sort.dir === 'desc' ? -1 : 1;
@@ -12691,21 +12726,57 @@ function buildActualsTable(items) {
   // Every line item is a purchase — paid only flags spent vs forecast, so show them all
   // (unchecking Paid must never make a row disappear).
   const actuals = items;
-  const purchSpent = actuals.filter(i => i.paid).reduce((s, i) => s + effectiveActual(i), 0);
-  const purchForecast = actuals.filter(i => !i.paid).reduce((s, i) => s + effectiveActual(i), 0);
   let groupBy = 'none';
   try { groupBy = localStorage.getItem('mt-actuals-groupby') || 'none'; } catch (e) {}
   let sort = { key: '', dir: 'asc' };
   try { const s = JSON.parse(localStorage.getItem('mt-actuals-sort') || 'null'); if (s && s.key) sort = s; } catch (e) {}
+  let filters = {};
+  try { filters = JSON.parse(localStorage.getItem('mt-actuals-filters') || '{}') || {}; } catch (e) {}
+  const anyFilter = !!(filters.paid || filters.priority || filters.category || filters.room);
   const arrow = k => sort.key === k ? `<span class="ac-arrow">${sort.dir === 'desc' ? '▼' : '▲'}</span>` : '';
   const GROUP_OPTS = [['none','None'],['paid','Paid / Forecast'],['priority','Priority'],['room','Room'],['category','Category'],['priority-paid','Priority + Paid'],['room-paid','Room + Paid'],['category-paid','Category + Paid']];
+  // Filter option lists
+  const catList = [...new Set([...(state.budget.allocations || []).map(a => a.category), ...actuals.map(i => i.category)].filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const roomMapF = getBudgetRoomMap();
+  const roomList = [...roomMapF.entries()].map(([id, r]) => ({ id, name: r.name || 'Unnamed' })).sort((a, b) => a.name.localeCompare(b.name));
+
+  const filtered = actuals.filter(i => actualsMatchesFilters(i, filters));
+  const purchSpent = filtered.filter(i => i.paid).reduce((s, i) => s + effectiveActual(i), 0);
+  const purchForecast = filtered.filter(i => !i.paid).reduce((s, i) => s + effectiveActual(i), 0);
+  const countLabel = anyFilter ? `${filtered.length} of ${actuals.length}` : `${actuals.length}`;
+
   wrap.innerHTML = `
     <div class="actuals-toolbar">
       <div class="actuals-title">Purchases</div>
-      <div class="actuals-totals"><span><strong>${fmtMoney(purchSpent)}</strong> spent</span><span><strong>${fmtMoney(purchForecast)}</strong> forecast</span><span>${actuals.length} item${actuals.length === 1 ? '' : 's'}</span></div>
+      <div class="actuals-totals"><span><strong>${fmtMoney(purchSpent)}</strong> spent</span><span><strong>${fmtMoney(purchForecast)}</strong> forecast</span><span>${countLabel} item${(anyFilter ? filtered.length : actuals.length) === 1 ? '' : 's'}</span></div>
       <label class="group-by-control">Group by
         <select class="group-by-select">${GROUP_OPTS.map(([v,l]) => `<option value="${v}"${groupBy===v?' selected':''}>${l}</option>`).join('')}</select>
       </label>
+    </div>
+    <div class="actuals-filters">
+      <span class="af-label">Filter</span>
+      <select data-filter="paid">
+        <option value="">Paid: all</option>
+        <option value="paid"${filters.paid==='paid'?' selected':''}>Paid only</option>
+        <option value="forecast"${filters.paid==='forecast'?' selected':''}>Forecast only</option>
+      </select>
+      <select data-filter="priority">
+        <option value="">Priority: all</option>
+        <option value="High"${filters.priority==='High'?' selected':''}>High</option>
+        <option value="Medium"${filters.priority==='Medium'?' selected':''}>Medium</option>
+        <option value="Low"${filters.priority==='Low'?' selected':''}>Low</option>
+        <option value="none"${filters.priority==='none'?' selected':''}>No priority</option>
+      </select>
+      <select data-filter="category">
+        <option value="">Category: all</option>
+        ${catList.map(c => `<option value="${escapeHTML(c)}"${filters.category===c?' selected':''}>${escapeHTML(c)}</option>`).join('')}
+      </select>
+      <select data-filter="room">
+        <option value="">Room: all</option>
+        ${roomList.map(r => `<option value="${escapeHTML(r.id)}"${filters.room===r.id?' selected':''}>${escapeHTML(r.name)}</option>`).join('')}
+        <option value="unassigned"${filters.room==='unassigned'?' selected':''}>Unassigned</option>
+      </select>
+      ${anyFilter ? '<button class="af-clear" data-act="clear-filters">Clear filters</button>' : ''}
     </div>
     <div class="actuals-cols">
       <div></div>
@@ -12720,7 +12791,7 @@ function buildActualsTable(items) {
     <div class="actuals-body"></div>
     <div class="actuals-add-bar"><button data-act="add-actual">+ Add purchase</button></div>
   `;
-  const rows = sortActuals(actuals, sort);
+  const rows = sortActuals(filtered, sort);
   const body = wrap.querySelector('.actuals-body');
   function appendItem(item) {
     const itemWrap = document.createElement('div');
@@ -12731,6 +12802,8 @@ function buildActualsTable(items) {
   }
   if (actuals.length === 0) {
     body.innerHTML = `<div style="padding:18px;text-align:center;color:var(--ink-faint);font-style:italic;font-size:13px;">No purchases recorded yet. Click "+ Add purchase" to log one.</div>`;
+  } else if (rows.length === 0) {
+    body.innerHTML = `<div style="padding:18px;text-align:center;color:var(--ink-faint);font-style:italic;font-size:13px;">No purchases match the current filters. <a href="#" data-act="clear-filters" style="color:var(--clay);">Clear filters</a></div>`;
   } else if (groupBy === 'none') {
     rows.forEach(appendItem);
   } else {
@@ -12766,6 +12839,17 @@ function buildActualsTable(items) {
     try { localStorage.setItem('mt-actuals-groupby', e.target.value); } catch (err) {}
     renderBudget();
   });
+  wrap.querySelectorAll('.actuals-filters select').forEach(sel => sel.addEventListener('change', () => {
+    const f = {};
+    wrap.querySelectorAll('.actuals-filters select').forEach(s => { if (s.value) f[s.dataset.filter] = s.value; });
+    try { localStorage.setItem('mt-actuals-filters', JSON.stringify(f)); } catch (err) {}
+    renderBudget();
+  }));
+  wrap.querySelectorAll('[data-act="clear-filters"]').forEach(btn => btn.addEventListener('click', e => {
+    e.preventDefault();
+    try { localStorage.removeItem('mt-actuals-filters'); } catch (err) {}
+    renderBudget();
+  }));
   wrap.querySelectorAll('.ac-sort').forEach(h => h.addEventListener('click', () => {
     const key = h.dataset.sort;
     let next;
