@@ -12308,10 +12308,11 @@ function getBudgetRoomMap() {
 }
 
 function effectiveActual(i) {
-  // If "paid" is checked but no actual amount entered, treat the estimated as spent
+  // An item's amount = actual if entered, else the estimate. Paid vs unpaid only decides
+  // whether it counts as spent or forecast — a forecast item still contributes its estimate.
   const a = Number(i.actual) || 0;
   if (a > 0) return a;
-  return i.paid ? (Number(i.estimated) || 0) : 0;
+  return Number(i.estimated) || 0;
 }
 
 function renderBudgetCharts(items) {
