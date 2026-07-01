@@ -2754,6 +2754,9 @@
   .actuals-cols div:nth-child(5) { text-align: center; }
   .actuals-cols div:nth-child(6) { text-align: right; }
   .actuals-cols div:nth-child(7) { text-align: center; }
+  .actuals-cols .ac-sort { cursor: pointer; user-select: none; transition: color 0.12s; }
+  .actuals-cols .ac-sort:hover { color: var(--ink); }
+  .actuals-cols .ac-arrow { margin-left: 4px; color: var(--clay); }
   .actuals-row .priority { font-size: 11.5px; font-weight: 600; }
   .actuals-row .priority.pri-high { color: var(--behind); }
   .actuals-row .priority.pri-med { color: var(--gold); }
@@ -12643,6 +12646,28 @@ function renderAllocRow(alloc, spent, forecast) {
   return row;
 }
 
+function actualsSortValue(item, key) {
+  switch (key) {
+    case 'label': return (item.label || '').toLowerCase();
+    case 'category': return (item.category || '').toLowerCase();
+    case 'room': return (item.room ? (getBudgetRoomMap().get(item.room)?.name || '') : '').toLowerCase();
+    case 'priority': { const r = { High: 0, Medium: 1, Low: 2 }; return (item.priority in r) ? r[item.priority] : 3; }
+    case 'amount': return effectiveActual(item);
+    case 'paid': return item.paid ? 0 : 1;
+    default: return '';
+  }
+}
+function sortActuals(list, sort) {
+  if (!sort || !sort.key) return list;
+  const dir = sort.dir === 'desc' ? -1 : 1;
+  return [...list].sort((a, b) => {
+    const va = actualsSortValue(a, sort.key), vb = actualsSortValue(b, sort.key);
+    if (va < vb) return -1 * dir;
+    if (va > vb) return 1 * dir;
+    return 0;
+  });
+}
+
 function actualsGroupKey(item, mode) {
   const roomName = item.room ? (getBudgetRoomMap().get(item.room)?.name || 'Unknown room') : 'Unassigned';
   const cat = item.category || 'Uncategorized';
@@ -12670,6 +12695,9 @@ function buildActualsTable(items) {
   const purchForecast = actuals.filter(i => !i.paid).reduce((s, i) => s + effectiveActual(i), 0);
   let groupBy = 'none';
   try { groupBy = localStorage.getItem('mt-actuals-groupby') || 'none'; } catch (e) {}
+  let sort = { key: '', dir: 'asc' };
+  try { const s = JSON.parse(localStorage.getItem('mt-actuals-sort') || 'null'); if (s && s.key) sort = s; } catch (e) {}
+  const arrow = k => sort.key === k ? `<span class="ac-arrow">${sort.dir === 'desc' ? '▼' : '▲'}</span>` : '';
   const GROUP_OPTS = [['none','None'],['paid','Paid / Forecast'],['priority','Priority'],['room','Room'],['category','Category'],['priority-paid','Priority + Paid'],['room-paid','Room + Paid'],['category-paid','Category + Paid']];
   wrap.innerHTML = `
     <div class="actuals-toolbar">
@@ -12680,11 +12708,19 @@ function buildActualsTable(items) {
       </label>
     </div>
     <div class="actuals-cols">
-      <div></div><div>Item</div><div>Category</div><div>Room</div><div>Priority</div><div>Amount</div><div>Paid</div><div></div>
+      <div></div>
+      <div class="ac-sort" data-sort="label">Item${arrow('label')}</div>
+      <div class="ac-sort" data-sort="category">Category${arrow('category')}</div>
+      <div class="ac-sort" data-sort="room">Room${arrow('room')}</div>
+      <div class="ac-sort" data-sort="priority">Priority${arrow('priority')}</div>
+      <div class="ac-sort" data-sort="amount">Amount${arrow('amount')}</div>
+      <div class="ac-sort" data-sort="paid">Paid${arrow('paid')}</div>
+      <div></div>
     </div>
     <div class="actuals-body"></div>
     <div class="actuals-add-bar"><button data-act="add-actual">+ Add purchase</button></div>
   `;
+  const rows = sortActuals(actuals, sort);
   const body = wrap.querySelector('.actuals-body');
   function appendItem(item) {
     const itemWrap = document.createElement('div');
@@ -12696,10 +12732,10 @@ function buildActualsTable(items) {
   if (actuals.length === 0) {
     body.innerHTML = `<div style="padding:18px;text-align:center;color:var(--ink-faint);font-style:italic;font-size:13px;">No purchases recorded yet. Click "+ Add purchase" to log one.</div>`;
   } else if (groupBy === 'none') {
-    actuals.forEach(appendItem);
+    rows.forEach(appendItem);
   } else {
     const groups = new Map();
-    actuals.forEach(item => {
+    rows.forEach(item => {
       const key = actualsGroupKey(item, groupBy);
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push(item);
@@ -12730,6 +12766,15 @@ function buildActualsTable(items) {
     try { localStorage.setItem('mt-actuals-groupby', e.target.value); } catch (err) {}
     renderBudget();
   });
+  wrap.querySelectorAll('.ac-sort').forEach(h => h.addEventListener('click', () => {
+    const key = h.dataset.sort;
+    let next;
+    if (sort.key !== key) next = { key, dir: 'asc' };
+    else if (sort.dir === 'asc') next = { key, dir: 'desc' };
+    else next = { key: '', dir: 'asc' }; // third click clears sorting
+    try { localStorage.setItem('mt-actuals-sort', JSON.stringify(next)); } catch (err) {}
+    renderBudget();
+  }));
   wrap.querySelector('[data-act="add-actual"]').addEventListener('click', () => {
     if (!state.budget) state.budget = { items: [] };
     if (!Array.isArray(state.budget.items)) state.budget.items = [];
