@@ -12363,11 +12363,12 @@ function renderBudgetCharts(items) {
     else byRoom[k].forecast += amt;
   });
 
-  // Aggregate by priority
+  // Aggregate by priority (keep a count so tagged-but-unpriced items still show)
   const byPriority = {};
   items.forEach(i => {
     const k = i.priority ? i.priority + ' priority' : 'No priority';
-    if (!byPriority[k]) byPriority[k] = { actuals: 0, forecast: 0 };
+    if (!byPriority[k]) byPriority[k] = { actuals: 0, forecast: 0, count: 0 };
+    byPriority[k].count++;
     const amt = effectiveActual(i);
     if (i.paid) byPriority[k].actuals += amt;
     else byPriority[k].forecast += amt;
@@ -12389,7 +12390,7 @@ function renderBudgetCharts(items) {
     </div>
   `;
   renderBudgetBars(document.getElementById('bars-cat'), byCat, { withBudget: true });
-  renderRoomBars(document.getElementById('bars-priority'), byPriority, { order: ['High priority','Medium priority','Low priority','No priority'] });
+  renderRoomBars(document.getElementById('bars-priority'), byPriority, { order: ['High priority','Medium priority','Low priority','No priority'], showZero: true });
   renderRoomBars(document.getElementById('bars-room'), byRoom);
 }
 
@@ -12432,7 +12433,7 @@ function renderBudgetBars(container, dataMap, opts = {}) {
 function renderRoomBars(container, dataMap, opts = {}) {
   let entries = Object.entries(dataMap)
     .map(([k, v]) => [k, { ...v, total: v.actuals + v.forecast }])
-    .filter(([_, v]) => v.total > 0);
+    .filter(([_, v]) => opts.showZero ? true : v.total > 0);
   if (opts.order) {
     entries.sort((a, b) => {
       const ia = opts.order.indexOf(a[0]), ib = opts.order.indexOf(b[0]);
@@ -12458,7 +12459,7 @@ function renderRoomBars(container, dataMap, opts = {}) {
         <span class="bar-row-label">${escapeHTML(name)}</span>
         <span class="bar-row-amount">
           <span class="actual-num">${fmtMoney(v.total)}</span>
-          <span class="muted">${share}%</span>
+          <span class="muted">${v.count != null ? v.count + (v.count === 1 ? ' item' : ' items') : share + '%'}</span>
         </span>
       </div>
       <div class="bar-bg stacked">
