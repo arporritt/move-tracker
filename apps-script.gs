@@ -77,33 +77,6 @@ function doGet(e) {
   if (p !== PASSWORD) {
     return ContentService.createTextOutput('null').setMimeType(ContentService.MimeType.TEXT);
   }
-  // Pull color details (LRV, SW number, hex) from a Sherwin-Williams page (server-side fetch avoids browser CORS).
-  if (e && e.parameter && e.parameter.action === 'getLrv') {
-    var out = { ok: false, lrv: '', sw: '', hex: '' };
-    try {
-      const url = e.parameter.url || '';
-      if (/^https?:\/\//.test(url)) {
-        const resp = UrlFetchApp.fetch(url, { muteHttpExceptions: true, followRedirects: true, headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15)' } });
-        const html = resp.getContentText();
-        // LRV
-        var m = html.match(/"lrv"\s*:\s*"?(\d{1,3}(?:\.\d+)?)"?/i)
-             || html.match(/lrv["'\s:>=]{1,14}?(\d{1,3}(?:\.\d+)?)/i)
-             || html.match(/LRV[^0-9]{0,18}(\d{1,3}(?:\.\d+)?)/i);
-        if (m) out.lrv = m[1];
-        // SW number — try the page data, then the URL itself
-        var s = html.match(/"colou?rNumber"\s*:\s*"?\s*(?:SW)?\s*0*(\d{3,4})/i)
-             || html.match(/\bSW\s*0*(\d{3,4})\b/i)
-             || url.match(/SW\s*-?\s*0*(\d{3,4})/i);
-        if (s) out.sw = s[1];
-        // Hex
-        var h = html.match(/"hex(?:Value|Color)?"\s*:\s*"?#?([0-9A-Fa-f]{6})\b/i)
-             || html.match(/colou?rHex["'\s:>=]+#?([0-9A-Fa-f]{6})/i);
-        if (h) out.hex = '#' + h[1].toUpperCase();
-        out.ok = !!(out.lrv || out.sw || out.hex);
-      }
-    } catch (err) { out.error = String(err); }
-    return ContentService.createTextOutput(JSON.stringify(out)).setMimeType(ContentService.MimeType.JSON);
-  }
   const merged = readState_();
   return ContentService.createTextOutput(JSON.stringify(merged)).setMimeType(ContentService.MimeType.JSON);
 }
