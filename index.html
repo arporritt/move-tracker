@@ -2739,7 +2739,7 @@
   .alloc-add-bar button:hover, .actuals-add-bar button:hover { color: var(--clay); border-color: var(--clay-soft); }
   .actuals-cols, .actuals-row {
     display: grid;
-    grid-template-columns: 24px minmax(0,1.6fr) 140px 130px 110px 60px 32px;
+    grid-template-columns: 24px minmax(0,1.5fr) 128px 116px 92px 100px 52px 28px;
     gap: 10px;
     padding: 5px 16px;
     align-items: center;
@@ -2751,8 +2751,13 @@
     padding: 8px 16px 5px;
     background: rgba(166,160,148,0.04);
   }
-  .actuals-cols div:nth-child(5) { text-align: right; }
-  .actuals-cols div:nth-child(6) { text-align: center; }
+  .actuals-cols div:nth-child(5) { text-align: center; }
+  .actuals-cols div:nth-child(6) { text-align: right; }
+  .actuals-cols div:nth-child(7) { text-align: center; }
+  .actuals-row .priority { font-size: 11.5px; font-weight: 600; }
+  .actuals-row .priority.pri-high { color: var(--behind); }
+  .actuals-row .priority.pri-med { color: var(--gold); }
+  .actuals-row .priority.pri-low { color: var(--ink-faint); }
   .actuals-item { border-top: 1px solid var(--rule-soft); }
   .actuals-item .actuals-row { border-top: none; }
   .actuals-group-header {
@@ -2775,7 +2780,7 @@
   .actuals-row .expand-btn.open { color: var(--clay); }
   @media (max-width: 720px) {
     .alloc-cols, .alloc-row { grid-template-columns: 1fr 64px 64px 64px 72px 22px; gap: 5px; padding: 5px 12px; }
-    .actuals-cols, .actuals-row { grid-template-columns: 20px 1fr 100px 90px 80px 36px 24px; gap: 6px; padding: 5px 12px; }
+    .actuals-cols, .actuals-row { grid-template-columns: 20px 1fr 88px 80px 72px 76px 34px 22px; gap: 6px; padding: 5px 12px; }
   }
 
   /* Unified budget table */
@@ -2882,7 +2887,7 @@
   /* Budget visualization charts */
   .budget-charts {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
     gap: 16px;
     margin-bottom: 18px;
   }
@@ -12334,29 +12339,33 @@ function renderBudgetCharts(items) {
     else byRoom[k].forecast += amt;
   });
 
+  // Aggregate by priority
+  const byPriority = {};
+  items.forEach(i => {
+    const k = i.priority ? i.priority + ' priority' : 'No priority';
+    if (!byPriority[k]) byPriority[k] = { actuals: 0, forecast: 0 };
+    const amt = effectiveActual(i);
+    if (i.paid) byPriority[k].actuals += amt;
+    else byPriority[k].forecast += amt;
+  });
+
+  const legend = `<span class="bar-legend"><span class="legend-dot legend-actuals"></span>Spent<span class="legend-dot legend-forecast"></span>Forecast</span>`;
   container.innerHTML = `
     <div class="budget-chart-card">
-      <div class="budget-chart-title">
-        By category
-        <span class="bar-legend">
-          <span class="legend-dot legend-actuals"></span>Spent
-          <span class="legend-dot legend-forecast"></span>Forecast
-        </span>
-      </div>
+      <div class="budget-chart-title">By category ${legend}</div>
       <div id="bars-cat"></div>
     </div>
     <div class="budget-chart-card">
-      <div class="budget-chart-title">
-        By room
-        <span class="bar-legend">
-          <span class="legend-dot legend-actuals"></span>Spent
-          <span class="legend-dot legend-forecast"></span>Forecast
-        </span>
-      </div>
+      <div class="budget-chart-title">By priority ${legend}</div>
+      <div id="bars-priority"></div>
+    </div>
+    <div class="budget-chart-card">
+      <div class="budget-chart-title">By room ${legend}</div>
       <div id="bars-room"></div>
     </div>
   `;
   renderBudgetBars(document.getElementById('bars-cat'), byCat, { withBudget: true });
+  renderRoomBars(document.getElementById('bars-priority'), byPriority, { order: ['High priority','Medium priority','Low priority','No priority'] });
   renderRoomBars(document.getElementById('bars-room'), byRoom);
 }
 
@@ -12396,13 +12405,20 @@ function renderBudgetBars(container, dataMap, opts = {}) {
   });
 }
 
-function renderRoomBars(container, dataMap) {
-  const entries = Object.entries(dataMap)
+function renderRoomBars(container, dataMap, opts = {}) {
+  let entries = Object.entries(dataMap)
     .map(([k, v]) => [k, { ...v, total: v.actuals + v.forecast }])
-    .filter(([_, v]) => v.total > 0)
-    .sort((a, b) => b[1].total - a[1].total);
+    .filter(([_, v]) => v.total > 0);
+  if (opts.order) {
+    entries.sort((a, b) => {
+      const ia = opts.order.indexOf(a[0]), ib = opts.order.indexOf(b[0]);
+      return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+    });
+  } else {
+    entries.sort((a, b) => b[1].total - a[1].total);
+  }
   if (entries.length === 0) {
-    container.innerHTML = '<div class="bar-empty-state">No spending tagged to a room yet</div>';
+    container.innerHTML = '<div class="bar-empty-state">Nothing to show yet</div>';
     return;
   }
   const max = Math.max(...entries.map(([_, v]) => v.total)) || 1;
@@ -12631,10 +12647,13 @@ function actualsGroupKey(item, mode) {
   const roomName = item.room ? (getBudgetRoomMap().get(item.room)?.name || 'Unknown room') : 'Unassigned';
   const cat = item.category || 'Uncategorized';
   const paidLabel = item.paid ? 'Paid' : 'Forecast';
+  const pri = item.priority ? item.priority + ' priority' : 'No priority';
   switch (mode) {
     case 'paid': return paidLabel;
+    case 'priority': return pri;
     case 'room': return roomName;
     case 'category': return cat;
+    case 'priority-paid': return pri + ' · ' + paidLabel;
     case 'room-paid': return roomName + ' · ' + paidLabel;
     case 'category-paid': return cat + ' · ' + paidLabel;
     default: return '';
@@ -12651,7 +12670,7 @@ function buildActualsTable(items) {
   const purchForecast = actuals.filter(i => !i.paid).reduce((s, i) => s + effectiveActual(i), 0);
   let groupBy = 'none';
   try { groupBy = localStorage.getItem('mt-actuals-groupby') || 'none'; } catch (e) {}
-  const GROUP_OPTS = [['none','None'],['paid','Paid / Forecast'],['room','Room'],['category','Category'],['room-paid','Room + Paid'],['category-paid','Category + Paid']];
+  const GROUP_OPTS = [['none','None'],['paid','Paid / Forecast'],['priority','Priority'],['room','Room'],['category','Category'],['priority-paid','Priority + Paid'],['room-paid','Room + Paid'],['category-paid','Category + Paid']];
   wrap.innerHTML = `
     <div class="actuals-toolbar">
       <div class="actuals-title">Purchases</div>
@@ -12661,7 +12680,7 @@ function buildActualsTable(items) {
       </label>
     </div>
     <div class="actuals-cols">
-      <div></div><div>Item</div><div>Category</div><div>Room</div><div>Amount</div><div>Paid</div><div></div>
+      <div></div><div>Item</div><div>Category</div><div>Room</div><div>Priority</div><div>Amount</div><div>Paid</div><div></div>
     </div>
     <div class="actuals-body"></div>
     <div class="actuals-add-bar"><button data-act="add-actual">+ Add purchase</button></div>
@@ -12685,9 +12704,16 @@ function buildActualsTable(items) {
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push(item);
     });
+    const rank = k => {
+      if (/unassigned|uncategor|no priority/i.test(k)) return 100;
+      if (/^high/i.test(k)) return 0;
+      if (/^med/i.test(k)) return 1;
+      if (/^low/i.test(k)) return 2;
+      return 50;
+    };
     const keys = [...groups.keys()].sort((a, b) => {
-      const la = /unassigned|uncategor/i.test(a), lb = /unassigned|uncategor/i.test(b);
-      if (la !== lb) return la ? 1 : -1;
+      const ra = rank(a), rb = rank(b);
+      if (ra !== rb) return ra - rb;
       return a.localeCompare(b);
     });
     keys.forEach(key => {
@@ -12721,8 +12747,8 @@ function buildActualsTable(items) {
     persist();
     renderBudget();
     setTimeout(() => {
-      const newRow = document.querySelector(`.actuals-row .label[value=""], .actuals-row:last-child .alloc-input.label`);
-      if (newRow) { newRow.focus(); newRow.select?.(); }
+      const el = document.querySelector(`.actuals-row[data-id="${newItem.id}"] .label`);
+      if (el) { el.focus(); el.select?.(); el.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
     }, 0);
   });
   return wrap;
@@ -12732,6 +12758,7 @@ function renderActualsRow(item) {
   const row = document.createElement('div');
   const allocCats = (state.budget.allocations || []).map(a => a.category).filter(Boolean);
   row.className = 'actuals-row';
+  row.dataset.id = item.id;
   // Category is locked to allocation categories — no free text. If item has a category not in allocations, include it as a stale option so it stays selected until changed.
   const includeOrphan = item.category && !allocCats.includes(item.category) ? [item.category] : [];
   const allCats = [...allocCats, ...includeOrphan];
@@ -12755,6 +12782,12 @@ function renderActualsRow(item) {
     <select class="alloc-input cat">${catOpts}</select>
     <input type="text" class="alloc-input room" list="${roomDatalistId}" placeholder="Room (optional)" value="${escapeHTML(currentRoomName)}">
     <datalist id="${roomDatalistId}">${roomOpts}</datalist>
+    <select class="alloc-input priority ${item.priority === 'High' ? 'pri-high' : item.priority === 'Medium' ? 'pri-med' : item.priority === 'Low' ? 'pri-low' : ''}">
+      <option value=""${!item.priority ? ' selected' : ''}>—</option>
+      <option value="High"${item.priority === 'High' ? ' selected' : ''}>High</option>
+      <option value="Medium"${item.priority === 'Medium' ? ' selected' : ''}>Med</option>
+      <option value="Low"${item.priority === 'Low' ? ' selected' : ''}>Low</option>
+    </select>
     <input type="text" class="alloc-input amount" placeholder="$—" value="${spent ? fmtMoney(spent) : ''}">
     <label class="budget-paid" style="display:flex;justify-content:center;"><input type="checkbox" class="budget-paid-check" ${item.paid ? 'checked' : ''}></label>
     <button class="budget-del" title="Delete">×</button>
@@ -12784,6 +12817,11 @@ function renderActualsRow(item) {
         persist(); renderBudget();
       });
     }
+  });
+  row.querySelector('.priority').addEventListener('change', e => {
+    item.priority = e.target.value;
+    persist();
+    renderBudget();
   });
   row.querySelector('.amount').addEventListener('change', e => {
     item.actual = parseMoney(e.target.value);
