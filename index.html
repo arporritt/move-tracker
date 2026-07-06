@@ -830,6 +830,11 @@
     opacity: 0.85;
     font-style: normal;
   }
+  /* Draggable labels: the whole label group becomes grabbable (via a faint chip) when its shape is selected */
+  .layout-svg .shape-label-grp { pointer-events: none; }
+  .layout-svg .shape-label-grp.movable { pointer-events: auto; cursor: grab; }
+  .layout-svg .label-chip { fill: rgba(166,160,148,0.14); stroke: var(--clay-soft); stroke-width: 0.09; stroke-dasharray: 0.4 0.28; vector-effect: non-scaling-stroke; }
+  .layout-svg .shape-label-grp.movable:hover .label-chip { fill: rgba(122,110,94,0.20); }
   /* Shapes with a photo fill: let the image show through, keep the outline crisp */
   .layout-svg .shape.has-image { fill: transparent; }
   .layout-svg .shape.has-image:hover { fill: rgba(166,160,148,0.25); }
@@ -7330,7 +7335,7 @@
       <svg id="layout-svg" class="layout-svg" preserveAspectRatio="xMidYMid meet"></svg>
       <div class="shape-panel" id="layout-shape-panel" hidden></div>
     </div>
-    <div class="layout-hint" id="layout-hint">Pick a shape tool and drag to draw. Switch to ↔ to move shapes. <strong>Click a shape</strong> to open its editor — type exact <strong>dimensions</strong>, rename, rotate, add notes or a photo. <strong>Shift-click</strong> several shapes, then <strong>Combine</strong> them into one piece (e.g., an L-shaped sofa). Copy/paste with <strong>⌘/Ctrl+C · V</strong> (or ⌘/Ctrl+D to duplicate). Resize by dragging the corner.</div>
+    <div class="layout-hint" id="layout-hint">Pick a shape tool and drag to draw. Switch to ↔ to move shapes. <strong>Click a shape</strong> to open its editor — type exact <strong>dimensions</strong>, rename, rotate, add notes or a photo. <strong>Shift-click</strong> several shapes, then <strong>Combine</strong> them into one piece (e.g., an L-shaped sofa). Copy/paste with <strong>⌘/Ctrl+C · V</strong> (or ⌘/Ctrl+D to duplicate). Resize by dragging the corner. With a shape selected you can <strong>drag its label</strong> to reposition it (double-click the label to re-center).</div>
   </div>
 </div>
 
@@ -9504,6 +9509,7 @@ let layoutDrawing = null;
 let layoutDragging = null;
 let layoutResizing = null;
 let layoutRotating = null; // { id } while dragging the rotate handle
+let layoutLabelDragging = null; // { id, startX, startY, dx0, dy0 } while dragging a shape's label
 let layoutPanning = null; // {startClientX, startClientY, startVB}
 let layoutViewBox = null; // {x,y,w,h} current view region
 let layoutLabelUnit = 0.07; // user-units per screen-pixel — keeps shape labels a constant on-screen size at any zoom
@@ -9608,14 +9614,16 @@ function renderLayout() {
     const minX = Math.min(...members.map(m => m.x)), minY = Math.min(...members.map(m => m.y));
     const maxX = Math.max(...members.map(m => m.x + m.w)), maxY = Math.max(...members.map(m => m.y + m.h));
     const gcx = (minX + maxX) / 2, gcy = (minY + maxY) / 2;
-    const name = (members.find(m => m.label) || {}).label || '';
+    // The group label's offset is stored on the "primary" member (first with a name, else first member).
+    const primary = members.find(m => m.label) || members[0];
+    const name = (primary.label) || '';
     const dimText = `${Math.round((maxX - minX) * 10) / 10}' × ${Math.round((maxY - minY) * 10) / 10}'`;
-    if (name) {
-      svgContent += `<text class="shape-label" style="font-size:${15 * u}px" x="${gcx}" y="${gcy - gline * 0.4}">${escapeHTML(name)}</text>`;
-      svgContent += `<text class="shape-dim" style="font-size:${12 * u}px" x="${gcx}" y="${gcy + gline * 0.7}">${dimText}</text>`;
-    } else {
-      svgContent += `<text class="shape-dim" style="font-size:${12 * u}px" x="${gcx}" y="${gcy}">${dimText}</text>`;
-    }
+    const lx = gcx + (Number(primary.labelDX) || 0), ly = gcy + (Number(primary.labelDY) || 0);
+    const movable = members.some(m => layoutSelectedIds.includes(m.id));
+    const entries = name
+      ? [ { text: escapeHTML(name), cls: 'shape-label', px: 15, dy: -gline * 0.4 }, { text: dimText, cls: 'shape-dim', px: 12, dy: gline * 0.7 } ]
+      : [ { text: dimText, cls: 'shape-dim', px: 12, dy: 0 } ];
+    svgContent += buildLabelGroup(primary.id, lx, ly, entries, movable);
   });
   svg.innerHTML = svgContent;
   attachLayoutHandlers();
@@ -9720,6 +9728,27 @@ function renderShapePanel() {
   panel.querySelector('[data-act="close"]').addEventListener('click', () => { clearLayoutSelection(); renderLayout(); });
 }
 
+// Build a draggable label group (text lines + a grab chip when movable). `entries` = [{text, cls, px, dy, halo}].
+// data-label carries the shape id whose labelDX/labelDY the drag adjusts.
+function buildLabelGroup(labelForId, ax, ay, entries, movable) {
+  const u = layoutLabelUnit;
+  let inner = '', maxW = 0, minY = Infinity, maxY = -Infinity;
+  entries.forEach(en => {
+    inner += `<text class="${en.cls}" style="font-size:${en.px * u}px${en.halo || ''}" x="${ax}" y="${ay + en.dy}">${en.text}</text>`;
+    const w = String(en.text).length * en.px * u * 0.62;
+    if (w > maxW) maxW = w;
+    minY = Math.min(minY, ay + en.dy - en.px * u * 0.7);
+    maxY = Math.max(maxY, ay + en.dy + en.px * u * 0.7);
+  });
+  let chip = '';
+  if (movable) {
+    const padX = 6 * u, padY = 4 * u;
+    const cw = maxW + padX * 2, ch = (maxY - minY) + padY * 2;
+    chip = `<rect class="label-chip" x="${ax - cw / 2}" y="${minY - padY}" width="${cw}" height="${ch}" rx="${4 * u}"/>`;
+  }
+  return `<g class="shape-label-grp${movable ? ' movable' : ''}" data-label="${labelForId}">${chip}${inner}</g>`;
+}
+
 function renderShapeSvg(s) {
   const selected = layoutSelectedIds.includes(s.id) ? ' selected' : '';
   const wall = s.type === 'wall' ? ' is-wall' : '';
@@ -9759,18 +9788,19 @@ function renderShapeSvg(s) {
   const u = layoutLabelUnit;
   const line = 15 * u;
   const halo = onImg ? `;stroke-width:${2 * u}px` : '';
-  const fs = px => `font-size:${px * u}px${halo}`;
   // Grouped shapes don't show their own label/dims — the group draws one combined label (see renderLayout).
+  // The label sits at the shape center plus a user-adjustable offset (labelDX/labelDY), and is draggable when selected.
   let labelHtml = '';
   if (!s.groupId) {
-    if (labelText) {
-      labelHtml += `<text class="shape-label${onImg}" style="${fs(15)}" x="${cx}" y="${cy - line}">${escapeHTML(labelText)}</text>`;
-      labelHtml += `<text class="shape-dim${onImg}" style="${fs(12)}" x="${cx}" y="${cy + line * 0.15}">${dimText}</text>`;
-      labelHtml += `<text class="shape-dim shape-dim-in${onImg}" style="${fs(10)}" x="${cx}" y="${cy + line * 1.15}">${dimInches}</text>`;
-    } else {
-      labelHtml += `<text class="shape-dim${onImg}" style="${fs(12)}" x="${cx}" y="${cy - line * 0.5}">${dimText}</text>`;
-      labelHtml += `<text class="shape-dim shape-dim-in${onImg}" style="${fs(10)}" x="${cx}" y="${cy + line * 0.6}">${dimInches}</text>`;
-    }
+    const lx = cx + (Number(s.labelDX) || 0), ly = cy + (Number(s.labelDY) || 0);
+    const movable = layoutSelectedIds.includes(s.id);
+    const entries = labelText
+      ? [ { text: escapeHTML(labelText), cls: `shape-label${onImg}`, px: 15, dy: -line, halo },
+          { text: dimText, cls: `shape-dim${onImg}`, px: 12, dy: line * 0.15, halo },
+          { text: dimInches, cls: `shape-dim shape-dim-in${onImg}`, px: 10, dy: line * 1.15, halo } ]
+      : [ { text: dimText, cls: `shape-dim${onImg}`, px: 12, dy: -line * 0.5, halo },
+          { text: dimInches, cls: `shape-dim shape-dim-in${onImg}`, px: 10, dy: line * 0.6, halo } ];
+    labelHtml = buildLabelGroup(s.id, lx, ly, entries, movable);
   }
   let handles = '';
   if (layoutSelectedIds.length === 1 && s.id === layoutSelectedId) {
@@ -9987,6 +10017,7 @@ function onLayoutPointerDown(e) {
   const shapeId = target.getAttribute('data-shape-id');
   const resizeId = target.getAttribute('data-resize');
   const rotateId = target.getAttribute('data-rotate');
+  const labelId = target.getAttribute('data-label') || target.closest?.('[data-label]')?.getAttribute('data-label');
   // Set-scale mode: drag a line across a known real-world length
   if (layoutMeasureMode) {
     e.preventDefault();
@@ -10001,6 +10032,17 @@ function onLayoutPointerDown(e) {
     layoutRotating = { id: rotateId };
     e.target.setPointerCapture?.(e.pointerId);
     return;
+  }
+  // Drag a shape's label (the movable chip). Must come before pan/shape handling since the chip overlaps them.
+  if (labelId) {
+    const sh = currentShape(labelId);
+    if (sh) {
+      e.preventDefault();
+      const pt = svgPointFromEvent(e);
+      layoutLabelDragging = { id: labelId, startX: pt.x, startY: pt.y, dx0: Number(sh.labelDX) || 0, dy0: Number(sh.labelDY) || 0 };
+      e.target.setPointerCapture?.(e.pointerId);
+      return;
+    }
   }
   // Pan on empty area (shift+drag anywhere empty, or select-tool drag on empty). Shift+click on a
   // shape is reserved for multi-select, so don't pan when a shape/handle is the target.
@@ -10052,6 +10094,15 @@ function onLayoutPointerMove(e) {
     layoutMeasuring.currentX = pt.x;
     layoutMeasuring.currentY = pt.y;
     renderMeasurePreview();
+    return;
+  }
+  if (layoutLabelDragging) {
+    const sh = currentShape(layoutLabelDragging.id);
+    if (!sh) return;
+    const pt = svgPointFromEvent(e);
+    sh.labelDX = layoutLabelDragging.dx0 + (pt.x - layoutLabelDragging.startX);
+    sh.labelDY = layoutLabelDragging.dy0 + (pt.y - layoutLabelDragging.startY);
+    renderLayout();
     return;
   }
   if (layoutPanning) {
@@ -10138,6 +10189,7 @@ function onLayoutPointerUp(e) {
     return;
   }
   if (layoutPanning) { layoutPanning = null; return; }
+  if (layoutLabelDragging) { layoutLabelDragging = null; persist(); return; }
   if (layoutRotating) { layoutRotating = null; persist(); return; }
   if (layoutDragging) {
     layoutDragging = null;
@@ -10176,6 +10228,12 @@ function onLayoutPointerUp(e) {
 }
 
 function onLayoutDoubleClick(e) {
+  // Double-clicking a label snaps it back to the shape's center.
+  const labelId = e.target.getAttribute('data-label') || e.target.closest?.('[data-label]')?.getAttribute('data-label');
+  if (labelId) {
+    const sh = currentShape(labelId);
+    if (sh) { sh.labelDX = 0; sh.labelDY = 0; persist(); renderLayout(); return; }
+  }
   const id = e.target.getAttribute('data-shape-id');
   if (!id) return;
   // Select the shape and jump to the name field in the shape panel (no more prompt dialog).
