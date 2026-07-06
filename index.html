@@ -836,8 +836,8 @@
   /* Draggable labels: the whole label group becomes grabbable (via a faint chip) when its shape is selected */
   .layout-svg .shape-label-grp { pointer-events: none; }
   .layout-svg .shape-label-grp.movable { pointer-events: auto; cursor: grab; }
-  .layout-svg .label-chip { fill: rgba(166,160,148,0.14); stroke: var(--clay-soft); stroke-width: 0.09; stroke-dasharray: 0.4 0.28; vector-effect: non-scaling-stroke; }
-  .layout-svg .shape-label-grp.movable:hover .label-chip { fill: rgba(122,110,94,0.20); }
+  /* Invisible drag target behind a selected shape's label — no visible background, still grabbable. */
+  .layout-svg .label-chip { fill: transparent; pointer-events: all; }
   /* Shapes with a photo fill: let the image show through, keep the outline crisp */
   .layout-svg .shape.has-image { fill: transparent; }
   .layout-svg .shape.has-image:hover { fill: rgba(166,160,148,0.25); }
