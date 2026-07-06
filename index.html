@@ -1150,6 +1150,19 @@
   .ph-size button:hover { color: var(--ink); }
   .ph-size button.on { background: var(--ink); color: var(--bg-card); }
   .mb-head-right { display: inline-flex; align-items: center; gap: 10px; }
+  .palette-guide-link {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: rgba(122,110,94,0.10); border: 1px solid var(--clay-soft);
+    color: var(--clay); border-radius: 100px; padding: 5px 13px;
+    font-size: 12px; font-weight: 700; letter-spacing: 0.02em; text-decoration: none;
+    transition: background 0.12s, border-color 0.12s;
+  }
+  .palette-guide-link:hover { background: rgba(122,110,94,0.18); border-color: var(--clay); }
+  .palette-guide-note {
+    font-size: 12.5px; color: var(--ink-soft); margin: -6px 0 14px; line-height: 1.5;
+  }
+  .palette-guide-note a { color: var(--clay); text-decoration: none; font-weight: 600; }
+  .palette-guide-note a:hover { text-decoration: underline; }
   .mb-photo-grid .photo {
     display: block;
     width: 100%;
@@ -1203,8 +1216,8 @@
   }
   /* Color story — a single labeled, editable ribbon at the top of Overall */
   .cs-ribbon {
-    display: flex; gap: 0; border-radius: 14px; overflow: hidden;
-    box-shadow: var(--shadow); margin-bottom: 24px; overflow-x: auto;
+    display: flex; flex-wrap: wrap; gap: 0; border-radius: 14px; overflow: hidden;
+    box-shadow: var(--shadow); margin-bottom: 24px;
   }
   .cs-block { position: relative; flex: 1 0 130px; min-height: 140px; display: flex; align-items: flex-end; }
   .cs-scrim { position: absolute; inset: 0; background: linear-gradient(transparent 30%, rgba(0,0,0,0.58)); pointer-events: none; }
@@ -12076,6 +12089,65 @@ function ensureColorStory() {
   }
 }
 
+// The curated palette from the "White Duck & Neutral Ground" guide (Amerie Creative, Sherwin-Williams).
+// role = the short label shown under each ribbon block.
+const PALETTE_GUIDE_URL = 'palette-guide.pdf';
+const PDF_PALETTE_VERSION = 'whiteduck-neutralground-v1';
+const PDF_PALETTE = [
+  { name: 'Pure White',     sw: '7005', hex: '#EDECE6', lrv: 83, role: 'bright white · trim' },
+  { name: 'Alabaster',      sw: '7008', hex: '#EDEAE0', lrv: 82, role: 'soft white · main' },
+  { name: 'White Duck',     sw: '7010', hex: '#E4DDCD', lrv: 74, role: 'off-white · main' },
+  { name: 'Neutral Ground', sw: '7568', hex: '#DBD1BF', lrv: 70, role: 'light greige · main' },
+  { name: 'Shiitake',       sw: '9173', hex: '#C9BDAC', lrv: 51, role: 'taupe · secondary' },
+  { name: 'Amazing Gray',   sw: '7044', hex: '#B6AC9E', lrv: 47, role: 'greige · secondary' },
+  { name: 'Debonair',       sw: '9139', hex: '#A6B2B6', lrv: 34, role: 'blue-gray accent' },
+  { name: 'Cornwall Slate', sw: '9131', hex: '#969889', lrv: 29, role: 'gray-green accent' },
+  { name: 'Studio Clay',    sw: '9172', hex: '#948979', lrv: 27, role: 'greige · accent' },
+  { name: 'Dried Thyme',    sw: '6186', hex: '#7C8069', lrv: 21, role: 'green accent' },
+  { name: 'Urbane Bronze',  sw: '7048', hex: '#544F49', lrv: 8,  role: 'charcoal accent' },
+  { name: 'Sable',          sw: '6083', hex: '#645245', lrv: 8,  role: 'brown accent' },
+  { name: 'Shade Grown',    sw: '6188', hex: '#4E5147', lrv: 8,  role: 'dark green accent' },
+  { name: 'Dark Night',     sw: '6237', hex: '#2F3E48', lrv: 4,  role: 'navy accent' },
+  { name: 'Tricorn Black',  sw: '6258', hex: '#2D2C2F', lrv: 3,  role: 'black accent' }
+];
+function colorInPdfPalette(c) {
+  const sw = (c.sw || '').trim();
+  const nm = (c.name || '').trim().toLowerCase();
+  return PDF_PALETTE.some(p => (sw && p.sw === sw) || (nm && p.name.toLowerCase() === nm));
+}
+// One-time migration: make the Overall palette + paint selections match the PDF palette.
+// Non-PDF colors keep their line in the master list but are unassigned from every room.
+function syncPdfPalette(force) {
+  if (!state.overallVision) state.overallVision = {};
+  if (!state.inspiration) state.inspiration = { basement: [], ground: [], upper: [] };
+  if (!force && state.overallVision.pdfPaletteSynced === PDF_PALETTE_VERSION) return;
+  ensurePaletteMaster();
+  // 1) Replace the color-story ribbon with the PDF palette.
+  state.overallVision.colorStory = PDF_PALETTE.map(p => ({ name: p.name, hex: p.hex, usage: p.role }));
+  // 2) Ensure every PDF color exists in the master paint-selections list (match by SW# or name).
+  const master = state.overallVision.palette;
+  PDF_PALETTE.forEach(p => {
+    const existing = master.find(m => (m.sw && m.sw === p.sw) || (m.name || '').toLowerCase() === p.name.toLowerCase());
+    if (existing) { existing.name = p.name; existing.sw = p.sw; existing.hex = p.hex; existing.lrv = p.lrv; }
+    else master.push({ location: '', name: p.name, sw: p.sw, hex: p.hex, lrv: p.lrv, url: '' });
+  });
+  // 3) Unassign every non-PDF color from rooms + universal — but keep the master line (don't delete).
+  state.overallVision.universalPalette = (state.overallVision.universalPalette || []).filter(colorInPdfPalette);
+  for (const f of ['basement', 'ground', 'upper']) {
+    (state.inspiration[f] || []).forEach(room => {
+      if (Array.isArray(room.paintColors)) room.paintColors = room.paintColors.filter(colorInPdfPalette);
+    });
+  }
+  // 4) Order the master list: PDF palette first (in guide order, light→dark), leftover colors after.
+  const pdfIndex = c => { const i = PDF_PALETTE.findIndex(p => (c.sw && p.sw === c.sw) || (c.name || '').toLowerCase() === p.name.toLowerCase()); return i === -1 ? 999 : i; };
+  const pdfCols = master.filter(colorInPdfPalette).sort((a, b) => pdfIndex(a) - pdfIndex(b));
+  const others = master.filter(m => !colorInPdfPalette(m));
+  state.overallVision.palette = [...pdfCols, ...others];
+  state.overallVision.paletteSorted = true; // keep this order; user can drag to re-order
+  state.overallVision.pdfPaletteSynced = PDF_PALETTE_VERSION;
+  persist();
+}
+
 // The "full palette" — a single labeled ribbon. Each block shows the color with its name + category
 // layered on top, all editable in place. Lives at the top of Overall.
 function renderColorStory(host) {
@@ -12137,6 +12209,7 @@ function renderOverallMoodboard(board) {
     state.overallVision.description = DEFAULT_OVERALL_VISION;
   }
   if (!Array.isArray(state.overallVision.inspirationPhotos)) state.overallVision.inspirationPhotos = [];
+  syncPdfPalette(); // one-time: adopt the PDF palette + unassign non-PDF colors
   const desc = state.overallVision.description || '';
   const ovInsp = state.overallVision.inspirationPhotos;
   // Build a small curated photo strip: first inspiration photo from each room (max 12)
@@ -12168,7 +12241,11 @@ function renderOverallMoodboard(board) {
       <div id="ov-insp-host"></div>
     </div>
 
-    <div class="mb-section-head"><span class="mb-section-title">Palette</span></div>
+    <div class="mb-section-head">
+      <span class="mb-section-title">Palette</span>
+      <span class="mb-head-right"><a class="palette-guide-link" href="${PALETTE_GUIDE_URL}" target="_blank" rel="noopener">📖 Open palette guide (PDF)</a></span>
+    </div>
+    <div class="palette-guide-note">From <strong>White Duck &amp; Neutral Ground</strong> — a curated Sherwin-Williams palette by Amerie Creative. <a href="${PALETTE_GUIDE_URL}" target="_blank" rel="noopener">Open the full guide ↗</a></div>
     <div id="cs-host"></div>
 
     <div id="palette-board"></div>
