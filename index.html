@@ -12963,14 +12963,17 @@ function buildActualsTable(items) {
   wrap.querySelector('[data-act="add-actual"]').addEventListener('click', () => {
     if (!state.budget) state.budget = { items: [] };
     if (!Array.isArray(state.budget.items)) state.budget.items = [];
+    // New line items default to forecast (unpaid) and inherit any active filters so they
+    // stay visible in the filtered view.
     const newItem = {
       id: 'b_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,6),
-      category: (state.budget.allocations || [])[0]?.category || 'Other',
+      category: (filters.category) || (state.budget.allocations || [])[0]?.category || 'Other',
       label: '',
       estimated: 0,
       actual: 0,
-      paid: true,
-      room: null,
+      paid: filters.paid === 'paid',
+      room: (filters.room && filters.room !== 'unassigned') ? filters.room : null,
+      priority: (filters.priority && filters.priority !== 'none') ? filters.priority : '',
       note: ''
     };
     state.budget.items.push(newItem);
