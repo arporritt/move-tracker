@@ -7330,7 +7330,7 @@
       <svg id="layout-svg" class="layout-svg" preserveAspectRatio="xMidYMid meet"></svg>
       <div class="shape-panel" id="layout-shape-panel" hidden></div>
     </div>
-    <div class="layout-hint" id="layout-hint">Pick a shape tool and drag to draw. Switch to ↔ to move shapes. <strong>Click a shape</strong> to open its editor — type exact <strong>dimensions</strong>, rename, rotate, add notes or a photo. <strong>Shift-click</strong> several shapes, then <strong>Combine</strong> them into one piece (e.g., an L-shaped sofa). Resize by dragging the corner.</div>
+    <div class="layout-hint" id="layout-hint">Pick a shape tool and drag to draw. Switch to ↔ to move shapes. <strong>Click a shape</strong> to open its editor — type exact <strong>dimensions</strong>, rename, rotate, add notes or a photo. <strong>Shift-click</strong> several shapes, then <strong>Combine</strong> them into one piece (e.g., an L-shaped sofa). Copy/paste with <strong>⌘/Ctrl+C · V</strong> (or ⌘/Ctrl+D to duplicate). Resize by dragging the corner.</div>
   </div>
 </div>
 
@@ -9463,6 +9463,43 @@ function selectShape(id, additive) {
   layoutSelectedId = layoutSelectedIds.includes(id) ? id : (layoutSelectedIds[0] || null);
 }
 function clearLayoutSelection() { layoutSelectedIds = []; layoutSelectedId = null; }
+
+let layoutClipboard = []; // copied shape snapshots (survives across floors)
+
+function copyLayoutSelection() {
+  const ids = new Set(layoutSelectedIds);
+  if (!ids.size) return;
+  layoutClipboard = (state.layouts[layoutFloor].shapes || []).filter(s => ids.has(s.id)).map(s => ({ ...s }));
+}
+// Paste a list of shape snapshots onto the current floor, offset slightly, with fresh ids.
+// Group relationships are preserved but remapped so the pasted copy is its own independent group.
+function pasteShapes(list, offset) {
+  if (!list || !list.length) return;
+  const fl = state.layouts[layoutFloor];
+  const off = offset == null ? 1.5 : offset;
+  const gmap = {};
+  const newIds = [];
+  list.forEach(src => {
+    const copy = { ...src, id: uidShape() };
+    copy.w = Math.max(0.1, src.w || 1); copy.h = Math.max(0.1, src.h || 1);
+    copy.x = clamp((src.x || 0) + off, 0, Math.max(0, fl.width - copy.w));
+    copy.y = clamp((src.y || 0) + off, 0, Math.max(0, fl.height - copy.h));
+    if (src.groupId) { gmap[src.groupId] = gmap[src.groupId] || ('g_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5)); copy.groupId = gmap[src.groupId]; }
+    fl.shapes.push(copy);
+    newIds.push(copy.id);
+  });
+  layoutSelectedIds = newIds;
+  layoutSelectedId = newIds[newIds.length - 1];
+  layoutTool = 'select';
+  persist();
+  renderLayout();
+}
+function pasteLayoutClipboard() { pasteShapes(layoutClipboard); }
+function duplicateLayoutSelection() {
+  const ids = new Set(layoutSelectedIds);
+  const src = (state.layouts[layoutFloor].shapes || []).filter(s => ids.has(s.id)).map(s => ({ ...s }));
+  pasteShapes(src);
+}
 let layoutDrawing = null;
 let layoutDragging = null;
 let layoutResizing = null;
@@ -9609,6 +9646,7 @@ function renderShapePanel() {
         ${allGrouped
           ? '<button class="sp-btn" data-act="ungroup">Ungroup</button>'
           : '<button class="sp-btn sp-combine" data-act="group">⊕ Combine into one</button>'}
+        <button class="sp-btn" data-act="dup" title="Duplicate (⌘/Ctrl+D)">⧉ Copy</button>
         <button class="sp-btn sp-del" data-act="del">🗑 Delete</button>
       </div>
       <div class="sp-multi-hint">${allGrouped ? 'These move together as one piece. Shift-click to change the selection.' : 'Shift-click shapes to add/remove. Combine to treat them as one labeled piece (e.g., an L-shaped sofa).'}</div>
@@ -9625,6 +9663,7 @@ function renderShapePanel() {
     });
     const ungBtn = panel.querySelector('[data-act="ungroup"]');
     if (ungBtn) ungBtn.addEventListener('click', () => { shapes.forEach(x => { delete x.groupId; }); persist(); renderLayout(); });
+    panel.querySelector('[data-act="dup"]').addEventListener('click', duplicateLayoutSelection);
     panel.querySelector('[data-act="del"]').addEventListener('click', deleteSelectedShape);
     panel.querySelector('[data-act="close"]').addEventListener('click', () => { clearLayoutSelection(); renderLayout(); });
     return;
@@ -9659,6 +9698,7 @@ function renderShapePanel() {
     </div>
     <div class="sp-actions">
       <button class="sp-btn" data-act="image">${s.image ? '🖼 Change photo' : '🖼 Add photo'}</button>
+      <button class="sp-btn" data-act="dup" title="Duplicate (⌘/Ctrl+D)">⧉ Copy</button>
       <button class="sp-btn sp-del" data-act="del">🗑 Delete</button>
     </div>
   `;
@@ -9675,6 +9715,7 @@ function renderShapePanel() {
   panel.querySelector('.sp-notes').addEventListener('change', e => { s.notes = e.target.value; persist(); });
   panel.querySelector('[data-act="rot90"]').addEventListener('click', () => { s.rotation = ((Number(s.rotation) || 0) + 90) % 360; persist(); renderLayout(); });
   panel.querySelector('[data-act="image"]').addEventListener('click', () => openShapeImageModal(s));
+  panel.querySelector('[data-act="dup"]').addEventListener('click', duplicateLayoutSelection);
   panel.querySelector('[data-act="del"]').addEventListener('click', deleteSelectedShape);
   panel.querySelector('[data-act="close"]').addEventListener('click', () => { clearLayoutSelection(); renderLayout(); });
 }
@@ -9781,11 +9822,22 @@ function attachLayoutHandlers() {
   svg.addEventListener('pointercancel', onLayoutPointerUp);
   svg.addEventListener('dblclick', onLayoutDoubleClick);
   document.addEventListener('keydown', e => {
+    // Only act on layout keys when the Layout tab is actually on screen (so ⌘C/⌘V/Delete don't
+    // hijack normal use on other tabs).
+    const el = document.getElementById('tab-layout');
+    const layoutVisible = !!(el && el.classList.contains('active') && el.offsetParent !== null);
+    if (!layoutVisible) return;
+    const typing = ['INPUT', 'TEXTAREA'].includes(document.activeElement && document.activeElement.tagName);
+    const meta = e.metaKey || e.ctrlKey;
+    if (meta && !typing) {
+      const k = (e.key || '').toLowerCase();
+      if (k === 'c') { if (layoutSelectedIds.length && !(window.getSelection && String(window.getSelection()))) { copyLayoutSelection(); e.preventDefault(); } return; }
+      if (k === 'v') { if (layoutClipboard.length) { pasteLayoutClipboard(); e.preventDefault(); } return; }
+      if (k === 'd') { if (layoutSelectedIds.length) { duplicateLayoutSelection(); e.preventDefault(); } return; }
+      return;
+    }
     if (e.key === 'Delete' || e.key === 'Backspace') {
-      if (layoutSelectedIds.length && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
-        deleteSelectedShape();
-        e.preventDefault();
-      }
+      if (layoutSelectedIds.length && !typing) { deleteSelectedShape(); e.preventDefault(); }
     } else if (e.key === 'Escape') {
       if (layoutMeasureMode || layoutMeasuring) {
         layoutMeasureMode = false;
