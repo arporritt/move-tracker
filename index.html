@@ -1147,10 +1147,10 @@
   .mb-photo-grid .photo, .mb-current-strip .photo { position: relative; }
   .mb-photo-del {
     position: absolute; top: 6px; right: 6px; z-index: 2;
-    width: 24px; height: 24px; border-radius: 50%;
-    background: rgba(42,33,26,0.6); color: white; border: none; cursor: pointer;
-    font-size: 15px; line-height: 1; display: flex; align-items: center; justify-content: center;
-    opacity: 0; transition: opacity 0.15s;
+    width: 26px; height: 26px; border-radius: 50%;
+    background: rgba(42,33,26,0.7); color: white; border: none; cursor: pointer;
+    font-size: 16px; line-height: 1; display: flex; align-items: center; justify-content: center;
+    opacity: 0.85; transition: opacity 0.15s, background 0.15s;
   }
   .photo:hover .mb-photo-del { opacity: 1; }
   .mb-photo-del:hover { background: var(--behind); }
@@ -8816,7 +8816,7 @@ function renderMoodboard() {
   const insp = room.inspirationPhotos || [];
   const currents = room.currentPhotos || [];
   const roomBudgetItems = (state.budget?.items || []).filter(i => i.room === room.id);
-  const productImages = roomBudgetItems.filter(i => i.image).map(i => ({ url: i.image, caption: i.label || '', _budget: true }));
+  const productImages = roomBudgetItems.filter(i => i.image).map(i => ({ url: i.image, caption: i.label || '', id: i.id, _budget: true }));
   const totalBuy = roomBudgetItems.reduce((s, i) => s + (Number(i.estimated) || 0), 0);
   const meta = [];
   meta.push(`<span class="stat"><strong>${insp.length + productImages.length}</strong> images</span>`);
@@ -8953,8 +8953,14 @@ function renderMoodboard() {
     productImages.forEach((p, i) => {
       const fig = document.createElement('div');
       fig.className = 'photo';
-      fig.innerHTML = `<img src="${escapeHTML(p.url)}" alt="${escapeHTML(p.caption)}" loading="lazy">${p.caption ? `<span class="mb-photo-tag">${escapeHTML(p.caption)}</span>` : ''}`;
+      fig.innerHTML = `<img src="${escapeHTML(p.url)}" alt="${escapeHTML(p.caption)}" loading="lazy">${p.caption ? `<span class="mb-photo-tag">${escapeHTML(p.caption)}</span>` : ''}<button class="mb-photo-del" title="Remove this product image">×</button>`;
       fig.querySelector('img').addEventListener('click', () => openLightbox(productImages, i));
+      fig.querySelector('.mb-photo-del').addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (!confirm('Remove this product image? (The to-buy item stays; only its photo is cleared.)')) return;
+        const it = (state.budget.items || []).find(x => x.id === p.id);
+        if (it) { it.image = ''; persist(); renderMoodboard(); }
+      });
       grid.appendChild(fig);
     });
     productsHost.appendChild(grid);
