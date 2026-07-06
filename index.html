@@ -1253,6 +1253,11 @@
     font-family: 'Manrope', sans-serif; font-size: 12px; color: rgba(255,255,255,0.88); margin-top: 2px;
   }
   .cs-block-usage::placeholder { color: rgba(255,255,255,0.55); }
+  .cs-block-lrv {
+    font-family: 'Manrope', sans-serif; font-size: 10.5px; font-weight: 700;
+    letter-spacing: 0.06em; color: rgba(255,255,255,0.82); margin-top: 5px;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.35);
+  }
   .cs-block-name:focus, .cs-block-usage:focus { border-bottom: 1px solid rgba(255,255,255,0.55); }
   .cs-block-add {
     flex: 0 0 92px; min-height: 140px; background: rgba(166,160,148,0.08);
@@ -12123,7 +12128,7 @@ function syncPdfPalette(force) {
   if (!force && state.overallVision.pdfPaletteSynced === PDF_PALETTE_VERSION) return;
   ensurePaletteMaster();
   // 1) Replace the color-story ribbon with the PDF palette.
-  state.overallVision.colorStory = PDF_PALETTE.map(p => ({ name: p.name, hex: p.hex, usage: p.role }));
+  state.overallVision.colorStory = PDF_PALETTE.map(p => ({ name: p.name, hex: p.hex, usage: p.role, lrv: p.lrv }));
   // 2) Ensure every PDF color exists in the master paint-selections list (match by SW# or name).
   const master = state.overallVision.palette;
   PDF_PALETTE.forEach(p => {
@@ -12158,6 +12163,16 @@ function renderColorStory(host) {
   ribbon.className = 'cs-ribbon';
   story.forEach((c, i) => {
     const hex = safeHexForInput(c.hex);
+    // LRV: use the stored value, else look it up from the guide palette / master list by name.
+    let lrvVal = (c.lrv != null && String(c.lrv).trim() !== '') ? c.lrv : null;
+    if (lrvVal == null) {
+      const p = PDF_PALETTE.find(p => p.name.toLowerCase() === (c.name || '').toLowerCase());
+      if (p) lrvVal = p.lrv;
+      else {
+        const m = (state.overallVision.palette || []).find(m => (m.name || '').toLowerCase() === (c.name || '').toLowerCase());
+        if (m && m.lrv != null && String(m.lrv).trim() !== '') lrvVal = m.lrv;
+      }
+    }
     const block = document.createElement('div');
     block.className = 'cs-block';
     block.style.background = hex;
@@ -12170,6 +12185,7 @@ function renderColorStory(host) {
       <div class="cs-block-labels">
         <input type="text" class="cs-block-name" value="${escapeHTML(c.name || '')}" placeholder="Name">
         <input type="text" class="cs-block-usage" value="${escapeHTML(c.usage || '')}" placeholder="what it's for">
+        ${lrvVal != null && String(lrvVal).trim() !== '' ? `<div class="cs-block-lrv">LRV ${escapeHTML(String(lrvVal))}</div>` : ''}
       </div>
     `;
     const colorInput = block.querySelector('input[type="color"]');
