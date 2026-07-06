@@ -776,6 +776,20 @@
     opacity: 0.85;
     font-style: normal;
   }
+  /* Shapes with a photo fill: let the image show through, keep the outline crisp */
+  .layout-svg .shape.has-image { fill: transparent; }
+  .layout-svg .shape.has-image:hover { fill: rgba(166,160,148,0.25); }
+  .layout-svg .shape.has-image.selected { fill: rgba(123,114,105,0.25); }
+  /* Labels drawn over a photo get a dark halo so they stay legible */
+  .layout-svg .shape-label.on-image,
+  .layout-svg .shape-dim.on-image {
+    fill: #fff;
+    opacity: 1;
+    paint-order: stroke;
+    stroke: rgba(20,17,14,0.85);
+    stroke-width: 0.11px;
+    stroke-linejoin: round;
+  }
   .layout-svg .resize-handle {
     fill: white;
     stroke: var(--plum);
@@ -7153,12 +7167,13 @@
         <button class="layout-tool-btn" id="layout-zoom-reset" title="Fit to view" style="width:auto;padding:0 10px;font-size:11px;">Fit</button>
       </div>
       <button class="layout-del-btn" id="layout-cal" style="margin-left:0;">Calibrate plan…</button>
+      <button class="layout-del-btn" id="layout-img" disabled>🖼 Image…</button>
       <button class="layout-del-btn" id="layout-del" disabled>Delete</button>
     </div>
     <div class="layout-canvas-wrap">
       <svg id="layout-svg" class="layout-svg" preserveAspectRatio="xMidYMid meet"></svg>
     </div>
-    <div class="layout-hint" id="layout-hint">Pick a shape tool above and drag on the canvas to draw. Switch to ↔ to move shapes around. Click a shape to select; double-click to rename.</div>
+    <div class="layout-hint" id="layout-hint">Pick a shape tool above and drag on the canvas to draw. Switch to ↔ to move shapes around. Click a shape to select; double-click to rename. Select a shape and hit <strong>🖼 Image…</strong> to drop a furniture photo right into its footprint.</div>
   </div>
 </div>
 
@@ -9327,6 +9342,12 @@ function renderLayout() {
   svg.classList.toggle('tool-select', layoutTool === 'select');
   document.querySelectorAll('.layout-tool-btn').forEach(b => b.classList.toggle('active', b.dataset.tool === layoutTool));
   document.getElementById('layout-del').disabled = !layoutSelectedId;
+  const imgBtn = document.getElementById('layout-img');
+  if (imgBtn) {
+    imgBtn.disabled = !layoutSelectedId;
+    const selShape = layoutSelectedId ? currentShape(layoutSelectedId) : null;
+    imgBtn.textContent = (selShape && selShape.image) ? '🖼 Image ✓' : '🖼 Image…';
+  }
   // Build SVG content
   let svgContent = '';
   // Floor outline
@@ -9357,35 +9378,53 @@ function renderLayout() {
 function renderShapeSvg(s) {
   const selected = s.id === layoutSelectedId ? ' selected' : '';
   const wall = s.type === 'wall' ? ' is-wall' : '';
+  const hasImg = !!s.image;
+  const img = hasImg ? ' has-image' : '';
   const fmtNum = n => Math.round(n * 10) / 10;
   let shapeEl = '';
   if (s.type === 'rect' || s.type === 'wall') {
-    shapeEl = `<rect class="shape${selected}${wall}" data-shape-id="${s.id}" x="${s.x}" y="${s.y}" width="${s.w}" height="${s.h}"/>`;
+    shapeEl = `<rect class="shape${selected}${wall}${img}" data-shape-id="${s.id}" x="${s.x}" y="${s.y}" width="${s.w}" height="${s.h}"/>`;
   } else if (s.type === 'circle') {
     const r = Math.min(s.w, s.h) / 2;
-    shapeEl = `<circle class="shape${selected}" data-shape-id="${s.id}" cx="${s.x + s.w/2}" cy="${s.y + s.h/2}" r="${r}"/>`;
+    shapeEl = `<circle class="shape${selected}${img}" data-shape-id="${s.id}" cx="${s.x + s.w/2}" cy="${s.y + s.h/2}" r="${r}"/>`;
   } else if (s.type === 'oval') {
-    shapeEl = `<ellipse class="shape${selected}" data-shape-id="${s.id}" cx="${s.x + s.w/2}" cy="${s.y + s.h/2}" rx="${s.w/2}" ry="${s.h/2}"/>`;
+    shapeEl = `<ellipse class="shape${selected}${img}" data-shape-id="${s.id}" cx="${s.x + s.w/2}" cy="${s.y + s.h/2}" rx="${s.w/2}" ry="${s.h/2}"/>`;
   }
+  // Photo fill: rendered UNDER the outline (image first, shape on top with transparent fill)
+  let imageEl = '';
+  if (hasImg) {
+    const href = escapeHTML(s.image);
+    if (s.type === 'circle' || s.type === 'oval') {
+      const clipId = 'imgclip-' + s.id;
+      const ccx = s.x + s.w/2, ccy = s.y + s.h/2;
+      const clip = s.type === 'circle'
+        ? `<clipPath id="${clipId}"><circle cx="${ccx}" cy="${ccy}" r="${Math.min(s.w, s.h)/2}"/></clipPath>`
+        : `<clipPath id="${clipId}"><ellipse cx="${ccx}" cy="${ccy}" rx="${s.w/2}" ry="${s.h/2}"/></clipPath>`;
+      imageEl = `<defs>${clip}</defs><image href="${href}" x="${s.x}" y="${s.y}" width="${s.w}" height="${s.h}" preserveAspectRatio="xMidYMid slice" clip-path="url(#${clipId})" pointer-events="none"/>`;
+    } else {
+      imageEl = `<image href="${href}" x="${s.x}" y="${s.y}" width="${s.w}" height="${s.h}" preserveAspectRatio="xMidYMid slice" pointer-events="none"/>`;
+    }
+  }
+  const onImg = hasImg ? ' on-image' : '';
   const cx = s.x + s.w/2, cy = s.y + s.h/2;
   const labelText = s.label || '';
   const dimText = `${fmtNum(s.w)}' × ${fmtNum(s.h)}'`;
   const dimInches = `(${Math.round(s.w * 12)}" × ${Math.round(s.h * 12)}")`;
   let labelHtml = '';
   if (labelText) {
-    labelHtml += `<text class="shape-label" x="${cx}" y="${cy - 0.6}">${escapeHTML(labelText)}</text>`;
-    labelHtml += `<text class="shape-dim" x="${cx}" y="${cy + 0.35}">${dimText}</text>`;
-    labelHtml += `<text class="shape-dim shape-dim-in" x="${cx}" y="${cy + 1.1}">${dimInches}</text>`;
+    labelHtml += `<text class="shape-label${onImg}" x="${cx}" y="${cy - 0.6}">${escapeHTML(labelText)}</text>`;
+    labelHtml += `<text class="shape-dim${onImg}" x="${cx}" y="${cy + 0.35}">${dimText}</text>`;
+    labelHtml += `<text class="shape-dim shape-dim-in${onImg}" x="${cx}" y="${cy + 1.1}">${dimInches}</text>`;
   } else {
-    labelHtml += `<text class="shape-dim" x="${cx}" y="${cy - 0.05}">${dimText}</text>`;
-    labelHtml += `<text class="shape-dim shape-dim-in" x="${cx}" y="${cy + 0.65}">${dimInches}</text>`;
+    labelHtml += `<text class="shape-dim${onImg}" x="${cx}" y="${cy - 0.05}">${dimText}</text>`;
+    labelHtml += `<text class="shape-dim shape-dim-in${onImg}" x="${cx}" y="${cy + 0.65}">${dimInches}</text>`;
   }
   let handle = '';
   if (s.id === layoutSelectedId && s.type !== 'wall') {
     const hs = 0.6;
     handle = `<rect class="resize-handle" data-resize="${s.id}" x="${s.x + s.w - hs/2}" y="${s.y + s.h - hs/2}" width="${hs}" height="${hs}"/>`;
   }
-  return shapeEl + labelHtml + handle;
+  return imageEl + shapeEl + labelHtml + handle;
 }
 
 function svgPointFromEvent(e) {
@@ -9425,6 +9464,11 @@ function attachLayoutHandlers() {
     }
   });
   document.getElementById('layout-del').addEventListener('click', deleteSelectedShape);
+  document.getElementById('layout-img').addEventListener('click', () => {
+    if (!layoutSelectedId) return;
+    const s = currentShape(layoutSelectedId);
+    if (s) openShapeImageModal(s);
+  });
   const showPlan = document.getElementById('layout-show-plan');
   if (showPlan) {
     showPlan.checked = state.layouts[layoutFloor].showPlan !== false;
@@ -9643,7 +9687,10 @@ function onLayoutPointerUp(e) {
       state.layouts[layoutFloor].shapes.push(newShape);
       layoutSelectedId = newShape.id;
       persist();
-      setLayoutTool('select');
+      // Switch to the select tool but KEEP the new shape selected so its
+      // "🖼 Image…" button is immediately usable.
+      layoutTool = 'select';
+      renderLayout();
     } else {
       renderLayout();
     }
@@ -9696,6 +9743,68 @@ function deleteSelectedShape() {
   layoutSelectedId = null;
   persist();
   renderLayout();
+}
+
+// Attach a photo (furniture, rug, art…) to a shape so it renders inside its footprint on the plan.
+function openShapeImageModal(shape) {
+  const original = shape.image || '';
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay active';
+  const previewHtml = url => url
+    ? `<img src="${escapeHTML(url)}" alt="" style="width:100%;height:160px;object-fit:contain;border-radius:8px;background:var(--rule-soft);border:1px solid var(--rule);">`
+    : `<div style="width:100%;height:160px;display:flex;align-items:center;justify-content:center;border-radius:8px;background:var(--rule-soft);border:1px dashed var(--rule);color:var(--ink-faint);font-size:13px;">No image yet — upload a photo or paste a link</div>`;
+  overlay.innerHTML = `
+    <div class="modal" style="max-width:440px;">
+      <h3>Photo for "${escapeHTML(shape.label || 'this shape')}"</h3>
+      <div id="si-preview" style="margin:-4px 0 14px;">${previewHtml(original)}</div>
+      <div class="modal-row">
+        <label>Image link <span style="text-transform:none;letter-spacing:0;font-weight:400;color:var(--ink-faint);">— or upload below</span></label>
+        <input type="url" id="si-url" value="${escapeHTML(original)}" placeholder="https://…">
+      </div>
+      <div class="modal-buttons" style="flex-wrap:wrap;">
+        <button class="btn-cancel" data-act="upload" style="margin-right:auto;">⬆ Upload photo</button>
+        ${original ? '<button class="btn-delete" data-act="remove">Remove</button>' : ''}
+        <button class="btn-cancel" data-act="cancel">Cancel</button>
+        <button class="btn-save" data-act="save">Save</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  const urlInput = overlay.querySelector('#si-url');
+  const preview = overlay.querySelector('#si-preview');
+  function refresh(url) {
+    preview.innerHTML = previewHtml(url);
+  }
+  function close() { overlay.remove(); document.removeEventListener('keydown', onKey); }
+  function save() {
+    shape.image = urlInput.value.trim();
+    persist();
+    close();
+    renderLayout();
+  }
+  function cancel() {
+    // Undo any upload done during this session
+    shape.image = original;
+    persist();
+    close();
+    renderLayout();
+  }
+  function onKey(e) { if (e.key === 'Escape') cancel(); else if (e.key === 'Enter') save(); }
+  document.addEventListener('keydown', onKey);
+  overlay.addEventListener('click', e => { if (e.target === overlay) cancel(); });
+  urlInput.addEventListener('input', () => refresh(urlInput.value.trim()));
+  overlay.querySelector('[data-act="cancel"]').addEventListener('click', cancel);
+  overlay.querySelector('[data-act="save"]').addEventListener('click', save);
+  overlay.querySelector('[data-act="upload"]').addEventListener('click', () => {
+    pickAndUploadItemImage(shape, () => {
+      urlInput.value = shape.image || '';
+      refresh(shape.image || '');
+      renderLayout();
+    });
+  });
+  const rm = overlay.querySelector('[data-act="remove"]');
+  if (rm) rm.addEventListener('click', () => { urlInput.value = ''; refresh(''); rm.remove(); });
+  setTimeout(() => urlInput.focus(), 0);
 }
 
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
