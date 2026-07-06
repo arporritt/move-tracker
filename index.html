@@ -12890,6 +12890,7 @@ function buildActualsTable(items) {
     </div>
     <div class="actuals-body"></div>
     <div class="actuals-add-bar"><button data-act="add-actual">+ Add purchase</button></div>
+    <datalist id="actuals-room-options">${roomList.map(r => `<option value="${escapeHTML(r.name)}"></option>`).join('')}</datalist>
   `;
   const rows = sortActuals(filtered, sort);
   const body = wrap.querySelector('.actuals-body');
@@ -13009,8 +13010,7 @@ function renderActualsRow(item) {
     <button class="expand-btn ${isExpanded ? 'open' : ''}" data-act="expand" title="${isExpanded ? 'Collapse' : 'Details, link & product image'}">${isExpanded ? '▾' : (hasDetail ? '●' : '▸')}</button>
     <input type="text" class="alloc-input label" placeholder="What did you buy?" value="${escapeHTML(item.label || '')}">
     <select class="alloc-input cat">${catOpts}</select>
-    <input type="text" class="alloc-input room" list="${roomDatalistId}" placeholder="Room (optional)" value="${escapeHTML(currentRoomName)}">
-    <datalist id="${roomDatalistId}">${roomOpts}</datalist>
+    <input type="text" class="alloc-input room" list="actuals-room-options" placeholder="Type or pick a room" value="${escapeHTML(currentRoomName)}">
     <select class="alloc-input priority ${item.priority === 'High' ? 'pri-high' : item.priority === 'Medium' ? 'pri-med' : item.priority === 'Low' ? 'pri-low' : ''}">
       <option value=""${!item.priority ? ' selected' : ''}>—</option>
       <option value="High"${item.priority === 'High' ? ' selected' : ''}>High</option>
