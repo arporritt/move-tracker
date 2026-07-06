@@ -1095,6 +1095,19 @@
     column-gap: 10px;
     margin-bottom: 32px;
   }
+  .mb-photo-grid.ph-s { column-count: 5; }
+  .mb-photo-grid.ph-m { column-count: 3; }
+  .mb-photo-grid.ph-l { column-count: 2; }
+  .ph-size { display: inline-flex; border: 1px solid var(--rule); border-radius: 100px; overflow: hidden; }
+  .ph-size button {
+    background: transparent; border: none; cursor: pointer;
+    font-family: 'Manrope', sans-serif; font-size: 10.5px; font-weight: 700;
+    letter-spacing: 0.04em; color: var(--ink-faint); padding: 4px 9px; line-height: 1;
+  }
+  .ph-size button + button { border-left: 1px solid var(--rule); }
+  .ph-size button:hover { color: var(--ink); }
+  .ph-size button.on { background: var(--ink); color: var(--bg-card); }
+  .mb-head-right { display: inline-flex; align-items: center; gap: 10px; }
   .mb-photo-grid .photo {
     display: block;
     width: 100%;
@@ -1655,12 +1668,16 @@
   .pt-swatch-input::-webkit-color-swatch { border: none; border-radius: 7px; }
   .pt-swatch-input::-moz-color-swatch { border: none; border-radius: 7px; }
   @media (max-width: 900px) {
-    .mb-photo-grid { column-count: 2; }
+    .mb-photo-grid, .mb-photo-grid.ph-m { column-count: 2; }
+    .mb-photo-grid.ph-s { column-count: 3; }
+    .mb-photo-grid.ph-l { column-count: 1; }
   }
   @media (max-width: 600px) {
     #tab-moodboard .container { padding: 16px 14px !important; }
     .mb-board-title { font-size: clamp(28px, 9vw, 40px); }
-    .mb-photo-grid { column-count: 2; column-gap: 6px; }
+    .mb-photo-grid, .mb-photo-grid.ph-m { column-count: 2; column-gap: 6px; }
+    .mb-photo-grid.ph-s { column-count: 3; }
+    .mb-photo-grid.ph-l { column-count: 1; }
     .mb-photo-grid .photo { margin-bottom: 6px; }
   }
 
@@ -8719,6 +8736,24 @@ function selectMbRoom(id) {
   renderMoodboard();
 }
 
+// Per-section photo size (S/M/L) — controls how many columns the photo grid uses
+function photoSizeOf(key) {
+  try { return localStorage.getItem('mt-psize-' + key) || 'm'; } catch (e) { return 'm'; }
+}
+function photoSizeControlHTML(key) {
+  const cur = photoSizeOf(key);
+  return `<span class="ph-size" data-size-key="${key}" title="Photo size">` +
+    ['s','m','l'].map(s => `<button type="button" data-size="${s}" class="${cur === s ? 'on' : ''}">${s.toUpperCase()}</button>`).join('') +
+    `</span>`;
+}
+function wirePhotoSize(scope) {
+  scope.querySelectorAll('.ph-size button').forEach(btn => btn.addEventListener('click', () => {
+    const key = btn.closest('.ph-size').dataset.sizeKey;
+    try { localStorage.setItem('mt-psize-' + key, btn.dataset.size); } catch (e) {}
+    renderMoodboard();
+  }));
+}
+
 function renderMoodboard() {
   ensureInspirationState();
   document.querySelectorAll('.floor-segment-btn[data-mb-floor]').forEach(b => b.classList.toggle('active', b.dataset.mbFloor === mbFloor));
@@ -8810,13 +8845,13 @@ function renderMoodboard() {
     <div class="mb-section">
       <div class="mb-section-head">
         <span class="mb-section-title">Inspiration</span>
-        <button class="mb-section-add" id="mb-upload-insp">+ Upload photos</button>
+        <span class="mb-head-right">${photoSizeControlHTML('room-insp')}<button class="mb-section-add" id="mb-upload-insp">+ Upload photos</button></span>
       </div>
       <div id="mb-insp-host"></div>
     </div>
 
     <div class="mb-section">
-      <div class="mb-section-head"><span class="mb-section-title">Product photos</span></div>
+      <div class="mb-section-head"><span class="mb-section-title">Product photos</span><span class="mb-head-right">${photoSizeControlHTML('room-prod')}</span></div>
       <div id="mb-products-host"></div>
     </div>
 
@@ -8890,7 +8925,7 @@ function renderMoodboard() {
     inspHost.innerHTML = `<div class="mb-empty">No inspiration photos yet. Click <strong>+ Upload photos</strong> above.</div>`;
   } else {
     const grid = document.createElement('div');
-    grid.className = 'mb-photo-grid';
+    grid.className = 'mb-photo-grid ph-' + photoSizeOf('room-insp');
     const inspImgs = insp.map(p => ({ url: p.url, caption: p.caption || '' }));
     insp.forEach((p, i) => {
       const fig = document.createElement('div');
@@ -8914,7 +8949,7 @@ function renderMoodboard() {
     productsHost.innerHTML = `<div class="mb-empty">No product photos yet. Add a product image to a to-buy item below and it shows up here automatically.</div>`;
   } else {
     const grid = document.createElement('div');
-    grid.className = 'mb-photo-grid';
+    grid.className = 'mb-photo-grid ph-' + photoSizeOf('room-prod');
     productImages.forEach((p, i) => {
       const fig = document.createElement('div');
       fig.className = 'photo';
@@ -8951,6 +8986,7 @@ function renderMoodboard() {
   }
   const addCurBtn = document.getElementById('mb-add-current');
   if (addCurBtn) addCurBtn.addEventListener('click', () => switchDesignSubtab('greenview'));
+  wirePhotoSize(board);
 }
 
 function renderMbBuyTable(room, items) {
@@ -11880,7 +11916,7 @@ function renderOverallMoodboard(board) {
     <div class="mb-section">
       <div class="mb-section-head">
         <span class="mb-section-title">Inspiration</span>
-        <button class="mb-section-add" id="ov-upload">+ Upload photos</button>
+        <span class="mb-head-right">${photoSizeControlHTML('ov-insp')}<button class="mb-section-add" id="ov-upload">+ Upload photos</button></span>
       </div>
       <div id="ov-insp-host"></div>
     </div>
@@ -11911,7 +11947,7 @@ function renderOverallMoodboard(board) {
     ovHost.innerHTML = `<div class="mb-empty">No overall inspiration yet. Click <strong>+ Upload photos</strong> to add whole-home vision images here.</div>`;
   } else {
     const ovGrid = document.createElement('div');
-    ovGrid.className = 'mb-photo-grid';
+    ovGrid.className = 'mb-photo-grid ph-' + photoSizeOf('ov-insp');
     const ovImgs = ovInsp.map(p => ({ url: p.url, caption: p.caption || '' }));
     ovInsp.forEach((p, i) => {
       const fig = document.createElement('div');
@@ -11932,6 +11968,7 @@ function renderOverallMoodboard(board) {
   renderColorStory(board.querySelector('#cs-host'));
   // Paint selections (the master palette — moved here from the old Palette tab)
   renderPalette();
+  wirePhotoSize(board);
 }
 
 function renderInspTile(room, img) {
