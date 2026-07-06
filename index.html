@@ -2981,6 +2981,25 @@
   .actuals-table .budget-line { background: rgba(111,114,83,0.04); }
   .actuals-table .bt-group-header { background: rgba(111,114,83,0.10); }
 
+  /* Cross-filter chip bar (PowerBI-style click-to-filter) */
+  .cf-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 16px; }
+  .cf-bar-label { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-faint); }
+  .cf-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(122,110,94,0.12); border: 1px solid var(--clay-soft); color: var(--ink);
+    border-radius: 100px; padding: 4px 12px; font-size: 12px; font-weight: 600;
+    cursor: pointer; font-family: inherit; transition: border-color 0.12s, background 0.12s;
+  }
+  .cf-chip:hover { border-color: var(--clay); background: rgba(122,110,94,0.18); }
+  .cf-chip .cf-chip-x { color: var(--ink-faint); font-weight: 800; font-size: 14px; line-height: 1; }
+  .cf-chip.cf-chip-clear { background: transparent; border-color: var(--rule); color: var(--ink-soft); }
+  .cf-chip.cf-chip-clear:hover { border-color: var(--behind); color: var(--behind); background: transparent; }
+  /* Clickable bars */
+  .bar-row[data-cf-dim] { cursor: pointer; margin-left: -6px; margin-right: -6px; padding: 3px 6px; border-radius: 8px; transition: background 0.12s, opacity 0.12s; }
+  .bar-row[data-cf-dim]:hover { background: rgba(166,160,148,0.12); }
+  .bar-row.cf-selected { background: rgba(166,160,148,0.20); box-shadow: inset 0 0 0 1px var(--clay-soft); }
+  .bar-row.cf-dimmed { opacity: 0.38; }
+
   /* Budget visualization charts */
   .budget-charts {
     display: grid;
@@ -7234,6 +7253,7 @@
       <button class="floor-tab-btn" data-budget-subtab="sale" onclick="switchBudgetSubtab('sale')">Chicago Sale</button>
     </div>
     <div class="budget-summary" id="budget-summary"></div>
+    <div class="cf-bar" id="budget-crossfilter" style="display:none;"></div>
     <div class="budget-charts" id="budget-charts"></div>
     <div id="budget-categories"></div>
   </div>
@@ -12526,6 +12546,7 @@ try {
 
 function switchBudgetSubtab(name) {
   budgetSubtab = name;
+  budgetCrossFilter = { category: null, priority: null, room: null }; // don't carry a stale filter across subtabs
   try { localStorage.setItem('mt-budget-subtab', name); } catch (e) {}
   document.querySelectorAll('.floor-tab-btn[data-budget-subtab]').forEach(b => b.classList.toggle('active', b.dataset.budgetSubtab === name));
   renderBudget();
@@ -12611,63 +12632,75 @@ function effectiveActual(i) {
   return Number(i.estimated) || 0;
 }
 
+// Cross-filter state: click a bar in any chart to filter the other charts + the table (PowerBI style).
+let budgetCrossFilter = { category: null, priority: null, room: null };
+function cfMatchCat(i, val) { return (i.category || 'Other') === val; }
+function cfMatchPri(i, val) { return val === '__none__' ? !i.priority : i.priority === val; }
+function cfMatchRoom(i, val) { return val === '__unassigned__' ? !i.room : (i.room || '') === val; }
+// Does an item pass ALL active cross-filters (used for the table + KPI subset)?
+function itemMatchesCross(i) {
+  const cf = budgetCrossFilter;
+  if (cf.category && !cfMatchCat(i, cf.category)) return false;
+  if (cf.priority && !cfMatchPri(i, cf.priority)) return false;
+  if (cf.room && !cfMatchRoom(i, cf.room)) return false;
+  return true;
+}
+// Does an item pass the cross-filters EXCEPT the given dimension (so a chart isn't filtered by itself)?
+function crossExcept(i, dim) {
+  const cf = budgetCrossFilter;
+  if (dim !== 'category' && cf.category && !cfMatchCat(i, cf.category)) return false;
+  if (dim !== 'priority' && cf.priority && !cfMatchPri(i, cf.priority)) return false;
+  if (dim !== 'room' && cf.room && !cfMatchRoom(i, cf.room)) return false;
+  return true;
+}
+function anyCrossFilter() { return !!(budgetCrossFilter.category || budgetCrossFilter.priority || budgetCrossFilter.room); }
+
 function renderBudgetCharts(items) {
   const container = document.getElementById('budget-charts');
   if (!container) return;
+  const cf = budgetCrossFilter;
+  // Each chart is filtered by the OTHER dimensions' selections, not its own.
+  const catItems = items.filter(i => crossExcept(i, 'category'));
+  const priItems = items.filter(i => crossExcept(i, 'priority'));
+  const roomItems = items.filter(i => crossExcept(i, 'room'));
 
-  // Aggregate by category: actuals = paid items, forecast = unpaid items
-  const actualsByCat = {};
-  const forecastByCat = {};
-  items.forEach(i => {
+  // Aggregate by category (key = category string). Budget context is shown only when no other
+  // cross-filter is active, since allocations aren't broken out by room/priority.
+  const catBudgetActive = !cf.priority && !cf.room;
+  const byCat = {};
+  const ensureCat = k => (byCat[k] || (byCat[k] = { name: k, budget: 0, actuals: 0, forecast: 0 }));
+  catItems.forEach(i => {
     const k = i.category || 'Other';
     const amt = effectiveActual(i);
-    if (i.paid) actualsByCat[k] = (actualsByCat[k] || 0) + amt;
-    else forecastByCat[k] = (forecastByCat[k] || 0) + amt;
+    if (i.paid) ensureCat(k).actuals += amt; else ensureCat(k).forecast += amt;
   });
-
-  // For Home subtab, budget comes from allocation table; otherwise sum item.estimated
-  const budgetByCat = {};
-  if (budgetSubtab === 'home') {
-    (state.budget.allocations || []).forEach(a => {
-      budgetByCat[a.category] = (budgetByCat[a.category] || 0) + (Number(a.budget) || 0);
-    });
-  } else {
-    items.forEach(i => {
-      const k = i.category || 'Other';
-      budgetByCat[k] = (budgetByCat[k] || 0) + (Number(i.estimated) || 0);
-    });
+  if (catBudgetActive) {
+    if (budgetSubtab === 'home') {
+      (state.budget.allocations || []).forEach(a => { ensureCat(a.category).budget += (Number(a.budget) || 0); });
+    } else {
+      catItems.forEach(i => { ensureCat(i.category || 'Other').budget += (Number(i.estimated) || 0); });
+    }
   }
 
-  const catKeys = new Set([...Object.keys(budgetByCat), ...Object.keys(actualsByCat), ...Object.keys(forecastByCat)]);
-  const byCat = {};
-  catKeys.forEach(k => {
-    byCat[k] = {
-      budget: budgetByCat[k] || 0,
-      actuals: actualsByCat[k] || 0,
-      forecast: forecastByCat[k] || 0
-    };
-  });
-
-  // Aggregate by room: stacked actuals + forecast
+  // Aggregate by room (key = room id / 'overall' / '__unassigned__')
   const roomMap = getBudgetRoomMap();
   const byRoom = {};
-  items.forEach(i => {
-    const k = roomLabelFor(i.room, roomMap);
-    if (!byRoom[k]) byRoom[k] = { actuals: 0, forecast: 0 };
+  roomItems.forEach(i => {
+    const k = i.room || '__unassigned__';
+    if (!byRoom[k]) byRoom[k] = { name: roomLabelFor(i.room, roomMap), actuals: 0, forecast: 0 };
     const amt = effectiveActual(i);
-    if (i.paid) byRoom[k].actuals += amt;
-    else byRoom[k].forecast += amt;
+    if (i.paid) byRoom[k].actuals += amt; else byRoom[k].forecast += amt;
   });
 
-  // Aggregate by priority (keep a count so tagged-but-unpriced items still show)
+  // Aggregate by priority (key = 'High'/'Medium'/'Low'/'__none__'; keep a count so tagged-but-unpriced show)
+  const PRI_NAME = { High: 'High priority', Medium: 'Medium priority', Low: 'Low priority', __none__: 'No priority' };
   const byPriority = {};
-  items.forEach(i => {
-    const k = i.priority ? i.priority + ' priority' : 'No priority';
-    if (!byPriority[k]) byPriority[k] = { actuals: 0, forecast: 0, count: 0 };
+  priItems.forEach(i => {
+    const k = i.priority || '__none__';
+    if (!byPriority[k]) byPriority[k] = { name: PRI_NAME[k] || k, actuals: 0, forecast: 0, count: 0 };
     byPriority[k].count++;
     const amt = effectiveActual(i);
-    if (i.paid) byPriority[k].actuals += amt;
-    else byPriority[k].forecast += amt;
+    if (i.paid) byPriority[k].actuals += amt; else byPriority[k].forecast += amt;
   });
 
   const legend = `<span class="bar-legend"><span class="legend-dot legend-actuals"></span>Spent<span class="legend-dot legend-forecast"></span>Forecast</span>`;
@@ -12685,9 +12718,19 @@ function renderBudgetCharts(items) {
       <div id="bars-room"></div>
     </div>
   `;
-  renderBudgetBars(document.getElementById('bars-cat'), byCat, { withBudget: true });
-  renderRoomBars(document.getElementById('bars-priority'), byPriority, { order: ['High priority','Medium priority','Low priority','No priority'], showZero: true });
-  renderRoomBars(document.getElementById('bars-room'), byRoom);
+  renderBudgetBars(document.getElementById('bars-cat'), byCat, { withBudget: catBudgetActive, dim: 'category', selectedKey: cf.category });
+  renderRoomBars(document.getElementById('bars-priority'), byPriority, { order: ['High','Medium','Low','__none__'], showZero: true, dim: 'priority', selectedKey: cf.priority });
+  renderRoomBars(document.getElementById('bars-room'), byRoom, { dim: 'room', selectedKey: cf.room });
+
+  // Single delegated click handler for cross-filtering (onclick assignment avoids stacking listeners).
+  container.onclick = (e) => {
+    const row = e.target.closest('.bar-row[data-cf-dim]');
+    if (!row) return;
+    const dim = row.getAttribute('data-cf-dim');
+    const key = row.getAttribute('data-cf-key');
+    budgetCrossFilter[dim] = (budgetCrossFilter[dim] === key) ? null : key;
+    renderBudget();
+  };
 }
 
 function renderBudgetBars(container, dataMap, opts = {}) {
@@ -12699,18 +12742,21 @@ function renderBudgetBars(container, dataMap, opts = {}) {
     container.innerHTML = '<div class="bar-empty-state">No spending yet</div>';
     return;
   }
-  entries.forEach(([name, v]) => {
+  const sel = opts.selectedKey;
+  const showBudgetMeta = opts.withBudget !== false; // budget context is hidden while cross-filtered
+  entries.forEach(([key, v]) => {
     const denom = Math.max(v.budget, v.total) || 1;
     const actPct = (v.actuals / denom) * 100;
     const fcstPct = (v.forecast / denom) * 100;
     const over = v.budget > 0 && v.total > v.budget;
     const overAmt = v.total - v.budget;
-    const noBudget = v.budget === 0 && v.total > 0;
+    const noBudget = showBudgetMeta && v.budget === 0 && v.total > 0;
     const row = document.createElement('div');
-    row.className = 'bar-row';
+    row.className = 'bar-row' + (sel != null && key === sel ? ' cf-selected' : (sel != null ? ' cf-dimmed' : ''));
+    if (opts.dim) { row.setAttribute('data-cf-dim', opts.dim); row.setAttribute('data-cf-key', key); }
     row.innerHTML = `
       <div class="bar-row-header">
-        <span class="bar-row-label">${escapeHTML(name)}</span>
+        <span class="bar-row-label">${escapeHTML(v.name || key)}</span>
         <span class="bar-row-amount">
           <span class="actual-num">${fmtMoney(v.total)}</span>${v.budget > 0 ? ` <span class="muted">of ${fmtMoney(v.budget)}</span>` : ''}
           ${over ? `<span class="over">+${fmtMoney(overAmt)}</span>` : ''}
@@ -12744,15 +12790,17 @@ function renderRoomBars(container, dataMap, opts = {}) {
   }
   const max = Math.max(...entries.map(([_, v]) => v.total)) || 1;
   const grand = entries.reduce((s, [_, v]) => s + v.total, 0);
-  entries.forEach(([name, v]) => {
+  const sel = opts.selectedKey;
+  entries.forEach(([key, v]) => {
     const actPct = (v.actuals / max) * 100;
     const fcstPct = (v.forecast / max) * 100;
     const share = grand > 0 ? Math.round((v.total / grand) * 100) : 0;
     const row = document.createElement('div');
-    row.className = 'bar-row';
+    row.className = 'bar-row' + (sel != null && key === sel ? ' cf-selected' : (sel != null ? ' cf-dimmed' : ''));
+    if (opts.dim) { row.setAttribute('data-cf-dim', opts.dim); row.setAttribute('data-cf-key', key); }
     row.innerHTML = `
       <div class="bar-row-header">
-        <span class="bar-row-label">${escapeHTML(name)}</span>
+        <span class="bar-row-label">${escapeHTML(v.name || key)}</span>
         <span class="bar-row-amount">
           <span class="actual-num">${fmtMoney(v.total)}</span>
           <span class="muted">${v.count != null ? v.count + (v.count === 1 ? ' item' : ' items') : share + '%'}</span>
@@ -12778,6 +12826,7 @@ function renderBudget() {
     return isHomeCategory(i.category);
   });
   renderBudgetCharts(items);
+  renderCrossFilterBar();
 
   // Summary — Home uses allocation table as budget; Purchase/Sale uses item estimated totals
   let sumHTML;
@@ -12849,17 +12898,43 @@ function renderBudget() {
   document.getElementById('budget-summary').innerHTML = sumHTML;
 
   const baseCats = budgetSubtab === 'purchase' ? PURCHASE_CATEGORIES : budgetSubtab === 'sale' ? SALE_CATEGORIES : HOME_CATEGORIES;
+  // The purchases/budget table reflects any active chart cross-filter (the allocation editor does not).
+  const crossItems = anyCrossFilter() ? items.filter(itemMatchesCross) : items;
   const c = document.getElementById('budget-categories');
   c.innerHTML = '';
   if (budgetSubtab === 'home') {
     // Home: allocation table + actuals table (separate)
     ensureBudgetAllocations();
     c.appendChild(buildAllocationTable(items));
-    c.appendChild(buildActualsTable(items));
+    c.appendChild(buildActualsTable(crossItems));
   } else {
     // Purchase / Sale: unified budget table
-    c.appendChild(buildUnifiedBudgetTable(items, baseCats, false));
+    c.appendChild(buildUnifiedBudgetTable(crossItems, baseCats, false));
   }
+}
+
+// Chip bar above the charts showing the active cross-filters, each removable, plus Clear all.
+function renderCrossFilterBar() {
+  const host = document.getElementById('budget-crossfilter');
+  if (!host) return;
+  const cf = budgetCrossFilter;
+  const chips = [];
+  if (cf.category) chips.push({ dim: 'category', label: 'Category: ' + cf.category });
+  if (cf.priority) chips.push({ dim: 'priority', label: 'Priority: ' + (cf.priority === '__none__' ? 'No priority' : cf.priority) });
+  if (cf.room) chips.push({ dim: 'room', label: 'Room: ' + roomLabelFor(cf.room === '__unassigned__' ? null : cf.room) });
+  if (!chips.length) { host.innerHTML = ''; host.style.display = 'none'; return; }
+  host.style.display = 'flex';
+  host.innerHTML = `<span class="cf-bar-label">Filtered by</span>` +
+    chips.map(c => `<button class="cf-chip" data-cf-clear="${c.dim}">${escapeHTML(c.label)} <span class="cf-chip-x">×</span></button>`).join('') +
+    (chips.length > 1 ? `<button class="cf-chip cf-chip-clear" data-cf-clear="all">Clear all</button>` : '');
+  host.onclick = (e) => {
+    const btn = e.target.closest('[data-cf-clear]');
+    if (!btn) return;
+    const d = btn.getAttribute('data-cf-clear');
+    if (d === 'all') budgetCrossFilter = { category: null, priority: null, room: null };
+    else budgetCrossFilter[d] = null;
+    renderBudget();
+  };
 }
 
 function buildAllocationTable(items) {
