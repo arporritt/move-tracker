@@ -770,6 +770,12 @@
     dominant-baseline: middle;
     pointer-events: none;
   }
+  .layout-svg .shape-dim-in {
+    font-size: 0.55px;
+    fill: var(--ink-faint);
+    opacity: 0.85;
+    font-style: normal;
+  }
   .layout-svg .resize-handle {
     fill: white;
     stroke: var(--plum);
@@ -9364,12 +9370,15 @@ function renderShapeSvg(s) {
   const cx = s.x + s.w/2, cy = s.y + s.h/2;
   const labelText = s.label || '';
   const dimText = `${fmtNum(s.w)}' × ${fmtNum(s.h)}'`;
+  const dimInches = `(${Math.round(s.w * 12)}" × ${Math.round(s.h * 12)}")`;
   let labelHtml = '';
   if (labelText) {
-    labelHtml += `<text class="shape-label" x="${cx}" y="${cy - 0.3}">${escapeHTML(labelText)}</text>`;
-    labelHtml += `<text class="shape-dim" x="${cx}" y="${cy + 0.7}">${dimText}</text>`;
+    labelHtml += `<text class="shape-label" x="${cx}" y="${cy - 0.6}">${escapeHTML(labelText)}</text>`;
+    labelHtml += `<text class="shape-dim" x="${cx}" y="${cy + 0.35}">${dimText}</text>`;
+    labelHtml += `<text class="shape-dim shape-dim-in" x="${cx}" y="${cy + 1.1}">${dimInches}</text>`;
   } else {
-    labelHtml += `<text class="shape-dim" x="${cx}" y="${cy}">${dimText}</text>`;
+    labelHtml += `<text class="shape-dim" x="${cx}" y="${cy - 0.05}">${dimText}</text>`;
+    labelHtml += `<text class="shape-dim shape-dim-in" x="${cx}" y="${cy + 0.65}">${dimInches}</text>`;
   }
   let handle = '';
   if (s.id === layoutSelectedId && s.type !== 'wall') {
