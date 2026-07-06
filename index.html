@@ -698,23 +698,56 @@
   }
   .layout-del-btn:not(:disabled):hover { border-color: var(--behind); color: var(--behind); }
   .layout-del-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-  .layout-name-input {
-    margin-left: auto; width: 180px; padding: 7px 12px; background: white;
-    border: 1px solid var(--rule); border-radius: 100px;
-    font-family: 'Manrope', sans-serif; font-size: 12px; font-weight: 600; color: var(--ink); outline: none;
+  /* Floating shape editor panel (appears over the canvas when a shape is selected) */
+  .shape-panel {
+    position: absolute; top: 12px; right: 12px; width: 244px; z-index: 6;
+    background: var(--bg-card); border: 1px solid var(--rule); border-radius: 12px;
+    box-shadow: 0 14px 34px -12px rgba(42,33,26,0.28); padding: 12px 13px;
+    font-family: 'Manrope', sans-serif; display: flex; flex-direction: column; gap: 9px;
   }
-  .layout-name-input:focus { border-color: var(--clay-soft); }
-  .layout-name-input:disabled { opacity: 0.4; }
-  .layout-name-input::placeholder { color: var(--ink-faint); font-weight: 500; }
-  .layout-angle-wrap { display: inline-flex; align-items: center; gap: 3px; font-size: 12px; font-weight: 700; color: var(--ink-soft); }
-  .layout-angle-wrap input {
-    width: 46px; padding: 7px 4px; text-align: center; background: white;
-    border: 1px solid var(--rule); border-radius: 8px;
-    font-family: 'Manrope', sans-serif; font-size: 12px; color: var(--ink); outline: none;
+  .shape-panel[hidden] { display: none; }
+  .shape-panel .sp-head { display: flex; align-items: center; gap: 8px; }
+  .shape-panel .sp-name {
+    flex: 1 1 auto; min-width: 0; padding: 6px 10px; background: white;
+    border: 1px solid var(--rule); border-radius: 8px; outline: none;
+    font-family: 'Fraunces', serif; font-size: 15px; font-weight: 500; color: var(--ink);
   }
-  .layout-angle-wrap input:focus { border-color: var(--clay-soft); }
-  .layout-angle-wrap input:disabled { opacity: 0.4; }
-  #layout-rot90 { margin-left: 0; }
+  .shape-panel .sp-name:focus { border-color: var(--clay-soft); }
+  .shape-panel .sp-name::placeholder { font-family: 'Manrope', sans-serif; font-size: 13px; color: var(--ink-faint); }
+  .shape-panel .sp-close {
+    flex: 0 0 auto; width: 26px; height: 26px; border-radius: 7px; border: 1px solid var(--rule);
+    background: white; color: var(--ink-faint); font-size: 17px; line-height: 1; cursor: pointer;
+  }
+  .shape-panel .sp-close:hover { border-color: var(--behind); color: var(--behind); }
+  .shape-panel .sp-type { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-faint); font-weight: 700; margin-top: -3px; }
+  .shape-panel .sp-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .shape-panel .sp-row > label { font-size: 12px; font-weight: 700; color: var(--ink-soft); }
+  .shape-panel .sp-ftin { display: inline-flex; align-items: center; gap: 3px; }
+  .shape-panel .sp-ftin i { font-style: normal; font-size: 11px; color: var(--ink-faint); font-weight: 600; }
+  .shape-panel .sp-ftin input {
+    width: 42px; padding: 6px 4px; text-align: center; background: white; color: var(--ink);
+    border: 1px solid var(--rule); border-radius: 7px; outline: none;
+    font-family: 'Manrope', sans-serif; font-size: 12.5px; font-variant-numeric: tabular-nums;
+  }
+  .shape-panel .sp-ftin input:focus { border-color: var(--clay-soft); }
+  .shape-panel .sp-ftin input.sp-angle { width: 48px; }
+  .shape-panel .sp-notes-wrap { display: flex; flex-direction: column; gap: 4px; }
+  .shape-panel .sp-notes-wrap label { font-size: 12px; font-weight: 700; color: var(--ink-soft); }
+  .shape-panel .sp-notes {
+    width: 100%; box-sizing: border-box; padding: 7px 9px; background: white; color: var(--ink);
+    border: 1px solid var(--rule); border-radius: 8px; outline: none; resize: vertical;
+    font-family: 'Manrope', sans-serif; font-size: 12.5px; line-height: 1.4;
+  }
+  .shape-panel .sp-notes:focus { border-color: var(--clay-soft); }
+  .shape-panel .sp-actions { display: flex; gap: 6px; }
+  .shape-panel .sp-btn {
+    padding: 6px 10px; background: white; border: 1px solid var(--rule); border-radius: 8px;
+    font-family: 'Manrope', sans-serif; font-size: 12px; font-weight: 600; color: var(--ink-soft); cursor: pointer;
+  }
+  .shape-panel .sp-btn:hover { border-color: var(--clay-soft); color: var(--clay); }
+  .shape-panel .sp-actions .sp-btn { flex: 1 1 auto; }
+  .shape-panel .sp-del:hover { border-color: var(--behind); color: var(--behind); }
+  .shape-panel .sp-rot90 { padding: 6px 8px; }
 
   .layout-canvas-wrap {
     background: var(--bg-card);
@@ -7287,16 +7320,12 @@
         <button class="layout-tool-btn" id="layout-zoom-reset" title="Fit to view" style="width:auto;padding:0 10px;font-size:11px;">Fit</button>
       </div>
       <button class="layout-del-btn" id="layout-cal" style="margin-left:0;" title="Drag a line across a known length to match the plan to the grid">📏 Set scale</button>
-      <input type="text" id="layout-name" class="layout-name-input" placeholder="Name the selected shape…" disabled>
-      <label class="layout-angle-wrap" title="Rotation angle (degrees)">∠<input type="number" id="layout-angle" min="0" max="359" step="5" disabled>°</label>
-      <button class="layout-del-btn" id="layout-rot90" disabled title="Rotate 90°">⟲ 90°</button>
-      <button class="layout-del-btn" id="layout-img" disabled>🖼 Image…</button>
-      <button class="layout-del-btn" id="layout-del" disabled>Delete</button>
     </div>
     <div class="layout-canvas-wrap">
       <svg id="layout-svg" class="layout-svg" preserveAspectRatio="xMidYMid meet"></svg>
+      <div class="shape-panel" id="layout-shape-panel" hidden></div>
     </div>
-    <div class="layout-hint" id="layout-hint">Pick a shape tool above and drag on the canvas to draw. Switch to ↔ to move shapes. Click a shape to select — then <strong>type its name</strong> in the toolbar, set the <strong>∠ angle</strong> (or drag the round handle above it to rotate), drop a <strong>🖼 Image</strong>, or resize from the corner. Double-click a shape to jump to its name.</div>
+    <div class="layout-hint" id="layout-hint">Pick a shape tool and drag to draw. Switch to ↔ to move shapes. <strong>Click a shape</strong> to open its editor — type exact <strong>dimensions</strong>, rename it, set the angle (or drag the round handle to rotate), add notes or a photo. Resize by dragging the corner.</div>
   </div>
 </div>
 
@@ -9473,19 +9502,6 @@ function renderLayout() {
   svg.setAttribute('viewBox', `${layoutViewBox.x} ${layoutViewBox.y} ${layoutViewBox.w} ${layoutViewBox.h}`);
   svg.classList.toggle('tool-select', layoutTool === 'select');
   document.querySelectorAll('.layout-tool-btn').forEach(b => b.classList.toggle('active', b.dataset.tool === layoutTool));
-  document.getElementById('layout-del').disabled = !layoutSelectedId;
-  const selShape = layoutSelectedId ? currentShape(layoutSelectedId) : null;
-  const imgBtn = document.getElementById('layout-img');
-  if (imgBtn) {
-    imgBtn.disabled = !layoutSelectedId;
-    imgBtn.textContent = (selShape && selShape.image) ? '🖼 Image ✓' : '🖼 Image…';
-  }
-  const nameInput = document.getElementById('layout-name');
-  if (nameInput && document.activeElement !== nameInput) { nameInput.disabled = !selShape; nameInput.value = selShape ? (selShape.label || '') : ''; }
-  const angleInput = document.getElementById('layout-angle');
-  if (angleInput && document.activeElement !== angleInput) { angleInput.disabled = !selShape; angleInput.value = selShape ? String(Math.round(Number(selShape.rotation) || 0)) : ''; }
-  const rot90 = document.getElementById('layout-rot90');
-  if (rot90) rot90.disabled = !selShape;
   // Build SVG content
   let svgContent = '';
   // Floor outline
@@ -9512,6 +9528,64 @@ function renderLayout() {
   });
   svg.innerHTML = svgContent;
   attachLayoutHandlers();
+  renderShapePanel();
+}
+
+// Floating editor for the selected shape: name, exact dimensions (ft + in), angle, notes, photo, delete.
+function renderShapePanel() {
+  const panel = document.getElementById('layout-shape-panel');
+  if (!panel) return;
+  const s = layoutSelectedId ? currentShape(layoutSelectedId) : null;
+  if (!s) { panel.hidden = true; panel.innerHTML = ''; return; }
+  panel.hidden = false;
+  // Feet + inches display (carry 12" → 1')
+  const toFtIn = v => { let ft = Math.floor(v), inch = Math.round((v - ft) * 12); if (inch >= 12) { ft += 1; inch = 0; } return [ft, inch]; };
+  const [wF, wI] = toFtIn(s.w);
+  const [hF, hI] = toFtIn(s.h);
+  const rot = Math.round(Number(s.rotation) || 0);
+  const typeLabel = { rect: 'Rectangle', wall: 'Wall', circle: 'Circle', oval: 'Oval' }[s.type] || 'Shape';
+  panel.innerHTML = `
+    <div class="sp-head">
+      <input type="text" class="sp-name" value="${escapeHTML(s.label || '')}" placeholder="Name (e.g., Sofa)">
+      <button class="sp-close" data-act="close" title="Close">×</button>
+    </div>
+    <div class="sp-type">${typeLabel}</div>
+    <div class="sp-row">
+      <label>Width</label>
+      <span class="sp-ftin"><input type="number" class="sp-w-ft" value="${wF}" min="0" step="1"><i>ft</i><input type="number" class="sp-w-in" value="${wI}" min="0" max="11" step="1"><i>in</i></span>
+    </div>
+    <div class="sp-row">
+      <label>Height</label>
+      <span class="sp-ftin"><input type="number" class="sp-h-ft" value="${hF}" min="0" step="1"><i>ft</i><input type="number" class="sp-h-in" value="${hI}" min="0" max="11" step="1"><i>in</i></span>
+    </div>
+    <div class="sp-row">
+      <label>Angle</label>
+      <span class="sp-ftin"><input type="number" class="sp-angle" value="${rot}" min="0" max="359" step="5"><i>°</i><button class="sp-btn sp-rot90" data-act="rot90" title="Rotate 90°">⟲ 90°</button></span>
+    </div>
+    <div class="sp-notes-wrap">
+      <label>Notes</label>
+      <textarea class="sp-notes" rows="3" placeholder="Notes — vendor, color, status, reminders…">${escapeHTML(s.notes || '')}</textarea>
+    </div>
+    <div class="sp-actions">
+      <button class="sp-btn" data-act="image">${s.image ? '🖼 Change photo' : '🖼 Add photo'}</button>
+      <button class="sp-btn sp-del" data-act="del">🗑 Delete</button>
+    </div>
+  `;
+  const commitDims = () => {
+    const wf = parseFloat(panel.querySelector('.sp-w-ft').value) || 0, wi = parseFloat(panel.querySelector('.sp-w-in').value) || 0;
+    const hf = parseFloat(panel.querySelector('.sp-h-ft').value) || 0, hi = parseFloat(panel.querySelector('.sp-h-in').value) || 0;
+    s.w = Math.max(0.1, wf + wi / 12);
+    s.h = Math.max(0.1, hf + hi / 12);
+    persist(); renderLayout();
+  };
+  panel.querySelectorAll('.sp-w-ft, .sp-w-in, .sp-h-ft, .sp-h-in').forEach(inp => inp.addEventListener('change', commitDims));
+  panel.querySelector('.sp-name').addEventListener('change', e => { s.label = e.target.value.trim(); persist(); renderLayout(); });
+  panel.querySelector('.sp-angle').addEventListener('change', e => { let a = parseFloat(e.target.value); if (isNaN(a)) a = 0; s.rotation = ((a % 360) + 360) % 360; persist(); renderLayout(); });
+  panel.querySelector('.sp-notes').addEventListener('change', e => { s.notes = e.target.value; persist(); });
+  panel.querySelector('[data-act="rot90"]').addEventListener('click', () => { s.rotation = ((Number(s.rotation) || 0) + 90) % 360; persist(); renderLayout(); });
+  panel.querySelector('[data-act="image"]').addEventListener('click', () => openShapeImageModal(s));
+  panel.querySelector('[data-act="del"]').addEventListener('click', deleteSelectedShape);
+  panel.querySelector('[data-act="close"]').addEventListener('click', () => { layoutSelectedId = null; renderLayout(); });
 }
 
 function renderShapeSvg(s) {
@@ -9625,29 +9699,8 @@ function attachLayoutHandlers() {
       renderLayout();
     }
   });
-  document.getElementById('layout-del').addEventListener('click', deleteSelectedShape);
-  document.getElementById('layout-img').addEventListener('click', () => {
-    if (!layoutSelectedId) return;
-    const s = currentShape(layoutSelectedId);
-    if (s) openShapeImageModal(s);
-  });
-  const nameInput = document.getElementById('layout-name');
-  if (nameInput) {
-    const commitName = () => { const s = layoutSelectedId && currentShape(layoutSelectedId); if (!s) return; s.label = nameInput.value.trim(); persist(); renderLayout(); };
-    nameInput.addEventListener('change', commitName);
-    nameInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); nameInput.blur(); } });
-  }
-  const angleInput = document.getElementById('layout-angle');
-  if (angleInput) angleInput.addEventListener('change', () => {
-    const s = layoutSelectedId && currentShape(layoutSelectedId); if (!s) return;
-    let a = parseFloat(angleInput.value); if (isNaN(a)) a = 0;
-    s.rotation = ((a % 360) + 360) % 360; persist(); renderLayout();
-  });
-  const rot90 = document.getElementById('layout-rot90');
-  if (rot90) rot90.addEventListener('click', () => {
-    const s = layoutSelectedId && currentShape(layoutSelectedId); if (!s) return;
-    s.rotation = ((Number(s.rotation) || 0) + 90) % 360; persist(); renderLayout();
-  });
+  // Per-shape controls (name, dimensions, angle, notes, image, delete) live in the floating
+  // shape panel (renderShapePanel), which wires its own fields on each render.
   const showPlan = document.getElementById('layout-show-plan');
   if (showPlan) {
     showPlan.checked = state.layouts[layoutFloor].showPlan !== false;
@@ -9930,7 +9983,7 @@ function onLayoutPointerUp(e) {
         id: uidShape(), type: d.type,
         x: Math.round(x*10)/10, y: Math.round(y*10)/10,
         w: Math.round(w*10)/10, h: Math.round(h*10)/10,
-        label: '', rotation: 0
+        label: '', rotation: 0, notes: ''
       };
       state.layouts[layoutFloor].shapes.push(newShape);
       layoutSelectedId = newShape.id;
@@ -9938,8 +9991,8 @@ function onLayoutPointerUp(e) {
       // Switch to select but KEEP the new shape selected so its name field, image & rotate are ready.
       layoutTool = 'select';
       renderLayout();
-      // Jump focus to the name field so it can be named right away (walls are usually unlabeled).
-      if (d.type !== 'wall') { const ni = document.getElementById('layout-name'); if (ni) { ni.focus(); ni.select?.(); } }
+      // Open the shape panel focused on the name field so it can be named right away.
+      if (d.type !== 'wall') { const ni = document.querySelector('#layout-shape-panel .sp-name'); if (ni) { ni.focus(); ni.select?.(); } }
     } else {
       renderLayout();
     }
@@ -9949,10 +10002,10 @@ function onLayoutPointerUp(e) {
 function onLayoutDoubleClick(e) {
   const id = e.target.getAttribute('data-shape-id');
   if (!id) return;
-  // Select the shape and jump to the name field (no more prompt dialog).
+  // Select the shape and jump to the name field in the shape panel (no more prompt dialog).
   layoutSelectedId = id;
   renderLayout();
-  const ni = document.getElementById('layout-name');
+  const ni = document.querySelector('#layout-shape-panel .sp-name');
   if (ni) { ni.focus(); ni.select?.(); }
 }
 
