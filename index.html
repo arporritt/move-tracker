@@ -1359,12 +1359,27 @@
   }
   .mb-buy-table-row, .mb-buy-table-head {
     display: grid;
-    grid-template-columns: minmax(0,1.5fr) 100px 80px 70px 50px;
+    grid-template-columns: minmax(0,1.7fr) 120px 60px 100px;
     gap: 12px;
     padding: 10px 16px;
     align-items: center;
     border-top: 1px solid var(--rule-soft);
   }
+  /* Per-room budget/spent/forecast summary + jump to Budget */
+  .mb-buy-summary {
+    display: flex; align-items: center; gap: 22px; flex-wrap: wrap;
+    padding: 12px 16px; border-bottom: 1px solid var(--rule);
+    background: rgba(166,160,148,0.05);
+  }
+  .mbs-cell { display: flex; flex-direction: column; gap: 1px; }
+  .mbs-label { font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-faint); font-weight: 700; }
+  .mbs-val { font-family: 'Fraunces', serif; font-size: 17px; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .mb-view-budget {
+    margin-left: auto; background: transparent; border: 1px solid var(--rule);
+    border-radius: 100px; padding: 7px 14px; cursor: pointer;
+    font-family: 'Manrope', sans-serif; font-size: 12px; font-weight: 600; color: var(--ink-soft); white-space: nowrap;
+  }
+  .mb-view-budget:hover { border-color: var(--clay); color: var(--clay); }
   .mb-buy-table-head {
     font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
     color: var(--ink-faint); font-weight: 700;
@@ -1424,7 +1439,7 @@
   .mb-buy-table-totals strong { color: var(--ink); font-weight: 700; }
   @media (max-width: 600px) {
     .mb-buy-table-row, .mb-buy-table-head {
-      grid-template-columns: minmax(0,1fr) 70px 60px 36px 36px;
+      grid-template-columns: minmax(0,1fr) 74px 44px 78px;
       gap: 6px; padding: 8px 10px;
     }
   }
@@ -8998,23 +9013,28 @@ function renderMoodboard() {
 function renderMbBuyTable(room, items) {
   const wrap = document.createElement('div');
   wrap.className = 'mb-buy-table';
-  const totalBudget = items.reduce((s, i) => s + (Number(i.estimated) || 0), 0);
-  const totalActual = items.reduce((s, i) => s + effectiveActual(i), 0);
+  const budget = items.reduce((s, i) => s + (Number(i.estimated) || 0), 0);
+  const spent = items.filter(i => i.paid).reduce((s, i) => s + effectiveActual(i), 0);
+  const forecast = items.filter(i => !i.paid).reduce((s, i) => s + effectiveActual(i), 0);
   wrap.innerHTML = `
+    <div class="mb-buy-summary">
+      <span class="mbs-cell"><span class="mbs-label">Budget</span><span class="mbs-val">${fmtMoney(budget)}</span></span>
+      <span class="mbs-cell"><span class="mbs-label">Spent</span><span class="mbs-val">${fmtMoney(spent)}</span></span>
+      <span class="mbs-cell"><span class="mbs-label">Forecast</span><span class="mbs-val">${fmtMoney(forecast)}</span></span>
+      <button class="mb-view-budget" data-act="view-budget">View in Budget →</button>
+    </div>
     <div class="mb-buy-table-head">
       <div>Item</div>
       <div class="price">Budget</div>
-      <div>Forecasted</div>
       <div class="check">Paid</div>
       <div></div>
     </div>
     <div class="mb-buy-rows"></div>
     <div class="mb-buy-add-row"><button>+ Add to-buy item</button></div>
-    ${(items.length > 0) ? `<div class="mb-buy-table-totals"><span>Budget: <strong>${fmtMoney(totalBudget)}</strong></span><span>Forecasted: <strong>${fmtMoney(totalActual)}</strong></span></div>` : ''}
   `;
   const rowsBox = wrap.querySelector('.mb-buy-rows');
   if (items.length === 0) {
-    rowsBox.innerHTML = `<div style="padding:14px;text-align:center;color:var(--ink-faint);font-style:italic;font-size:13px;">No items yet. These sync with the Home budget tab.</div>`;
+    rowsBox.innerHTML = `<div style="padding:14px;text-align:center;color:var(--ink-faint);font-style:italic;font-size:13px;">No items yet. These are the same line items as the Budget tab, filtered to this room.</div>`;
   }
   items.forEach(item => {
     const row = document.createElement('div');
@@ -9026,7 +9046,6 @@ function renderMbBuyTable(room, items) {
         <input type="text" class="name" value="${escapeHTML(item.label || '')}" placeholder="Item name">
       </div>
       <input type="text" class="price budget" value="${item.estimated ? fmtMoney(item.estimated) : ''}" placeholder="$—">
-      <input type="text" class="price actual" value="${item.actual ? fmtMoney(item.actual) : ''}" placeholder="$—">
       <div class="check"><input type="checkbox" ${item.paid ? 'checked' : ''}></div>
       <div class="actions">
         ${mbLink ? `<a href="${escapeHTML(mbLink)}" target="_blank" rel="noopener" title="Open link">↗</a>` : ''}
@@ -9038,12 +9057,7 @@ function renderMbBuyTable(room, items) {
     `;
     row.querySelector('.name').addEventListener('change', e => { item.label = e.target.value.trim(); persist(); });
     row.querySelector('.budget').addEventListener('change', e => { item.estimated = parseMoney(e.target.value); persist(); renderMoodboard(); });
-    row.querySelector('.actual').addEventListener('change', e => { item.actual = parseMoney(e.target.value); persist(); renderMoodboard(); });
-    row.querySelector('.check input').addEventListener('change', e => {
-      item.paid = e.target.checked;
-      if (item.paid && !item.actual) item.actual = item.estimated;
-      persist(); renderMoodboard();
-    });
+    row.querySelector('.check input').addEventListener('change', e => { item.paid = e.target.checked; persist(); renderMoodboard(); });
     row.querySelector('[data-act="del"]').addEventListener('click', () => {
       if (!confirm('Remove this item from your budget?')) return;
       state.budget.items = state.budget.items.filter(i => i.id !== item.id);
@@ -9061,6 +9075,7 @@ function renderMbBuyTable(room, items) {
     row.querySelector('[data-act="move"]').addEventListener('click', () => moveBudgetItemToRoom(item));
     rowsBox.appendChild(row);
   });
+  wrap.querySelector('.mb-view-budget').addEventListener('click', () => openBudgetForRoom(room.id));
   wrap.querySelector('.mb-buy-add-row button').addEventListener('click', () => {
     if (!state.budget) state.budget = { items: [] };
     if (!Array.isArray(state.budget.items)) state.budget.items = [];
@@ -9092,6 +9107,15 @@ function moveBudgetItemToRoom(item) {
     persist();
     renderMoodboard();
   });
+}
+
+// Jump from a room's to-buy list to the Budget tab, pre-filtered to that room.
+function openBudgetForRoom(roomId) {
+  try { localStorage.setItem('mt-actuals-filters', JSON.stringify(roomId ? { room: roomId } : {})); } catch (e) {}
+  const btn = document.querySelector('.tab-btn[data-tab="budget"]');
+  if (btn) btn.click();
+  switchBudgetSubtab('home');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 // Single-select room chooser modal. onPick receives a roomId or null (Unassigned).
