@@ -748,6 +748,10 @@
   .shape-panel .sp-actions .sp-btn { flex: 1 1 auto; }
   .shape-panel .sp-del:hover { border-color: var(--behind); color: var(--behind); }
   .shape-panel .sp-rot90 { padding: 6px 8px; }
+  .shape-panel .sp-multi-title { flex: 1 1 auto; font-family: 'Fraunces', serif; font-size: 15px; font-weight: 500; color: var(--ink); }
+  .shape-panel .sp-multi-hint { font-size: 11.5px; color: var(--ink-faint); line-height: 1.45; }
+  .shape-panel .sp-combine { color: var(--clay); border-color: var(--clay-soft); font-weight: 700; }
+  .shape-panel .sp-combine:hover { background: rgba(122,110,94,0.08); border-color: var(--clay); color: var(--clay); }
 
   .layout-canvas-wrap {
     background: var(--bg-card);
@@ -7320,12 +7324,13 @@
         <button class="layout-tool-btn" id="layout-zoom-reset" title="Fit to view" style="width:auto;padding:0 10px;font-size:11px;">Fit</button>
       </div>
       <button class="layout-del-btn" id="layout-cal" style="margin-left:0;" title="Drag a line across a known length to match the plan to the grid">📏 Set scale</button>
+      <button class="layout-del-btn" id="layout-cal-reset" style="margin-left:6px;" title="Undo scaling — make the plan fill the canvas again">Reset scale</button>
     </div>
     <div class="layout-canvas-wrap">
       <svg id="layout-svg" class="layout-svg" preserveAspectRatio="xMidYMid meet"></svg>
       <div class="shape-panel" id="layout-shape-panel" hidden></div>
     </div>
-    <div class="layout-hint" id="layout-hint">Pick a shape tool and drag to draw. Switch to ↔ to move shapes. <strong>Click a shape</strong> to open its editor — type exact <strong>dimensions</strong>, rename it, set the angle (or drag the round handle to rotate), add notes or a photo. Resize by dragging the corner.</div>
+    <div class="layout-hint" id="layout-hint">Pick a shape tool and drag to draw. Switch to ↔ to move shapes. <strong>Click a shape</strong> to open its editor — type exact <strong>dimensions</strong>, rename, rotate, add notes or a photo. <strong>Shift-click</strong> several shapes, then <strong>Combine</strong> them into one piece (e.g., an L-shaped sofa). Resize by dragging the corner.</div>
   </div>
 </div>
 
@@ -9434,7 +9439,30 @@ function renderActive() {
 // ============================================================
 let layoutFloor = 'basement';
 let layoutTool = 'select';
-let layoutSelectedId = null;
+let layoutSelectedId = null;      // primary selection (drives the single-shape editor + handles)
+let layoutSelectedIds = [];       // all selected shape ids (for multi-select + groups)
+
+// All shape ids in the same group as `shape` (or just [shape.id] if ungrouped).
+function shapeGroupMembers(shape) {
+  const fl = state.layouts[layoutFloor];
+  if (shape && shape.groupId) return (fl.shapes || []).filter(s => s.groupId === shape.groupId).map(s => s.id);
+  return shape ? [shape.id] : [];
+}
+// Select one shape (and its whole group). Additive=true toggles it in/out (shift-click).
+function selectShape(id, additive) {
+  const s = currentShape(id);
+  if (!s) return;
+  const members = shapeGroupMembers(s);
+  if (additive) {
+    const allIn = members.every(m => layoutSelectedIds.includes(m));
+    layoutSelectedIds = allIn ? layoutSelectedIds.filter(x => !members.includes(x))
+                              : [...new Set([...layoutSelectedIds, ...members])];
+  } else {
+    layoutSelectedIds = members;
+  }
+  layoutSelectedId = layoutSelectedIds.includes(id) ? id : (layoutSelectedIds[0] || null);
+}
+function clearLayoutSelection() { layoutSelectedIds = []; layoutSelectedId = null; }
 let layoutDrawing = null;
 let layoutDragging = null;
 let layoutResizing = null;
@@ -9474,7 +9502,7 @@ function ensureLayoutState() {
 
 function switchLayoutFloor(f) {
   layoutFloor = f;
-  layoutSelectedId = null;
+  clearLayoutSelection();
   layoutViewBox = null; // reset view for new floor
   try { localStorage.setItem('mt-layout-floor', f); } catch(e) {}
   renderLayout();
@@ -9482,7 +9510,7 @@ function switchLayoutFloor(f) {
 
 function setLayoutTool(tool) {
   layoutTool = tool;
-  layoutSelectedId = null;
+  clearLayoutSelection();
   layoutMeasureMode = false;
   layoutMeasuring = null;
   document.querySelectorAll('.layout-tool-btn').forEach(b => b.classList.toggle('active', b.dataset.tool === tool));
@@ -9534,6 +9562,24 @@ function renderLayout() {
   fl.shapes.forEach(s => {
     svgContent += renderShapeSvg(s);
   });
+  // Group labels — one combined name + bounding-box dims per group (grouped shapes hide their own label).
+  const groups = {};
+  fl.shapes.forEach(s => { if (s.groupId) (groups[s.groupId] = groups[s.groupId] || []).push(s); });
+  const u = layoutLabelUnit, gline = 15 * u;
+  Object.values(groups).forEach(members => {
+    if (!members.length) return;
+    const minX = Math.min(...members.map(m => m.x)), minY = Math.min(...members.map(m => m.y));
+    const maxX = Math.max(...members.map(m => m.x + m.w)), maxY = Math.max(...members.map(m => m.y + m.h));
+    const gcx = (minX + maxX) / 2, gcy = (minY + maxY) / 2;
+    const name = (members.find(m => m.label) || {}).label || '';
+    const dimText = `${Math.round((maxX - minX) * 10) / 10}' × ${Math.round((maxY - minY) * 10) / 10}'`;
+    if (name) {
+      svgContent += `<text class="shape-label" style="font-size:${15 * u}px" x="${gcx}" y="${gcy - gline * 0.4}">${escapeHTML(name)}</text>`;
+      svgContent += `<text class="shape-dim" style="font-size:${12 * u}px" x="${gcx}" y="${gcy + gline * 0.7}">${dimText}</text>`;
+    } else {
+      svgContent += `<text class="shape-dim" style="font-size:${12 * u}px" x="${gcx}" y="${gcy}">${dimText}</text>`;
+    }
+  });
   svg.innerHTML = svgContent;
   attachLayoutHandlers();
   renderShapePanel();
@@ -9546,6 +9592,43 @@ function renderShapePanel() {
   const s = layoutSelectedId ? currentShape(layoutSelectedId) : null;
   if (!s) { panel.hidden = true; panel.innerHTML = ''; return; }
   panel.hidden = false;
+  // Multi-select / group panel
+  if (layoutSelectedIds.length >= 2) {
+    const shapes = layoutSelectedIds.map(currentShape).filter(Boolean);
+    const gids = new Set(shapes.map(x => x.groupId).filter(Boolean));
+    const allGrouped = shapes.length > 0 && shapes.every(x => x.groupId) && gids.size === 1
+      && shapeGroupMembers(shapes[0]).length === shapes.length;
+    const grpName = (shapes.find(x => x.label) || {}).label || '';
+    panel.innerHTML = `
+      <div class="sp-head">
+        <div class="sp-multi-title">${shapes.length} shapes selected</div>
+        <button class="sp-close" data-act="close" title="Close">×</button>
+      </div>
+      ${allGrouped ? `<input type="text" class="sp-name" value="${escapeHTML(grpName)}" placeholder="Group name (e.g., Sofa)">` : ''}
+      <div class="sp-actions">
+        ${allGrouped
+          ? '<button class="sp-btn" data-act="ungroup">Ungroup</button>'
+          : '<button class="sp-btn sp-combine" data-act="group">⊕ Combine into one</button>'}
+        <button class="sp-btn sp-del" data-act="del">🗑 Delete</button>
+      </div>
+      <div class="sp-multi-hint">${allGrouped ? 'These move together as one piece. Shift-click to change the selection.' : 'Shift-click shapes to add/remove. Combine to treat them as one labeled piece (e.g., an L-shaped sofa).'}</div>
+    `;
+    const nm = panel.querySelector('.sp-name');
+    if (nm) nm.addEventListener('change', () => { shapes.forEach(x => x.label = nm.value.trim()); persist(); renderLayout(); });
+    const grpBtn = panel.querySelector('[data-act="group"]');
+    if (grpBtn) grpBtn.addEventListener('click', () => {
+      const gid = 'g_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+      const nm2 = (shapes.find(x => x.label) || {}).label || '';
+      shapes.forEach(x => { x.groupId = gid; x.label = nm2; });
+      persist(); renderLayout();
+      const ni = document.querySelector('#layout-shape-panel .sp-name'); if (ni) { ni.focus(); ni.select?.(); }
+    });
+    const ungBtn = panel.querySelector('[data-act="ungroup"]');
+    if (ungBtn) ungBtn.addEventListener('click', () => { shapes.forEach(x => { delete x.groupId; }); persist(); renderLayout(); });
+    panel.querySelector('[data-act="del"]').addEventListener('click', deleteSelectedShape);
+    panel.querySelector('[data-act="close"]').addEventListener('click', () => { clearLayoutSelection(); renderLayout(); });
+    return;
+  }
   // Feet + inches display (carry 12" → 1')
   const toFtIn = v => { let ft = Math.floor(v), inch = Math.round((v - ft) * 12); if (inch >= 12) { ft += 1; inch = 0; } return [ft, inch]; };
   const [wF, wI] = toFtIn(s.w);
@@ -9593,11 +9676,11 @@ function renderShapePanel() {
   panel.querySelector('[data-act="rot90"]').addEventListener('click', () => { s.rotation = ((Number(s.rotation) || 0) + 90) % 360; persist(); renderLayout(); });
   panel.querySelector('[data-act="image"]').addEventListener('click', () => openShapeImageModal(s));
   panel.querySelector('[data-act="del"]').addEventListener('click', deleteSelectedShape);
-  panel.querySelector('[data-act="close"]').addEventListener('click', () => { layoutSelectedId = null; renderLayout(); });
+  panel.querySelector('[data-act="close"]').addEventListener('click', () => { clearLayoutSelection(); renderLayout(); });
 }
 
 function renderShapeSvg(s) {
-  const selected = s.id === layoutSelectedId ? ' selected' : '';
+  const selected = layoutSelectedIds.includes(s.id) ? ' selected' : '';
   const wall = s.type === 'wall' ? ' is-wall' : '';
   const hasImg = !!s.image;
   const img = hasImg ? ' has-image' : '';
@@ -9636,17 +9719,20 @@ function renderShapeSvg(s) {
   const line = 15 * u;
   const halo = onImg ? `;stroke-width:${2 * u}px` : '';
   const fs = px => `font-size:${px * u}px${halo}`;
+  // Grouped shapes don't show their own label/dims — the group draws one combined label (see renderLayout).
   let labelHtml = '';
-  if (labelText) {
-    labelHtml += `<text class="shape-label${onImg}" style="${fs(15)}" x="${cx}" y="${cy - line}">${escapeHTML(labelText)}</text>`;
-    labelHtml += `<text class="shape-dim${onImg}" style="${fs(12)}" x="${cx}" y="${cy + line * 0.15}">${dimText}</text>`;
-    labelHtml += `<text class="shape-dim shape-dim-in${onImg}" style="${fs(10)}" x="${cx}" y="${cy + line * 1.15}">${dimInches}</text>`;
-  } else {
-    labelHtml += `<text class="shape-dim${onImg}" style="${fs(12)}" x="${cx}" y="${cy - line * 0.5}">${dimText}</text>`;
-    labelHtml += `<text class="shape-dim shape-dim-in${onImg}" style="${fs(10)}" x="${cx}" y="${cy + line * 0.6}">${dimInches}</text>`;
+  if (!s.groupId) {
+    if (labelText) {
+      labelHtml += `<text class="shape-label${onImg}" style="${fs(15)}" x="${cx}" y="${cy - line}">${escapeHTML(labelText)}</text>`;
+      labelHtml += `<text class="shape-dim${onImg}" style="${fs(12)}" x="${cx}" y="${cy + line * 0.15}">${dimText}</text>`;
+      labelHtml += `<text class="shape-dim shape-dim-in${onImg}" style="${fs(10)}" x="${cx}" y="${cy + line * 1.15}">${dimInches}</text>`;
+    } else {
+      labelHtml += `<text class="shape-dim${onImg}" style="${fs(12)}" x="${cx}" y="${cy - line * 0.5}">${dimText}</text>`;
+      labelHtml += `<text class="shape-dim shape-dim-in${onImg}" style="${fs(10)}" x="${cx}" y="${cy + line * 0.6}">${dimInches}</text>`;
+    }
   }
   let handles = '';
-  if (s.id === layoutSelectedId) {
+  if (layoutSelectedIds.length === 1 && s.id === layoutSelectedId) {
     if (s.type !== 'wall') {
       const hs = 0.6;
       handles += `<rect class="resize-handle" data-resize="${s.id}" x="${s.x + s.w - hs/2}" y="${s.y + s.h - hs/2}" width="${hs}" height="${hs}"/>`;
@@ -9696,7 +9782,7 @@ function attachLayoutHandlers() {
   svg.addEventListener('dblclick', onLayoutDoubleClick);
   document.addEventListener('keydown', e => {
     if (e.key === 'Delete' || e.key === 'Backspace') {
-      if (layoutSelectedId && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+      if (layoutSelectedIds.length && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
         deleteSelectedShape();
         e.preventDefault();
       }
@@ -9708,7 +9794,7 @@ function attachLayoutHandlers() {
         if (svg) svg.classList.remove('measuring');
         document.querySelectorAll('.measure-preview').forEach(el => el.remove());
       }
-      layoutSelectedId = null;
+      clearLayoutSelection();
       renderLayout();
     }
   });
@@ -9730,6 +9816,7 @@ function attachLayoutHandlers() {
     renderLayout();
   });
   document.getElementById('layout-cal').addEventListener('click', startCalibration);
+  document.getElementById('layout-cal-reset')?.addEventListener('click', resetPlanScale);
   // Mouse wheel zoom
   const svgEl = document.getElementById('layout-svg');
   svgEl.addEventListener('wheel', e => {
@@ -9766,7 +9853,7 @@ function startCalibration() {
   if (!fl.showPlan) { alert('Turn on "Show plan" first to set its scale.'); return; }
   layoutMeasureMode = true;
   layoutMeasuring = null;
-  layoutSelectedId = null;
+  clearLayoutSelection();
   layoutTool = 'select';
   const svg = document.getElementById('layout-svg');
   if (svg) svg.classList.add('measuring');
@@ -9788,21 +9875,41 @@ function applyPlanScale(p1, p2, knownFt) {
   fl.planW = oldPw * factor;
   fl.planH = oldPh * factor;
   fl.planScale = (fl.planScale || 1) * factor; // kept in sync for older code paths
-  // Keep the measured feature roughly under the cursor: scale plan origin about the drag midpoint.
-  const mid = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
-  fl.planX = (fl.planX || 0) * factor + mid.x * (1 - factor);
-  fl.planY = (fl.planY || 0) * factor + mid.y * (1 - factor);
-  // Nudge the plan fully on-canvas (>= 0,0) so furniture can be placed over all of it.
-  if (fl.planX < 0) fl.planX = 0;
-  if (fl.planY < 0) fl.planY = 0;
-  // Grow the drawable canvas to contain the (possibly larger) plan; cap to keep the grid sane.
-  fl.width = Math.min(400, Math.max(fl.width, Math.ceil(fl.planX + fl.planW)));
-  fl.height = Math.min(400, Math.max(fl.height, Math.ceil(fl.planY + fl.planH)));
+  // Anchor the plan at the origin and fit the drawable canvas snugly to it. This is NON-compounding:
+  // the canvas always equals the plan size, so re-calibrating never balloons the grid or offsets the plan.
+  fl.planX = 0;
+  fl.planY = 0;
+  fl.width = Math.min(600, Math.max(4, Math.ceil(fl.planW)));
+  fl.height = Math.min(600, Math.max(4, Math.ceil(fl.planH)));
   layoutViewBox = { x: 0, y: 0, w: fl.width, h: fl.height }; // fit the whole thing
   persist();
   renderLayout();
   const hint = document.getElementById('layout-hint');
   if (hint) hint.innerHTML = '✓ Scale set — the plan now matches the 1&nbsp;ft grid, so furniture shapes are to scale. Drag shapes onto the plan; use <strong>Fit</strong> or the mouse wheel to zoom.';
+}
+
+// Restore a floor's plan to its default "plan fills the canvas" state (undo a bad/compounded calibration).
+function resetPlanScale() {
+  const fl = state.layouts[layoutFloor];
+  const shapeCount = (fl.shapes || []).length;
+  if (shapeCount && !confirm(`Reset the plan scale for this floor? Your ${shapeCount} shape${shapeCount === 1 ? '' : 's'} stay, but may need repositioning on the reset plan.`)) return;
+  const d = FLOOR_DEFAULT_DIMS[layoutFloor] || { width: 60, height: 60 };
+  fl.width = d.width;
+  fl.height = d.height;
+  fl.planScale = 1;
+  fl.planX = 0;
+  fl.planY = 0;
+  fl.planW = d.width;
+  fl.planH = d.height;
+  layoutMeasureMode = false;
+  layoutMeasuring = null;
+  const svg = document.getElementById('layout-svg');
+  if (svg) svg.classList.remove('measuring');
+  layoutViewBox = { x: 0, y: 0, w: fl.width, h: fl.height };
+  persist();
+  renderLayout();
+  const hint = document.getElementById('layout-hint');
+  if (hint) hint.textContent = 'Scale reset — the plan fills the canvas again. Use 📏 Set scale to calibrate it precisely.';
 }
 
 function renderMeasurePreview() {
@@ -9843,18 +9950,16 @@ function onLayoutPointerDown(e) {
     e.target.setPointerCapture?.(e.pointerId);
     return;
   }
-  // Pan with shift+drag on empty area or middle button or when select tool clicking empty
-  if (e.shiftKey || (layoutTool === 'select' && !shapeId && !resizeId && !rotateId)) {
+  // Pan on empty area (shift+drag anywhere empty, or select-tool drag on empty). Shift+click on a
+  // shape is reserved for multi-select, so don't pan when a shape/handle is the target.
+  if (!shapeId && !resizeId && !rotateId && (e.shiftKey || layoutTool === 'select')) {
     e.preventDefault();
     layoutPanning = {
       clientX: e.clientX, clientY: e.clientY,
       vb: { ...layoutViewBox }
     };
     e.target.setPointerCapture?.(e.pointerId);
-    if (layoutTool === 'select') {
-      // also deselect any selected shape
-      layoutSelectedId = null;
-    }
+    if (layoutTool === 'select') clearLayoutSelection();
     return;
   }
   if (resizeId) {
@@ -9868,16 +9973,17 @@ function onLayoutPointerDown(e) {
   }
   if (layoutTool === 'select' && shapeId) {
     e.preventDefault();
-    layoutSelectedId = shapeId;
-    const s = currentShape(shapeId);
+    if (e.shiftKey) { selectShape(shapeId, true); renderLayout(); return; } // add/remove from selection
+    if (!layoutSelectedIds.includes(shapeId)) selectShape(shapeId, false);
+    else layoutSelectedId = shapeId; // clicking an already-selected shape keeps the group selection
     const pt = svgPointFromEvent(e);
-    if (s) layoutDragging = { id: shapeId, offsetX: pt.x - s.x, offsetY: pt.y - s.y };
+    // Drag ALL selected shapes together (records each shape's start position).
+    layoutDragging = { startX: pt.x, startY: pt.y, items: layoutSelectedIds.map(id => { const sh = currentShape(id); return sh ? { id, x0: sh.x, y0: sh.y } : null; }).filter(Boolean) };
     renderLayout();
     return;
   }
   if (layoutTool === 'select') {
-    // Click empty area: deselect
-    layoutSelectedId = null;
+    clearLayoutSelection(); // click empty area
     renderLayout();
     return;
   }
@@ -9926,10 +10032,13 @@ function onLayoutPointerMove(e) {
   }
   if (layoutDragging) {
     const pt = svgPointFromEvent(e);
-    const s = currentShape(layoutDragging.id);
-    if (!s) return;
-    s.x = clamp(pt.x - layoutDragging.offsetX, 0, state.layouts[layoutFloor].width - s.w);
-    s.y = clamp(pt.y - layoutDragging.offsetY, 0, state.layouts[layoutFloor].height - s.h);
+    const fl = state.layouts[layoutFloor];
+    const dx = pt.x - layoutDragging.startX, dy = pt.y - layoutDragging.startY;
+    (layoutDragging.items || []).forEach(it => {
+      const sh = currentShape(it.id); if (!sh) return;
+      sh.x = clamp(it.x0 + dx, 0, fl.width - sh.w);
+      sh.y = clamp(it.y0 + dy, 0, fl.height - sh.h);
+    });
     renderLayout();
   } else if (layoutResizing) {
     const pt = svgPointFromEvent(e);
@@ -10000,6 +10109,7 @@ function onLayoutPointerUp(e) {
         label: '', rotation: 0, notes: ''
       };
       state.layouts[layoutFloor].shapes.push(newShape);
+      layoutSelectedIds = [newShape.id];
       layoutSelectedId = newShape.id;
       persist();
       // Switch to select but KEEP the new shape selected so its name field, image & rotate are ready.
@@ -10017,7 +10127,7 @@ function onLayoutDoubleClick(e) {
   const id = e.target.getAttribute('data-shape-id');
   if (!id) return;
   // Select the shape and jump to the name field in the shape panel (no more prompt dialog).
-  layoutSelectedId = id;
+  selectShape(id, false);
   renderLayout();
   const ni = document.querySelector('#layout-shape-panel .sp-name');
   if (ni) { ni.focus(); ni.select?.(); }
@@ -10057,9 +10167,10 @@ function currentShape(id) {
 }
 
 function deleteSelectedShape() {
-  if (!layoutSelectedId) return;
-  state.layouts[layoutFloor].shapes = state.layouts[layoutFloor].shapes.filter(s => s.id !== layoutSelectedId);
-  layoutSelectedId = null;
+  const ids = new Set(layoutSelectedIds.length ? layoutSelectedIds : (layoutSelectedId ? [layoutSelectedId] : []));
+  if (!ids.size) return;
+  state.layouts[layoutFloor].shapes = state.layouts[layoutFloor].shapes.filter(s => !ids.has(s.id));
+  clearLayoutSelection();
   persist();
   renderLayout();
 }
