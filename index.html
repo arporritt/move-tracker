@@ -11889,8 +11889,6 @@ function renderOverallMoodboard(board) {
     <div id="cs-host"></div>
 
     <div id="palette-board"></div>
-
-    ${sample.length ? '<div class="mb-section-head"><span class="mb-section-title">A glimpse from each room</span></div><div class="mb-photo-grid" id="mb-overall-grid"></div>' : ''}
   `;
   const descEl = board.querySelector('#mb-desc-overall');
   descEl.addEventListener('blur', () => {
@@ -11934,16 +11932,6 @@ function renderOverallMoodboard(board) {
   renderColorStory(board.querySelector('#cs-host'));
   // Paint selections (the master palette — moved here from the old Palette tab)
   renderPalette();
-  if (sample.length) {
-    const grid = board.querySelector('#mb-overall-grid');
-    sample.forEach((p, i) => {
-      const fig = document.createElement('div');
-      fig.className = 'photo';
-      fig.innerHTML = `<img src="${escapeHTML(p.url)}" alt="${escapeHTML(p.roomName || '')}" title="${escapeHTML(p.roomName || '')}" loading="lazy">`;
-      fig.addEventListener('click', () => openLightbox(sample, i));
-      grid.appendChild(fig);
-    });
-  }
 }
 
 function renderInspTile(room, img) {
