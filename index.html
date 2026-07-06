@@ -805,6 +805,28 @@
     vector-effect: non-scaling-stroke;
     pointer-events: none;
   }
+  /* Drag-to-measure line used for setting the plan scale */
+  .layout-svg line.measure-preview {
+    stroke: var(--behind);
+    stroke-width: 0.16;
+    stroke-dasharray: 0.5 0.3;
+    vector-effect: non-scaling-stroke;
+    pointer-events: none;
+  }
+  .layout-svg circle.measure-preview { fill: var(--behind); pointer-events: none; }
+  .layout-svg .measure-label {
+    font-family: 'Manrope', sans-serif;
+    font-size: 0.95px;
+    font-weight: 700;
+    fill: #fff;
+    paint-order: stroke;
+    stroke: var(--behind);
+    stroke-width: 0.5px;
+    stroke-linejoin: round;
+    text-anchor: middle;
+    pointer-events: none;
+  }
+  .layout-svg.measuring { cursor: crosshair; }
   .layout-hint {
     text-align: center;
     padding: 10px 14px;
@@ -7166,7 +7188,7 @@
         <button class="layout-tool-btn" id="layout-zoom-in" title="Zoom in (+)">+</button>
         <button class="layout-tool-btn" id="layout-zoom-reset" title="Fit to view" style="width:auto;padding:0 10px;font-size:11px;">Fit</button>
       </div>
-      <button class="layout-del-btn" id="layout-cal" style="margin-left:0;">Calibrate plan…</button>
+      <button class="layout-del-btn" id="layout-cal" style="margin-left:0;" title="Drag a line across a known length to match the plan to the grid">📏 Set scale</button>
       <button class="layout-del-btn" id="layout-img" disabled>🖼 Image…</button>
       <button class="layout-del-btn" id="layout-del" disabled>Delete</button>
     </div>
@@ -9287,7 +9309,8 @@ let layoutDragging = null;
 let layoutResizing = null;
 let layoutPanning = null; // {startClientX, startClientY, startVB}
 let layoutViewBox = null; // {x,y,w,h} current view region
-let layoutCalibrating = null; // {step, points: [{svgX, svgY}]}
+let layoutMeasureMode = false; // true while "Set scale" is armed
+let layoutMeasuring = null;    // {startX, startY, currentX, currentY} during a scale drag
 
 try {
   const saved = localStorage.getItem('mt-layout-floor');
@@ -9309,6 +9332,10 @@ function ensureLayoutState() {
     if (typeof state.layouts[f].planScale !== 'number') state.layouts[f].planScale = 1;
     if (typeof state.layouts[f].planX !== 'number') state.layouts[f].planX = 0;
     if (typeof state.layouts[f].planY !== 'number') state.layouts[f].planY = 0;
+    // Plan image box size (in grid-feet), decoupled from the drawable canvas so the
+    // plan can be scaled up without being clipped or blocking furniture placement.
+    if (typeof state.layouts[f].planW !== 'number') state.layouts[f].planW = state.layouts[f].width * (state.layouts[f].planScale || 1);
+    if (typeof state.layouts[f].planH !== 'number') state.layouts[f].planH = state.layouts[f].height * (state.layouts[f].planScale || 1);
   }
 }
 
@@ -9323,6 +9350,8 @@ function switchLayoutFloor(f) {
 function setLayoutTool(tool) {
   layoutTool = tool;
   layoutSelectedId = null;
+  layoutMeasureMode = false;
+  layoutMeasuring = null;
   document.querySelectorAll('.layout-tool-btn').forEach(b => b.classList.toggle('active', b.dataset.tool === tool));
   const svg = document.getElementById('layout-svg');
   if (svg) svg.classList.toggle('tool-select', tool === 'select');
@@ -9355,10 +9384,11 @@ function renderLayout() {
   // Floor plan background image (if enabled), positioned/scaled per calibration
   const planUrl = FLOOR_DEFAULT_DIMS[layoutFloor]?.plan;
   if (planUrl && fl.showPlan !== false) {
-    const ps = fl.planScale || 1;
+    const pw = fl.planW || (W * (fl.planScale || 1));
+    const ph = fl.planH || (H * (fl.planScale || 1));
     const px = fl.planX || 0;
     const py = fl.planY || 0;
-    svgContent += `<image class="floor-plan-bg" href="${planUrl}" x="${px}" y="${py}" width="${W * ps}" height="${H * ps}" preserveAspectRatio="xMidYMid meet" opacity="0.55"/>`;
+    svgContent += `<image class="floor-plan-bg" href="${planUrl}" x="${px}" y="${py}" width="${pw}" height="${ph}" preserveAspectRatio="xMidYMid meet" opacity="0.55"/>`;
   }
   // Grid
   for (let x = 1; x < W; x++) {
@@ -9459,6 +9489,13 @@ function attachLayoutHandlers() {
         e.preventDefault();
       }
     } else if (e.key === 'Escape') {
+      if (layoutMeasureMode || layoutMeasuring) {
+        layoutMeasureMode = false;
+        layoutMeasuring = null;
+        const svg = document.getElementById('layout-svg');
+        if (svg) svg.classList.remove('measuring');
+        document.querySelectorAll('.measure-preview').forEach(el => el.remove());
+      }
       layoutSelectedId = null;
       renderLayout();
     }
@@ -9518,40 +9555,62 @@ function zoomLayoutBy(factor, anchor) {
 
 function startCalibration() {
   const fl = state.layouts[layoutFloor];
-  if (!fl.showPlan) { alert('Turn on "Show plan" first to calibrate it.'); return; }
-  const known = prompt(
-    'Calibrate the floor plan by clicking two points on it with a known real-world distance.\n\n' +
-    'First, enter the actual distance between the two points in feet (e.g., 12.5 for 12\'6"):',
-    ''
-  );
-  const knownFt = parseFloat(known);
-  if (!known || isNaN(knownFt) || knownFt <= 0) return;
-  alert('Now click TWO points on the floor plan that are ' + knownFt + ' ft apart in real life. Tip: pick the ends of a labeled room dimension.');
-  layoutCalibrating = { step: 1, knownFt, points: [] };
-  setLayoutTool('select');
+  if (!fl.showPlan) { alert('Turn on "Show plan" first to set its scale.'); return; }
+  layoutMeasureMode = true;
+  layoutMeasuring = null;
+  layoutSelectedId = null;
+  layoutTool = 'select';
+  const svg = document.getElementById('layout-svg');
+  if (svg) svg.classList.add('measuring');
+  const hint = document.getElementById('layout-hint');
+  if (hint) hint.innerHTML = '📏 <strong>Set scale:</strong> drag a line across something whose real length you know — a wall, the garage door, or a dimension printed on the plan — then type its length in feet. Everything (grid + furniture) will match afterward.';
+  renderLayout();
 }
 
-function applyCalibration(p2) {
-  const c = layoutCalibrating;
-  const p1 = c.points[0];
-  const dx = p2.x - p1.x;
-  const dy = p2.y - p1.y;
-  const distSvg = Math.hypot(dx, dy);
-  if (distSvg < 0.1) { layoutCalibrating = null; alert('Points too close. Try again.'); return; }
+// Rescale the floor plan so a dragged line of known real length maps to that many grid-feet.
+// Grid stays 1 unit = 1 ft and furniture keeps its real size — only the plan image is rescaled,
+// and the drawable canvas grows if needed so the plan is never clipped.
+function applyPlanScale(p1, p2, knownFt) {
+  const distSvg = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+  if (distSvg < 0.1) return;
   const fl = state.layouts[layoutFloor];
-  // Currently 1 svg-unit = 1 svg-foot, but the image's actual ft per svg-unit at distSvg = knownFt.
-  // So the image needs to scale by (knownFt / distSvg) so that distSvg svg-units becomes knownFt svg-feet.
-  const factor = c.knownFt / distSvg;
-  fl.planScale = (fl.planScale || 1) * factor;
-  // Recenter so the midpoint of the two clicked points stays put
-  const midSvg = { x: (p1.x + p2.x)/2, y: (p1.y + p2.y)/2 };
-  // After scaling by factor about origin, the midpoint moves from midSvg to midSvg*factor.
-  // We want it to stay at midSvg, so shift the image origin by midSvg*(1 - factor).
-  fl.planX = (fl.planX || 0) * factor + midSvg.x * (1 - factor);
-  fl.planY = (fl.planY || 0) * factor + midSvg.y * (1 - factor);
-  layoutCalibrating = null;
+  const factor = knownFt / distSvg; // how much the plan image must grow/shrink
+  const oldPw = fl.planW || (fl.width * (fl.planScale || 1));
+  const oldPh = fl.planH || (fl.height * (fl.planScale || 1));
+  fl.planW = oldPw * factor;
+  fl.planH = oldPh * factor;
+  fl.planScale = (fl.planScale || 1) * factor; // kept in sync for older code paths
+  // Keep the measured feature roughly under the cursor: scale plan origin about the drag midpoint.
+  const mid = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
+  fl.planX = (fl.planX || 0) * factor + mid.x * (1 - factor);
+  fl.planY = (fl.planY || 0) * factor + mid.y * (1 - factor);
+  // Nudge the plan fully on-canvas (>= 0,0) so furniture can be placed over all of it.
+  if (fl.planX < 0) fl.planX = 0;
+  if (fl.planY < 0) fl.planY = 0;
+  // Grow the drawable canvas to contain the (possibly larger) plan; cap to keep the grid sane.
+  fl.width = Math.min(400, Math.max(fl.width, Math.ceil(fl.planX + fl.planW)));
+  fl.height = Math.min(400, Math.max(fl.height, Math.ceil(fl.planY + fl.planH)));
+  layoutViewBox = { x: 0, y: 0, w: fl.width, h: fl.height }; // fit the whole thing
   persist();
   renderLayout();
+  const hint = document.getElementById('layout-hint');
+  if (hint) hint.innerHTML = '✓ Scale set — the plan now matches the 1&nbsp;ft grid, so furniture shapes are to scale. Drag shapes onto the plan; use <strong>Fit</strong> or the mouse wheel to zoom.';
+}
+
+function renderMeasurePreview() {
+  const svg = document.getElementById('layout-svg');
+  if (!svg) return;
+  document.querySelectorAll('.measure-preview').forEach(el => el.remove());
+  const m = layoutMeasuring;
+  if (!m) return;
+  const len = Math.hypot(m.currentX - m.startX, m.currentY - m.startY);
+  const midx = (m.startX + m.currentX) / 2, midy = (m.startY + m.currentY) / 2;
+  const html =
+    `<line class="measure-preview" x1="${m.startX}" y1="${m.startY}" x2="${m.currentX}" y2="${m.currentY}"/>` +
+    `<circle class="measure-preview" cx="${m.startX}" cy="${m.startY}" r="0.32"/>` +
+    `<circle class="measure-preview" cx="${m.currentX}" cy="${m.currentY}" r="0.32"/>` +
+    `<text class="measure-preview measure-label" x="${midx}" y="${midy - 0.7}">${Math.round(len * 10) / 10} ft now</text>`;
+  svg.insertAdjacentHTML('beforeend', html);
 }
 
 function onLayoutPointerDown(e) {
@@ -9559,18 +9618,12 @@ function onLayoutPointerDown(e) {
   const target = e.target;
   const shapeId = target.getAttribute('data-shape-id');
   const resizeId = target.getAttribute('data-resize');
-  // Calibration mode
-  if (layoutCalibrating) {
+  // Set-scale mode: drag a line across a known real-world length
+  if (layoutMeasureMode) {
     e.preventDefault();
     const pt = svgPointFromEvent(e);
-    layoutCalibrating.points.push(pt);
-    if (layoutCalibrating.points.length === 2) {
-      applyCalibration(layoutCalibrating.points[1]);
-    } else {
-      // Visual hint via SVG marker handled by renderLayout? Quick approach: draw a tiny marker
-      const svg = document.getElementById('layout-svg');
-      svg.insertAdjacentHTML('beforeend', `<circle cx="${pt.x}" cy="${pt.y}" r="0.4" fill="red" pointer-events="none"/>`);
-    }
+    layoutMeasuring = { startX: pt.x, startY: pt.y, currentX: pt.x, currentY: pt.y };
+    renderMeasurePreview();
     return;
   }
   // Pan with shift+drag on empty area or middle button or when select tool clicking empty
@@ -9619,6 +9672,13 @@ function onLayoutPointerDown(e) {
 }
 
 function onLayoutPointerMove(e) {
+  if (layoutMeasuring) {
+    const pt = svgPointFromEvent(e);
+    layoutMeasuring.currentX = pt.x;
+    layoutMeasuring.currentY = pt.y;
+    renderMeasurePreview();
+    return;
+  }
   if (layoutPanning) {
     const svg = document.getElementById('layout-svg');
     const rect = svg.getBoundingClientRect();
@@ -9661,6 +9721,21 @@ function onLayoutPointerMove(e) {
 }
 
 function onLayoutPointerUp(e) {
+  if (layoutMeasuring) {
+    const m = layoutMeasuring;
+    layoutMeasuring = null;
+    document.querySelectorAll('.measure-preview').forEach(el => el.remove());
+    const distSvg = Math.hypot(m.currentX - m.startX, m.currentY - m.startY);
+    if (distSvg < 0.3) { renderLayout(); return; } // too short — stay armed, try again
+    const known = prompt('How long is that line in real life?\n\nEnter the distance in feet (e.g., 16 for a garage door, or 12.5 for 12\'6"):', '');
+    layoutMeasureMode = false;
+    const svgEl = document.getElementById('layout-svg');
+    if (svgEl) svgEl.classList.remove('measuring');
+    const knownFt = parseFloat(known);
+    if (!known || isNaN(knownFt) || knownFt <= 0) { renderLayout(); return; }
+    applyPlanScale({ x: m.startX, y: m.startY }, { x: m.currentX, y: m.currentY }, knownFt);
+    return;
+  }
   if (layoutPanning) { layoutPanning = null; return; }
   if (layoutDragging) {
     layoutDragging = null;
@@ -9729,7 +9804,11 @@ function renderDrawingPreview() {
   } else if (d.type === 'oval') {
     shape = `<ellipse class="drawing-preview" cx="${x + w/2}" cy="${y + h/2}" rx="${w/2}" ry="${h/2}"/>`;
   }
-  const dim = `<text class="shape-dim drawing-dim" x="${x + w/2}" y="${y + h/2}">${fmtNum(w)}' × ${fmtNum(h)}'</text>`;
+  const cx = x + w/2, cy = y + h/2;
+  const dimFt = `${fmtNum(w)}' × ${fmtNum(h)}'`;
+  const dimIn = `(${Math.round(w * 12)}" × ${Math.round(h * 12)}")`;
+  const dim = `<text class="shape-dim drawing-dim" x="${cx}" y="${cy - 0.35}">${dimFt}</text>`
+            + `<text class="shape-dim shape-dim-in drawing-dim" x="${cx}" y="${cy + 0.4}">${dimIn}</text>`;
   svg.insertAdjacentHTML('beforeend', shape + dim);
 }
 
