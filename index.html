@@ -12593,6 +12593,16 @@ function getBudgetRoomMap() {
   return map;
 }
 
+// Special "room" value for items that belong to the whole project, not a single room.
+const OVERALL_ROOM = 'overall';
+
+// Human-readable label for an item's room assignment (real room, Overall, or Unassigned).
+function roomLabelFor(roomId, map) {
+  if (roomId === OVERALL_ROOM) return 'Overall';
+  if (!roomId) return 'Unassigned';
+  return (map || getBudgetRoomMap()).get(roomId)?.name || 'Unknown room';
+}
+
 function effectiveActual(i) {
   // An item's amount = actual if entered, else the estimate. Paid vs unpaid only decides
   // whether it counts as spent or forecast — a forecast item still contributes its estimate.
@@ -12642,7 +12652,7 @@ function renderBudgetCharts(items) {
   const roomMap = getBudgetRoomMap();
   const byRoom = {};
   items.forEach(i => {
-    const k = i.room ? (roomMap.get(i.room)?.name || 'Unknown room') : 'Unassigned';
+    const k = roomLabelFor(i.room, roomMap);
     if (!byRoom[k]) byRoom[k] = { actuals: 0, forecast: 0 };
     const amt = effectiveActual(i);
     if (i.paid) byRoom[k].actuals += amt;
@@ -12958,7 +12968,7 @@ function actualsSortValue(item, key) {
   switch (key) {
     case 'label': return (item.label || '').toLowerCase();
     case 'category': return (item.category || '').toLowerCase();
-    case 'room': return (item.room ? (getBudgetRoomMap().get(item.room)?.name || '') : '').toLowerCase();
+    case 'room': return (item.room ? roomLabelFor(item.room) : '').toLowerCase();
     case 'priority': { const r = { High: 0, Medium: 1, Low: 2 }; return (item.priority in r) ? r[item.priority] : 3; }
     case 'amount': return effectiveActual(item);
     case 'paid': return item.paid ? 0 : 1;
@@ -12992,7 +13002,7 @@ function sortActuals(list, sort) {
 }
 
 function actualsGroupKey(item, mode) {
-  const roomName = item.room ? (getBudgetRoomMap().get(item.room)?.name || 'Unknown room') : 'Unassigned';
+  const roomName = roomLabelFor(item.room);
   const cat = item.category || 'Uncategorized';
   const paidLabel = item.paid ? 'Paid' : 'Forecast';
   const pri = item.priority ? item.priority + ' priority' : 'No priority';
@@ -13061,6 +13071,7 @@ function buildActualsTable(items) {
       </select>
       <select data-filter="room">
         <option value="">Room: all</option>
+        <option value="overall"${filters.room==='overall'?' selected':''}>Overall</option>
         ${roomList.map(r => `<option value="${escapeHTML(r.id)}"${filters.room===r.id?' selected':''}>${escapeHTML(r.name)}</option>`).join('')}
         <option value="unassigned"${filters.room==='unassigned'?' selected':''}>Unassigned</option>
       </select>
@@ -13078,7 +13089,7 @@ function buildActualsTable(items) {
     </div>
     <div class="actuals-body"></div>
     <div class="actuals-add-bar"><button data-act="add-actual">+ Add purchase</button></div>
-    <datalist id="actuals-room-options">${roomList.map(r => `<option value="${escapeHTML(r.name)}"></option>`).join('')}</datalist>
+    <datalist id="actuals-room-options"><option value="Overall"></option>${roomList.map(r => `<option value="${escapeHTML(r.name)}"></option>`).join('')}</datalist>
   `;
   const rows = sortActuals(filtered, sort);
   const body = wrap.querySelector('.actuals-body');
@@ -13191,7 +13202,7 @@ function renderActualsRow(item) {
     (state.inspiration?.[f] || []).forEach(r => allRooms.push({ id: r.id, name: r.name, floor: f }));
   }
   const currentRoom = item.room ? allRooms.find(r => r.id === item.room) : null;
-  const currentRoomName = currentRoom ? currentRoom.name : '';
+  const currentRoomName = item.room === OVERALL_ROOM ? 'Overall' : (currentRoom ? currentRoom.name : '');
   const roomDatalistId = 'actuals-room-options';
   const roomOpts = allRooms.map(r => `<option value="${escapeHTML(r.name)}">`).join('');
   const spent = effectiveActual(item);
@@ -13226,6 +13237,7 @@ function renderActualsRow(item) {
   row.querySelector('.room').addEventListener('change', e => {
     const typed = e.target.value.trim();
     if (!typed) { item.room = null; persist(); renderBudget(); return; }
+    if (typed.toLowerCase() === 'overall') { item.room = OVERALL_ROOM; persist(); renderBudget(); return; }
     const existing = allRooms.find(r => (r.name || '').toLowerCase() === typed.toLowerCase());
     if (existing) {
       item.room = existing.id;
