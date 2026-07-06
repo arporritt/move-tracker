@@ -706,7 +706,10 @@
     font-family: 'Manrope', sans-serif; display: flex; flex-direction: column; gap: 9px;
   }
   .shape-panel[hidden] { display: none; }
-  .shape-panel .sp-head { display: flex; align-items: center; gap: 8px; }
+  .shape-panel .sp-head { display: flex; align-items: center; gap: 8px; cursor: move; }
+  .shape-panel .sp-grip { flex: 0 0 auto; cursor: move; color: var(--ink-faint); font-size: 15px; line-height: 1; user-select: none; }
+  .shape-panel .sp-type { cursor: move; }
+  .shape-panel.dragging { opacity: 0.92; box-shadow: 0 22px 48px -12px rgba(42,33,26,0.42); }
   .shape-panel .sp-name {
     flex: 1 1 auto; min-width: 0; padding: 6px 10px; background: white;
     border: 1px solid var(--rule); border-radius: 8px; outline: none;
@@ -9510,6 +9513,7 @@ let layoutDragging = null;
 let layoutResizing = null;
 let layoutRotating = null; // { id } while dragging the rotate handle
 let layoutLabelDragging = null; // { id, startX, startY, dx0, dy0 } while dragging a shape's label
+let shapePanelPos = null; // { left, top } in px if the editor panel has been dragged from its default corner
 let layoutPanning = null; // {startClientX, startClientY, startVB}
 let layoutViewBox = null; // {x,y,w,h} current view region
 let layoutLabelUnit = 0.07; // user-units per screen-pixel — keeps shape labels a constant on-screen size at any zoom
@@ -9637,6 +9641,8 @@ function renderShapePanel() {
   const s = layoutSelectedId ? currentShape(layoutSelectedId) : null;
   if (!s) { panel.hidden = true; panel.innerHTML = ''; return; }
   panel.hidden = false;
+  // Keep the panel where the user dragged it (else it uses the default top-right corner from CSS).
+  if (shapePanelPos) { panel.style.left = shapePanelPos.left + 'px'; panel.style.top = shapePanelPos.top + 'px'; panel.style.right = 'auto'; }
   // Multi-select / group panel
   if (layoutSelectedIds.length >= 2) {
     const shapes = layoutSelectedIds.map(currentShape).filter(Boolean);
@@ -9646,6 +9652,7 @@ function renderShapePanel() {
     const grpName = (shapes.find(x => x.label) || {}).label || '';
     panel.innerHTML = `
       <div class="sp-head">
+        <span class="sp-grip" title="Drag to move this panel">⠿</span>
         <div class="sp-multi-title">${shapes.length} shapes selected</div>
         <button class="sp-close" data-act="close" title="Close">×</button>
       </div>
@@ -9684,6 +9691,7 @@ function renderShapePanel() {
   const typeLabel = { rect: 'Rectangle', wall: 'Wall', circle: 'Circle', oval: 'Oval' }[s.type] || 'Shape';
   panel.innerHTML = `
     <div class="sp-head">
+      <span class="sp-grip" title="Drag to move this panel">⠿</span>
       <input type="text" class="sp-name" value="${escapeHTML(s.label || '')}" placeholder="Name (e.g., Sofa)">
       <button class="sp-close" data-act="close" title="Close">×</button>
     </div>
@@ -9899,6 +9907,31 @@ function attachLayoutHandlers() {
   });
   document.getElementById('layout-cal').addEventListener('click', startCalibration);
   document.getElementById('layout-cal-reset')?.addEventListener('click', resetPlanScale);
+  // Make the shape editor panel draggable by grabbing any non-control area (grip, header, labels).
+  const shapePanel = document.getElementById('layout-shape-panel');
+  if (shapePanel && !shapePanel._dragWired) {
+    shapePanel._dragWired = true;
+    shapePanel.addEventListener('pointerdown', e => {
+      if (e.target.closest('input, textarea, button, select')) return; // let the controls work normally
+      const wrap = shapePanel.parentElement; if (!wrap) return;
+      const wrapRect = wrap.getBoundingClientRect();
+      const pr = shapePanel.getBoundingClientRect();
+      const offX = e.clientX - pr.left, offY = e.clientY - pr.top;
+      e.preventDefault();
+      shapePanel.classList.add('dragging');
+      const move = ev => {
+        let left = ev.clientX - wrapRect.left - offX;
+        let top = ev.clientY - wrapRect.top - offY;
+        left = Math.max(0, Math.min(left, wrap.clientWidth - shapePanel.offsetWidth));
+        top = Math.max(0, Math.min(top, wrap.clientHeight - shapePanel.offsetHeight));
+        shapePanelPos = { left, top };
+        shapePanel.style.left = left + 'px'; shapePanel.style.top = top + 'px'; shapePanel.style.right = 'auto';
+      };
+      const up = () => { shapePanel.classList.remove('dragging'); document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', up); };
+      document.addEventListener('pointermove', move);
+      document.addEventListener('pointerup', up);
+    });
+  }
   // Mouse wheel zoom
   const svgEl = document.getElementById('layout-svg');
   svgEl.addEventListener('wheel', e => {
