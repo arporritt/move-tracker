@@ -1323,6 +1323,37 @@
     gap: 14px;
     margin-bottom: 28px;
   }
+  /* Per-room Paint plan (surface → color rows) */
+  .room-paintplan { display: flex; flex-direction: column; gap: 8px; margin-bottom: 24px; }
+  .rp-row { display: flex; align-items: center; gap: 10px; }
+  .rp-swatch { flex: 0 0 auto; width: 34px; height: 34px; border-radius: 8px; border: 1px solid var(--rule); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.25); }
+  .rp-surface {
+    flex: 0 0 190px; font-family: 'Manrope', sans-serif; font-size: 13.5px; font-weight: 600; color: var(--ink);
+    background: var(--bg-card); border: 1px solid var(--rule); border-radius: 8px; padding: 8px 10px; outline: none;
+  }
+  .rp-surface:focus { border-color: var(--clay-soft); }
+  .rp-surface::placeholder { color: var(--ink-faint); font-weight: 500; }
+  .rp-color {
+    flex: 1 1 auto; display: flex; align-items: baseline; gap: 8px; text-align: left; cursor: pointer;
+    background: var(--bg-card); border: 1px solid var(--rule); border-radius: 8px; padding: 8px 12px;
+    font-family: 'Manrope', sans-serif; transition: border-color 0.12s, background 0.12s;
+  }
+  .rp-color:hover { border-color: var(--clay-soft); background: rgba(166,160,148,0.06); }
+  .rp-color.empty .rp-color-name { color: var(--ink-faint); font-style: italic; font-weight: 500; }
+  .rp-color-name { font-size: 14px; font-weight: 600; color: var(--ink); }
+  .rp-color-sw { font-size: 11.5px; color: var(--ink-soft); letter-spacing: 0.03em; font-variant-numeric: tabular-nums; }
+  .rp-del {
+    flex: 0 0 auto; width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--rule);
+    background: var(--bg-card); color: var(--ink-faint); font-size: 18px; line-height: 1; cursor: pointer; transition: all 0.12s;
+  }
+  .rp-del:hover { border-color: var(--behind); color: var(--behind); }
+  .rp-empty { font-size: 13px; color: var(--ink-faint); font-style: italic; padding: 4px 2px; }
+  .rp-add {
+    align-self: flex-start; margin-top: 4px; background: transparent; border: 1px dashed var(--clay-soft);
+    color: var(--clay); border-radius: 8px; padding: 8px 14px; font-family: 'Manrope', sans-serif;
+    font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.12s;
+  }
+  .rp-add:hover { background: rgba(122,110,94,0.08); border-color: var(--clay); }
   .mb-swatch {
     background: var(--bg-card);
     border: 1px solid var(--rule);
@@ -8929,7 +8960,7 @@ function renderMoodboard() {
     <div class="mb-description ${desc ? '' : 'empty'}" contenteditable="true" spellcheck="true" data-placeholder="${escapeHTML(placeholderText)}" id="mb-desc">${escapeHTML(desc)}</div>
 
     <div class="mb-section">
-      <div class="mb-section-head"><span class="mb-section-title">Paint palette</span></div>
+      <div class="mb-section-head"><span class="mb-section-title">Paint plan</span></div>
       <div id="mb-room-palette-host"></div>
     </div>
 
@@ -8978,11 +9009,11 @@ function renderMoodboard() {
     const text = (e.clipboardData || window.clipboardData).getData('text/plain');
     document.execCommand('insertText', false, text);
   });
-  // Editable paint palette
+  // Editable paint plan (per-surface assignments)
   const paletteHost = board.querySelector('#mb-room-palette-host');
   if (paletteHost) {
-    if (!Array.isArray(room.paintColors)) room.paintColors = [];
-    paletteHost.appendChild(renderPaintPalette(room.paintColors, () => {
+    if (!Array.isArray(room.paintAssignments)) room.paintAssignments = [];
+    paletteHost.appendChild(renderRoomPaintPlan(room, () => {
       persist();
       renderMoodboard();
     }));
@@ -11283,9 +11314,36 @@ try { const v = localStorage.getItem('mt-palette-view'); if (v === 'table' || v 
 
 // Master color list lives in state.overallVision.palette — colors exist here independently of room assignment,
 // so removing a color from a room never deletes the color. Seeds itself from any existing universal/room colors.
+// Common surfaces offered as quick-picks when assigning paint (free-text still allowed).
+const SURFACE_SUGGESTIONS = ['Walls','Trim & baseboards','Ceiling','Doors','Front door','Cabinets','Island','Vanity','Accent wall','Built-ins','Fireplace','Wainscoting','Powder room'];
+
+// Match a per-room paint ASSIGNMENT to a master color. Location-agnostic: by SW# when present, else name.
+function assignmentIsColor(a, c) {
+  if (a && c && a.sw && c.sw) return a.sw === c.sw;
+  return !!(a && a.name) && (a.name || '').toLowerCase() === (c.name || '').toLowerCase();
+}
+// Migrate legacy room.paintColors → room.paintAssignments (surface seeded from the old location). Runs once per room.
+function ensureRoomPaintPlans() {
+  if (!state.inspiration) return false;
+  let changed = false;
+  for (const f of ['basement','ground','upper']) {
+    (state.inspiration[f] || []).forEach(room => {
+      if (!Array.isArray(room.paintAssignments)) {
+        room.paintAssignments = (room.paintColors || []).map(c => ({
+          surface: c.location || '', name: c.name || '', sw: c.sw || '', hex: c.hex || '#CCCCCC',
+          lrv: (c.lrv != null ? c.lrv : ''), url: c.url || ''
+        }));
+        changed = true;
+      }
+    });
+  }
+  return changed;
+}
+
 function ensurePaletteMaster() {
   if (!state.overallVision) state.overallVision = {};
   if (!state.inspiration) state.inspiration = { basement: [], ground: [], upper: [] };
+  ensureRoomPaintPlans();
   if (!Array.isArray(state.overallVision.universalPalette)) state.overallVision.universalPalette = [];
   if (!Array.isArray(state.overallVision.palette)) state.overallVision.palette = [];
   const master = state.overallVision.palette;
@@ -11298,7 +11356,7 @@ function ensurePaletteMaster() {
   };
   (state.overallVision.universalPalette || []).forEach(addToMaster);
   for (const f of ['basement','ground','upper']) {
-    (state.inspiration[f] || []).forEach(room => (room.paintColors || []).forEach(addToMaster));
+    (state.inspiration[f] || []).forEach(room => (room.paintAssignments || []).forEach(addToMaster));
   }
   // Persist the master list so colors survive reloads even when not assigned to any room.
   if (added) persist();
@@ -11320,16 +11378,16 @@ function renderPalette() {
   const entries = state.overallVision.palette.map(color => {
     const universal = (state.overallVision.universalPalette || []).some(u => colorMatches(u, color));
     const refs = [];
-    if (universal) {
-      refs.push({ roomId: null }); // universalRef marker
-    } else {
-      for (const f of ['basement','ground','upper']) {
-        (state.inspiration[f] || []).forEach(room => {
-          if ((room.paintColors || []).some(p => colorMatches(p, color))) {
-            refs.push({ floor: f, roomId: room.id, roomName: room.name });
+    if (universal) refs.push({ roomId: null }); // universalRef marker
+    // One ref per surface assignment across all rooms.
+    for (const f of ['basement','ground','upper']) {
+      (state.inspiration[f] || []).forEach(room => {
+        (room.paintAssignments || []).forEach(a => {
+          if (assignmentIsColor(a, color)) {
+            refs.push({ floor: f, roomId: room.id, roomName: room.name, surface: a.surface || '' });
           }
         });
-      }
+      });
     }
     return { color, refs, universal };
   });
@@ -11337,7 +11395,7 @@ function renderPalette() {
     <div class="palette-section-header">
       <div>
         <h3>Paint selections</h3>
-        <div class="palette-subtitle">Every paint color lives here. Assign each to any rooms — removing it from a room never deletes it.</div>
+        <div class="palette-subtitle">Every paint color lives here. Assign each to a room + surface (e.g., Entryway · Front door); "Used in" shows every place it lands. Removing an assignment never deletes the color.</div>
       </div>
       <div class="palette-header-actions">
         <div class="palette-view-toggle">
@@ -11385,9 +11443,7 @@ function renderPaletteTable(entries) {
   function buildRow(entry) {
     const c = entry.color;
     const universalRef = entry.refs.find(r => !r.roomId);
-    const roomRefs = entry.refs.filter(r => r.roomId);
-    const seen = new Set();
-    const uniqueRoomRefs = roomRefs.filter(r => { if (seen.has(r.roomId)) return false; seen.add(r.roomId); return true; });
+    const roomRefs = entry.refs.filter(r => r.roomId); // one per room · surface
     const row = document.createElement('div');
     row.className = 'palette-table-row';
     row.innerHTML = `
@@ -11446,17 +11502,18 @@ function renderPaletteTable(entries) {
       chip.textContent = '★ Every room';
       roomsBox.appendChild(chip);
     }
-    uniqueRoomRefs.forEach(ref => {
+    roomRefs.forEach(ref => {
       const chip = document.createElement('span');
       chip.className = 'palette-room-chip';
-      chip.innerHTML = `${escapeHTML(ref.roomName || 'Room')} <button title="Remove from room">×</button>`;
+      const surf = ref.surface ? ` · ${escapeHTML(ref.surface)}` : '';
+      chip.innerHTML = `${escapeHTML(ref.roomName || 'Room')}${surf} <button title="Remove this assignment">×</button>`;
       chip.querySelector('button').addEventListener('click', () => {
-        if (!confirm(`Remove "${cur.name}" from ${ref.roomName}?`)) return;
-        removeColorFromRoom(cur, ref.floor, ref.roomId);
+        if (!confirm(`Remove "${cur.name}" from ${ref.roomName}${ref.surface ? ' · ' + ref.surface : ''}?`)) return;
+        removeAssignmentRef(cur, ref.floor, ref.roomId, ref.surface);
       });
       roomsBox.appendChild(chip);
     });
-    if (!universalRef && uniqueRoomRefs.length === 0) {
+    if (!universalRef && roomRefs.length === 0) {
       roomsBox.innerHTML = '<span class="pt-unused">—</span>';
     }
     const linkBtn = row.querySelector('[data-act="link"]');
@@ -11524,9 +11581,7 @@ function renderPaletteCard(entry) {
   card.className = 'palette-card';
   // Determine which rooms are using this color (deduplicated by room.id)
   const universalRef = entry.refs.find(r => !r.roomId);
-  const roomRefs = entry.refs.filter(r => r.roomId);
-  const seen = new Set();
-  const uniqueRoomRefs = roomRefs.filter(r => { if (seen.has(r.roomId)) return false; seen.add(r.roomId); return true; });
+  const roomRefs = entry.refs.filter(r => r.roomId); // one per room · surface
   card.innerHTML = `
     <div class="palette-card-chip" style="background:${escapeHTML(c.hex || '#ccc')}"></div>
     <div class="palette-card-body">
@@ -11544,13 +11599,14 @@ function renderPaletteCard(entry) {
     </div>
   `;
   const roomsBox = card.querySelector('.palette-card-rooms');
-  uniqueRoomRefs.forEach(ref => {
+  roomRefs.forEach(ref => {
     const chip = document.createElement('span');
     chip.className = 'palette-room-chip';
-    chip.innerHTML = `${escapeHTML(ref.roomName || 'Room')} <button title="Remove from room">×</button>`;
+    const surf = ref.surface ? ` · ${escapeHTML(ref.surface)}` : '';
+    chip.innerHTML = `${escapeHTML(ref.roomName || 'Room')}${surf} <button title="Remove this assignment">×</button>`;
     chip.querySelector('button').addEventListener('click', () => {
-      if (!confirm(`Remove "${c.name}" from ${ref.roomName}?`)) return;
-      removeColorFromRoom(c, ref.floor, ref.roomId);
+      if (!confirm(`Remove "${c.name}" from ${ref.roomName}${ref.surface ? ' · ' + ref.surface : ''}?`)) return;
+      removeAssignmentRef(c, ref.floor, ref.roomId, ref.surface);
     });
     roomsBox.appendChild(chip);
   });
@@ -11630,6 +11686,8 @@ function replaceColorEverywhere(oldColor, updated, reRender = true) {
   for (const f of ['basement','ground','upper']) {
     (state.inspiration[f] || []).forEach(r => {
       if (Array.isArray(r.paintColors)) r.paintColors = r.paintColors.map(p => colorMatches(p, oldColor) ? { ...updated } : p);
+      if (Array.isArray(r.paintAssignments)) r.paintAssignments = r.paintAssignments.map(a => assignmentIsColor(a, oldColor)
+        ? { ...a, name: updated.name, sw: updated.sw, hex: updated.hex, lrv: updated.lrv, url: updated.url } : a);
     });
   }
   persist();
@@ -11641,11 +11699,12 @@ function safeHexForInput(hex) {
   return /^#[0-9a-fA-F]{6}$/.test(h) ? h : '#cccccc';
 }
 
-// Unassign a color from one room (the color stays in the master palette).
-function removeColorFromRoom(c, floor, roomId) {
+// Remove one surface assignment of a color from a room (the color stays in the master palette).
+function removeAssignmentRef(c, floor, roomId, surface) {
   const room = (state.inspiration[floor] || []).find(r => r.id === roomId);
-  if (!room || !Array.isArray(room.paintColors)) return;
-  room.paintColors = room.paintColors.filter(p => !colorMatches(p, c));
+  if (!room || !Array.isArray(room.paintAssignments)) return;
+  const i = room.paintAssignments.findIndex(a => assignmentIsColor(a, c) && (a.surface || '') === (surface || ''));
+  if (i >= 0) room.paintAssignments.splice(i, 1);
   persist();
   renderPalette();
 }
@@ -11662,6 +11721,7 @@ function deletePaletteColor(c) {
   for (const f of ['basement','ground','upper']) {
     (state.inspiration[f] || []).forEach(r => {
       if (Array.isArray(r.paintColors)) r.paintColors = r.paintColors.filter(p => !colorMatches(p, c));
+      if (Array.isArray(r.paintAssignments)) r.paintAssignments = r.paintAssignments.filter(a => !assignmentIsColor(a, c));
     });
   }
   persist();
@@ -11670,52 +11730,34 @@ function deletePaletteColor(c) {
 
 function assignColorToRoom(c) {
   ensurePaletteMaster();
-  // Only list rooms that don't have a room-specific color yet ("unassigned").
-  // (Universal colors are inherited by every room, so they don't count as assigned.)
-  const universalList = state.overallVision.universalPalette || [];
-  const isSpecific = p => !universalList.some(u => colorMatches(u, p));
   const rooms = [];
   for (const f of ['basement','ground','upper']) {
-    (state.inspiration[f] || []).forEach(r => {
-      const alreadyAssigned = (r.paintColors || []).some(isSpecific);
-      if (alreadyAssigned) return;
-      rooms.push({ floor: f, id: r.id, name: r.name || 'Unnamed' });
-    });
+    (state.inspiration[f] || []).forEach(r => rooms.push({ floor: f, id: r.id, name: r.name || 'Unnamed' }));
   }
-  let universal = (state.overallVision.universalPalette || []).some(u => colorMatches(u, c));
   const checked = new Set();
-
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay active';
   overlay.innerHTML = `
     <div class="picker">
-      <div class="picker-label"><span class="room-pick-swatch" style="background:${escapeHTML(c.hex || '#ccc')};vertical-align:middle;margin-right:6px;"></span>Assign <strong>${escapeHTML(c.name || 'color')}</strong> to rooms <span style="color:var(--ink-faint);font-weight:400;">· unassigned rooms only</span></div>
+      <div class="picker-label"><span class="room-pick-swatch" style="background:${escapeHTML(c.hex || '#ccc')};vertical-align:middle;margin-right:6px;"></span>Assign <strong>${escapeHTML(c.name || 'color')}</strong> to a surface</div>
+      <input type="text" class="picker-search picker-surface" list="assign-surface-suggest" placeholder="Surface — e.g., Walls, Front door, Cabinets" autocomplete="off">
+      <datalist id="assign-surface-suggest">${SURFACE_SUGGESTIONS.map(s => `<option value="${escapeHTML(s)}">`).join('')}</datalist>
+      <div style="font-size:12px;color:var(--ink-faint);margin:8px 2px 4px;">Apply it to which room(s)?</div>
       <input type="text" class="picker-search" placeholder="Search rooms…" autocomplete="off">
       <div class="picker-list"></div>
       <div class="picker-footer">
-        <button class="picker-clear" data-act="clear">Clear all</button>
-        <button class="picker-done" data-act="done">Done</button>
+        <button class="picker-clear" data-act="all">Select all</button>
+        <button class="picker-done" data-act="done">Add</button>
       </div>
     </div>
   `;
   document.body.appendChild(overlay);
   const listEl = overlay.querySelector('.picker-list');
-  const searchEl = overlay.querySelector('.picker-search');
+  const searchEl = overlay.querySelectorAll('.picker-search')[1];
+  const surfaceEl = overlay.querySelector('.picker-surface');
   function draw() {
     const q = searchEl.value.trim().toLowerCase();
     listEl.innerHTML = '';
-    const uni = document.createElement('div');
-    uni.className = 'picker-row' + (universal ? ' selected' : '');
-    uni.innerHTML = `<span class="picker-check">${universal ? '✓' : ''}</span><span class="picker-avatar" style="background:var(--forest)">★</span><span class="picker-name">Every room (universal)</span>`;
-    uni.addEventListener('click', () => { universal = !universal; draw(); });
-    listEl.appendChild(uni);
-    if (universal) {
-      const note = document.createElement('div');
-      note.className = 'picker-empty';
-      note.textContent = 'Applies to every room. Uncheck to pick specific rooms.';
-      listEl.appendChild(note);
-      return;
-    }
     ['basement','ground','upper'].forEach(f => {
       const list = rooms.filter(r => r.floor === f && r.name.toLowerCase().includes(q));
       if (!list.length) return;
@@ -11732,44 +11774,34 @@ function assignColorToRoom(c) {
       });
     });
     if (!rooms.length) {
-      const anyRooms = ['basement','ground','upper'].some(f => (state.inspiration[f] || []).length);
-      listEl.appendChild(Object.assign(document.createElement('div'), {
-        className: 'picker-empty',
-        textContent: anyRooms
-          ? 'Every room already has a color — change colors from the table or each room.'
-          : 'No rooms yet — add them in the Design tab, or use Every room.'
-      }));
+      listEl.appendChild(Object.assign(document.createElement('div'), { className: 'picker-empty', textContent: 'No rooms yet — add them in the Design tab first.' }));
     }
   }
   draw();
-
   function close() { overlay.remove(); document.removeEventListener('keydown', onKey); }
-  function onKey(e) { if (e.key === 'Escape') close(); else if (e.key === 'Enter') commit(); }
+  function onKey(e) { if (e.key === 'Escape') close(); else if (e.key === 'Enter' && document.activeElement !== surfaceEl) commit(); }
   function commit() {
+    const surface = surfaceEl.value.trim();
+    if (!checked.size) { close(); return; }
     if (!state.overallVision.palette.some(p => colorMatches(p, c))) {
-      state.overallVision.palette.push({ location: c.location || '', name: c.name || '', sw: c.sw || '', hex: c.hex || '#CCCCCC', url: c.url || '' });
+      state.overallVision.palette.push({ location: c.location || '', name: c.name || '', sw: c.sw || '', hex: c.hex || '#CCCCCC', lrv: (c.lrv != null ? c.lrv : ''), url: c.url || '' });
     }
-    const inUni = state.overallVision.universalPalette.some(u => colorMatches(u, c));
-    if (universal && !inUni) state.overallVision.universalPalette.push({ ...c });
-    if (!universal && inUni) state.overallVision.universalPalette = state.overallVision.universalPalette.filter(u => !colorMatches(u, c));
-    if (!universal) {
-      rooms.forEach(info => {
-        const room = (state.inspiration[info.floor] || []).find(r => r.id === info.id);
-        if (!room) return;
-        if (!Array.isArray(room.paintColors)) room.paintColors = [];
-        const hasNow = room.paintColors.some(p => colorMatches(p, c));
-        if (checked.has(info.id) && !hasNow) room.paintColors.push({ ...c });
-        else if (!checked.has(info.id) && hasNow) room.paintColors = room.paintColors.filter(p => !colorMatches(p, c));
-      });
-    }
+    rooms.forEach(info => {
+      if (!checked.has(info.id)) return;
+      const room = (state.inspiration[info.floor] || []).find(r => r.id === info.id);
+      if (!room) return;
+      if (!Array.isArray(room.paintAssignments)) room.paintAssignments = [];
+      const dup = room.paintAssignments.some(a => assignmentIsColor(a, c) && (a.surface || '') === surface);
+      if (!dup) room.paintAssignments.push({ surface, name: c.name || '', sw: c.sw || '', hex: c.hex || '#CCCCCC', lrv: (c.lrv != null ? c.lrv : ''), url: c.url || '' });
+    });
     persist(); close(); renderPalette();
   }
   document.addEventListener('keydown', onKey);
   overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
-  overlay.querySelector('[data-act="clear"]').addEventListener('click', () => { checked.clear(); universal = false; draw(); });
+  overlay.querySelector('[data-act="all"]').addEventListener('click', () => { rooms.forEach(r => checked.add(r.id)); draw(); });
   overlay.querySelector('[data-act="done"]').addEventListener('click', commit);
   searchEl.addEventListener('input', draw);
-  setTimeout(() => searchEl.focus(), 0);
+  setTimeout(() => surfaceEl.focus(), 0);
 }
 
 function editColorEverywhere(c) {
@@ -11942,6 +11974,96 @@ function openWallpaperEditor(room, idx) {
     persist(); close(); renderMoodboard();
   });
   setTimeout(() => overlay.querySelector('#wp-name').focus(), 0);
+}
+
+// Per-room Paint plan: a list of "surface → palette color" rows, editable in place.
+function renderRoomPaintPlan(room, onChange) {
+  if (!Array.isArray(room.paintAssignments)) room.paintAssignments = [];
+  const wrap = document.createElement('div');
+  wrap.className = 'room-paintplan';
+  wrap.innerHTML = `<datalist id="rp-surface-suggest">${SURFACE_SUGGESTIONS.map(s => `<option value="${escapeHTML(s)}">`).join('')}</datalist>`;
+  room.paintAssignments.forEach((a, idx) => {
+    const rowEl = document.createElement('div');
+    rowEl.className = 'rp-row';
+    const hasColor = !!(a.name || a.sw);
+    rowEl.innerHTML = `
+      <span class="rp-swatch" style="background:${escapeHTML(a.hex || '#e8e4da')}"></span>
+      <input class="rp-surface" list="rp-surface-suggest" value="${escapeHTML(a.surface || '')}" placeholder="Surface — e.g., Walls, Front door">
+      <button class="rp-color ${hasColor ? '' : 'empty'}" data-act="color" title="Choose paint color">
+        <span class="rp-color-name">${hasColor ? escapeHTML(a.name || 'Color') : 'Pick color'}</span>
+        ${a.sw ? `<span class="rp-color-sw">SW ${escapeHTML(a.sw)}${a.lrv != null && String(a.lrv).trim() ? ' · LRV ' + escapeHTML(String(a.lrv)) : ''}</span>` : ''}
+      </button>
+      <button class="rp-del" data-act="del" title="Remove surface">×</button>
+    `;
+    rowEl.querySelector('.rp-surface').addEventListener('change', e => { a.surface = e.target.value.trim(); onChange(); });
+    rowEl.querySelector('[data-act="color"]').addEventListener('click', () => {
+      pickPaletteColor(a, picked => {
+        if (!picked) return;
+        a.name = picked.name || ''; a.sw = picked.sw || ''; a.hex = picked.hex || '#CCCCCC';
+        a.lrv = (picked.lrv != null ? picked.lrv : ''); a.url = picked.url || '';
+        onChange();
+      });
+    });
+    rowEl.querySelector('[data-act="del"]').addEventListener('click', () => { room.paintAssignments.splice(idx, 1); onChange(); });
+    wrap.appendChild(rowEl);
+  });
+  if (room.paintAssignments.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'rp-empty';
+    empty.textContent = 'No paint yet. Add a surface (walls, trim, doors, cabinets…) and pick its color from the palette.';
+    wrap.appendChild(empty);
+  }
+  const addBtn = document.createElement('button');
+  addBtn.className = 'rp-add';
+  addBtn.innerHTML = '+ Add surface';
+  addBtn.addEventListener('click', () => {
+    room.paintAssignments.push({ surface: '', name: '', sw: '', hex: '', lrv: '', url: '' });
+    onChange();
+    setTimeout(() => { const inputs = document.querySelectorAll('.room-paintplan .rp-surface'); const last = inputs[inputs.length - 1]; if (last) last.focus(); }, 0);
+  });
+  wrap.appendChild(addBtn);
+  return wrap;
+}
+
+// Single-select picker over the master palette (swatch + name + SW + LRV). Used by the room Paint plan.
+function pickPaletteColor(current, onPick) {
+  ensurePaletteMaster();
+  const colors = state.overallVision.palette || [];
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay active';
+  overlay.innerHTML = `
+    <div class="picker">
+      <div class="picker-label">Choose a paint color</div>
+      <input type="text" class="picker-search" placeholder="Search colors…" autocomplete="off">
+      <div class="picker-list"></div>
+      <div class="picker-footer"><button class="picker-clear" data-act="cancel">Cancel</button></div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  const listEl = overlay.querySelector('.picker-list');
+  const searchEl = overlay.querySelector('.picker-search');
+  function draw() {
+    const q = searchEl.value.trim().toLowerCase();
+    listEl.innerHTML = '';
+    const matches = colors.filter(c => !q || (c.name || '').toLowerCase().includes(q) || (c.sw || '').includes(q));
+    if (!matches.length) { listEl.innerHTML = '<div class="picker-empty">No colors match.</div>'; return; }
+    matches.forEach(c => {
+      const on = current && assignmentIsColor(current, c);
+      const row = document.createElement('div');
+      row.className = 'picker-row' + (on ? ' selected' : '');
+      row.innerHTML = `<span class="picker-check">${on ? '✓' : ''}</span><span class="room-pick-swatch" style="background:${escapeHTML(c.hex || '#ccc')}"></span><span class="picker-name">${escapeHTML(c.name || 'Unnamed')}<span style="color:var(--ink-faint);font-weight:400;"> · SW ${escapeHTML(c.sw || '—')}${c.lrv != null && String(c.lrv).trim() ? ' · LRV ' + escapeHTML(String(c.lrv)) : ''}</span></span>`;
+      row.addEventListener('click', () => { close(); onPick(c); });
+      listEl.appendChild(row);
+    });
+  }
+  draw();
+  function close() { overlay.remove(); document.removeEventListener('keydown', onKey); }
+  function onKey(e) { if (e.key === 'Escape') close(); }
+  document.addEventListener('keydown', onKey);
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  overlay.querySelector('[data-act="cancel"]').addEventListener('click', close);
+  searchEl.addEventListener('input', draw);
+  setTimeout(() => searchEl.focus(), 0);
 }
 
 function renderPaintPalette(colors, onChange) {
@@ -12141,6 +12263,7 @@ function syncPdfPalette(force) {
   for (const f of ['basement', 'ground', 'upper']) {
     (state.inspiration[f] || []).forEach(room => {
       if (Array.isArray(room.paintColors)) room.paintColors = room.paintColors.filter(colorInPdfPalette);
+      if (Array.isArray(room.paintAssignments)) room.paintAssignments = room.paintAssignments.filter(colorInPdfPalette);
     });
   }
   // 4) Order the master list: PDF palette first (in guide order, light→dark), leftover colors after.
