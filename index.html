@@ -698,6 +698,23 @@
   }
   .layout-del-btn:not(:disabled):hover { border-color: var(--behind); color: var(--behind); }
   .layout-del-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .layout-name-input {
+    margin-left: auto; width: 180px; padding: 7px 12px; background: white;
+    border: 1px solid var(--rule); border-radius: 100px;
+    font-family: 'Manrope', sans-serif; font-size: 12px; font-weight: 600; color: var(--ink); outline: none;
+  }
+  .layout-name-input:focus { border-color: var(--clay-soft); }
+  .layout-name-input:disabled { opacity: 0.4; }
+  .layout-name-input::placeholder { color: var(--ink-faint); font-weight: 500; }
+  .layout-angle-wrap { display: inline-flex; align-items: center; gap: 3px; font-size: 12px; font-weight: 700; color: var(--ink-soft); }
+  .layout-angle-wrap input {
+    width: 46px; padding: 7px 4px; text-align: center; background: white;
+    border: 1px solid var(--rule); border-radius: 8px;
+    font-family: 'Manrope', sans-serif; font-size: 12px; color: var(--ink); outline: none;
+  }
+  .layout-angle-wrap input:focus { border-color: var(--clay-soft); }
+  .layout-angle-wrap input:disabled { opacity: 0.4; }
+  #layout-rot90 { margin-left: 0; }
 
   .layout-canvas-wrap {
     background: var(--bg-card);
@@ -796,6 +813,19 @@
     stroke-width: 0.15;
     vector-effect: non-scaling-stroke;
     cursor: nwse-resize;
+  }
+  .layout-svg .rotate-handle {
+    fill: white;
+    stroke: var(--plum);
+    stroke-width: 0.15;
+    vector-effect: non-scaling-stroke;
+    cursor: grab;
+  }
+  .layout-svg .rotate-stem {
+    stroke: var(--plum);
+    stroke-width: 0.1;
+    vector-effect: non-scaling-stroke;
+    pointer-events: none;
   }
   .layout-svg .drawing-preview {
     fill: rgba(166,160,148,0.20);
@@ -7257,13 +7287,16 @@
         <button class="layout-tool-btn" id="layout-zoom-reset" title="Fit to view" style="width:auto;padding:0 10px;font-size:11px;">Fit</button>
       </div>
       <button class="layout-del-btn" id="layout-cal" style="margin-left:0;" title="Drag a line across a known length to match the plan to the grid">📏 Set scale</button>
+      <input type="text" id="layout-name" class="layout-name-input" placeholder="Name the selected shape…" disabled>
+      <label class="layout-angle-wrap" title="Rotation angle (degrees)">∠<input type="number" id="layout-angle" min="0" max="359" step="5" disabled>°</label>
+      <button class="layout-del-btn" id="layout-rot90" disabled title="Rotate 90°">⟲ 90°</button>
       <button class="layout-del-btn" id="layout-img" disabled>🖼 Image…</button>
       <button class="layout-del-btn" id="layout-del" disabled>Delete</button>
     </div>
     <div class="layout-canvas-wrap">
       <svg id="layout-svg" class="layout-svg" preserveAspectRatio="xMidYMid meet"></svg>
     </div>
-    <div class="layout-hint" id="layout-hint">Pick a shape tool above and drag on the canvas to draw. Switch to ↔ to move shapes around. Click a shape to select; double-click to rename. Select a shape and hit <strong>🖼 Image…</strong> to drop a furniture photo right into its footprint.</div>
+    <div class="layout-hint" id="layout-hint">Pick a shape tool above and drag on the canvas to draw. Switch to ↔ to move shapes. Click a shape to select — then <strong>type its name</strong> in the toolbar, set the <strong>∠ angle</strong> (or drag the round handle above it to rotate), drop a <strong>🖼 Image</strong>, or resize from the corner. Double-click a shape to jump to its name.</div>
   </div>
 </div>
 
@@ -9376,6 +9409,7 @@ let layoutSelectedId = null;
 let layoutDrawing = null;
 let layoutDragging = null;
 let layoutResizing = null;
+let layoutRotating = null; // { id } while dragging the rotate handle
 let layoutPanning = null; // {startClientX, startClientY, startVB}
 let layoutViewBox = null; // {x,y,w,h} current view region
 let layoutMeasureMode = false; // true while "Set scale" is armed
@@ -9440,12 +9474,18 @@ function renderLayout() {
   svg.classList.toggle('tool-select', layoutTool === 'select');
   document.querySelectorAll('.layout-tool-btn').forEach(b => b.classList.toggle('active', b.dataset.tool === layoutTool));
   document.getElementById('layout-del').disabled = !layoutSelectedId;
+  const selShape = layoutSelectedId ? currentShape(layoutSelectedId) : null;
   const imgBtn = document.getElementById('layout-img');
   if (imgBtn) {
     imgBtn.disabled = !layoutSelectedId;
-    const selShape = layoutSelectedId ? currentShape(layoutSelectedId) : null;
     imgBtn.textContent = (selShape && selShape.image) ? '🖼 Image ✓' : '🖼 Image…';
   }
+  const nameInput = document.getElementById('layout-name');
+  if (nameInput && document.activeElement !== nameInput) { nameInput.disabled = !selShape; nameInput.value = selShape ? (selShape.label || '') : ''; }
+  const angleInput = document.getElementById('layout-angle');
+  if (angleInput && document.activeElement !== angleInput) { angleInput.disabled = !selShape; angleInput.value = selShape ? String(Math.round(Number(selShape.rotation) || 0)) : ''; }
+  const rot90 = document.getElementById('layout-rot90');
+  if (rot90) rot90.disabled = !selShape;
   // Build SVG content
   let svgContent = '';
   // Floor outline
@@ -9518,12 +9558,28 @@ function renderShapeSvg(s) {
     labelHtml += `<text class="shape-dim${onImg}" x="${cx}" y="${cy - 0.05}">${dimText}</text>`;
     labelHtml += `<text class="shape-dim shape-dim-in${onImg}" x="${cx}" y="${cy + 0.65}">${dimInches}</text>`;
   }
-  let handle = '';
-  if (s.id === layoutSelectedId && s.type !== 'wall') {
-    const hs = 0.6;
-    handle = `<rect class="resize-handle" data-resize="${s.id}" x="${s.x + s.w - hs/2}" y="${s.y + s.h - hs/2}" width="${hs}" height="${hs}"/>`;
+  let handles = '';
+  if (s.id === layoutSelectedId) {
+    if (s.type !== 'wall') {
+      const hs = 0.6;
+      handles += `<rect class="resize-handle" data-resize="${s.id}" x="${s.x + s.w - hs/2}" y="${s.y + s.h - hs/2}" width="${hs}" height="${hs}"/>`;
+    }
+    // Rotate handle: a small knob above the top-center, on a short stem.
+    const ry = s.y - 1.2;
+    handles += `<line class="rotate-stem" x1="${cx}" y1="${s.y}" x2="${cx}" y2="${ry}"/>`;
+    handles += `<circle class="rotate-handle" data-rotate="${s.id}" cx="${cx}" cy="${ry}" r="0.45"/>`;
   }
-  return imageEl + shapeEl + labelHtml + handle;
+  // Rotate the shape + image + handles about the center; labels stay upright (rendered outside the group).
+  const rot = Number(s.rotation) || 0;
+  const gOpen = rot ? `<g transform="rotate(${rot} ${cx} ${cy})">` : '<g>';
+  return gOpen + imageEl + shapeEl + handles + '</g>' + labelHtml;
+}
+
+// Rotate point (px,py) by `deg` degrees about pivot (cx,cy).
+function rotatePt(px, py, deg, cx, cy) {
+  const r = deg * Math.PI / 180, cos = Math.cos(r), sin = Math.sin(r);
+  const dx = px - cx, dy = py - cy;
+  return { x: cx + dx * cos - dy * sin, y: cy + dx * sin + dy * cos };
 }
 
 function svgPointFromEvent(e) {
@@ -9574,6 +9630,23 @@ function attachLayoutHandlers() {
     if (!layoutSelectedId) return;
     const s = currentShape(layoutSelectedId);
     if (s) openShapeImageModal(s);
+  });
+  const nameInput = document.getElementById('layout-name');
+  if (nameInput) {
+    const commitName = () => { const s = layoutSelectedId && currentShape(layoutSelectedId); if (!s) return; s.label = nameInput.value.trim(); persist(); renderLayout(); };
+    nameInput.addEventListener('change', commitName);
+    nameInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); nameInput.blur(); } });
+  }
+  const angleInput = document.getElementById('layout-angle');
+  if (angleInput) angleInput.addEventListener('change', () => {
+    const s = layoutSelectedId && currentShape(layoutSelectedId); if (!s) return;
+    let a = parseFloat(angleInput.value); if (isNaN(a)) a = 0;
+    s.rotation = ((a % 360) + 360) % 360; persist(); renderLayout();
+  });
+  const rot90 = document.getElementById('layout-rot90');
+  if (rot90) rot90.addEventListener('click', () => {
+    const s = layoutSelectedId && currentShape(layoutSelectedId); if (!s) return;
+    s.rotation = ((Number(s.rotation) || 0) + 90) % 360; persist(); renderLayout();
   });
   const showPlan = document.getElementById('layout-show-plan');
   if (showPlan) {
@@ -9687,6 +9760,7 @@ function onLayoutPointerDown(e) {
   const target = e.target;
   const shapeId = target.getAttribute('data-shape-id');
   const resizeId = target.getAttribute('data-resize');
+  const rotateId = target.getAttribute('data-rotate');
   // Set-scale mode: drag a line across a known real-world length
   if (layoutMeasureMode) {
     e.preventDefault();
@@ -9695,8 +9769,15 @@ function onLayoutPointerDown(e) {
     renderMeasurePreview();
     return;
   }
+  // Rotate handle drag
+  if (rotateId) {
+    e.preventDefault();
+    layoutRotating = { id: rotateId };
+    e.target.setPointerCapture?.(e.pointerId);
+    return;
+  }
   // Pan with shift+drag on empty area or middle button or when select tool clicking empty
-  if (e.shiftKey || (layoutTool === 'select' && !shapeId && !resizeId)) {
+  if (e.shiftKey || (layoutTool === 'select' && !shapeId && !resizeId && !rotateId)) {
     e.preventDefault();
     layoutPanning = {
       clientX: e.clientX, clientY: e.clientY,
@@ -9764,6 +9845,18 @@ function onLayoutPointerMove(e) {
     svg.setAttribute('viewBox', `${layoutViewBox.x} ${layoutViewBox.y} ${layoutViewBox.w} ${layoutViewBox.h}`);
     return;
   }
+  if (layoutRotating) {
+    const s = currentShape(layoutRotating.id);
+    if (!s) return;
+    const pt = svgPointFromEvent(e);
+    const cx = s.x + s.w / 2, cy = s.y + s.h / 2;
+    let ang = Math.atan2(pt.y - cy, pt.x - cx) * 180 / Math.PI + 90; // knob points "up" at 0°
+    ang = ((ang % 360) + 360) % 360;
+    ang = e.shiftKey ? Math.round(ang / 15) * 15 : Math.round(ang); // Shift = snap to 15°
+    s.rotation = ang % 360;
+    renderLayout();
+    return;
+  }
   if (layoutDragging) {
     const pt = svgPointFromEvent(e);
     const s = currentShape(layoutDragging.id);
@@ -9775,11 +9868,22 @@ function onLayoutPointerMove(e) {
     const pt = svgPointFromEvent(e);
     const s = currentShape(layoutResizing.id);
     if (!s) return;
-    s.w = Math.max(0.5, pt.x - layoutResizing.anchorX);
-    s.h = Math.max(0.5, pt.y - layoutResizing.anchorY);
-    const fl = state.layouts[layoutFloor];
-    if (s.x + s.w > fl.width) s.w = fl.width - s.x;
-    if (s.y + s.h > fl.height) s.h = fl.height - s.y;
+    const rot = Number(s.rotation) || 0;
+    if (!rot) {
+      // Axis-aligned: top-left stays anchored (original behavior).
+      s.w = Math.max(0.5, pt.x - layoutResizing.anchorX);
+      s.h = Math.max(0.5, pt.y - layoutResizing.anchorY);
+      const fl = state.layouts[layoutFloor];
+      if (s.x + s.w > fl.width) s.w = fl.width - s.x;
+      if (s.y + s.h > fl.height) s.h = fl.height - s.y;
+    } else {
+      // Rotated: resize about the (fixed) center using the pointer mapped into the shape's local frame.
+      const cx = s.x + s.w / 2, cy = s.y + s.h / 2;
+      const lp = rotatePt(pt.x, pt.y, -rot, cx, cy);
+      const newW = Math.max(0.5, 2 * Math.abs(lp.x - cx));
+      const newH = Math.max(0.5, 2 * Math.abs(lp.y - cy));
+      s.x = cx - newW / 2; s.y = cy - newH / 2; s.w = newW; s.h = newH;
+    }
     renderLayout();
   } else if (layoutDrawing) {
     const pt = svgPointFromEvent(e);
@@ -9806,6 +9910,7 @@ function onLayoutPointerUp(e) {
     return;
   }
   if (layoutPanning) { layoutPanning = null; return; }
+  if (layoutRotating) { layoutRotating = null; persist(); return; }
   if (layoutDragging) {
     layoutDragging = null;
     persist();
@@ -9821,20 +9926,20 @@ function onLayoutPointerUp(e) {
     layoutDrawing = null;
     document.querySelectorAll('.drawing-preview').forEach(el => el.remove());
     if (w >= 0.5 && h >= 0.5) {
-      const label = (d.type === 'wall') ? '' : (prompt('Label this shape (e.g., "Sofa", "Bed", "Dining table"):', '') || '');
       const newShape = {
         id: uidShape(), type: d.type,
         x: Math.round(x*10)/10, y: Math.round(y*10)/10,
         w: Math.round(w*10)/10, h: Math.round(h*10)/10,
-        label: label.trim()
+        label: '', rotation: 0
       };
       state.layouts[layoutFloor].shapes.push(newShape);
       layoutSelectedId = newShape.id;
       persist();
-      // Switch to the select tool but KEEP the new shape selected so its
-      // "🖼 Image…" button is immediately usable.
+      // Switch to select but KEEP the new shape selected so its name field, image & rotate are ready.
       layoutTool = 'select';
       renderLayout();
+      // Jump focus to the name field so it can be named right away (walls are usually unlabeled).
+      if (d.type !== 'wall') { const ni = document.getElementById('layout-name'); if (ni) { ni.focus(); ni.select?.(); } }
     } else {
       renderLayout();
     }
@@ -9844,13 +9949,11 @@ function onLayoutPointerUp(e) {
 function onLayoutDoubleClick(e) {
   const id = e.target.getAttribute('data-shape-id');
   if (!id) return;
-  const s = currentShape(id);
-  if (!s) return;
-  const newLabel = prompt('Label:', s.label || '');
-  if (newLabel === null) return;
-  s.label = newLabel.trim();
-  persist();
+  // Select the shape and jump to the name field (no more prompt dialog).
+  layoutSelectedId = id;
   renderLayout();
+  const ni = document.getElementById('layout-name');
+  if (ni) { ni.focus(); ni.select?.(); }
 }
 
 function renderDrawingPreview() {
