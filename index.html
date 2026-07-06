@@ -9441,6 +9441,7 @@ let layoutResizing = null;
 let layoutRotating = null; // { id } while dragging the rotate handle
 let layoutPanning = null; // {startClientX, startClientY, startVB}
 let layoutViewBox = null; // {x,y,w,h} current view region
+let layoutLabelUnit = 0.07; // user-units per screen-pixel — keeps shape labels a constant on-screen size at any zoom
 let layoutMeasureMode = false; // true while "Set scale" is armed
 let layoutMeasuring = null;    // {startX, startY, currentX, currentY} during a scale drag
 
@@ -9500,6 +9501,13 @@ function renderLayout() {
   const W = fl.width, H = fl.height;
   if (!layoutViewBox) layoutViewBox = { x: 0, y: 0, w: W, h: H };
   svg.setAttribute('viewBox', `${layoutViewBox.x} ${layoutViewBox.y} ${layoutViewBox.w} ${layoutViewBox.h}`);
+  // Screen pixels per user-unit at the current zoom (SVG uses xMidYMid meet), so labels can be sized in px.
+  // Only recompute when the SVG is actually laid out; otherwise keep the last good value (avoids a 0-width blowup).
+  const _r = svg.getBoundingClientRect();
+  if (_r.width > 0 && _r.height > 0) {
+    const _ppu = Math.min(_r.width / layoutViewBox.w, _r.height / layoutViewBox.h);
+    if (isFinite(_ppu) && _ppu > 0) layoutLabelUnit = 1 / _ppu;
+  }
   svg.classList.toggle('tool-select', layoutTool === 'select');
   document.querySelectorAll('.layout-tool-btn').forEach(b => b.classList.toggle('active', b.dataset.tool === layoutTool));
   // Build SVG content
@@ -9623,14 +9631,19 @@ function renderShapeSvg(s) {
   const labelText = s.label || '';
   const dimText = `${fmtNum(s.w)}' × ${fmtNum(s.h)}'`;
   const dimInches = `(${Math.round(s.w * 12)}" × ${Math.round(s.h * 12)}")`;
+  // Size labels in screen pixels (via layoutLabelUnit) so they stay readable at any zoom.
+  const u = layoutLabelUnit;
+  const line = 15 * u;
+  const halo = onImg ? `;stroke-width:${2 * u}px` : '';
+  const fs = px => `font-size:${px * u}px${halo}`;
   let labelHtml = '';
   if (labelText) {
-    labelHtml += `<text class="shape-label${onImg}" x="${cx}" y="${cy - 0.6}">${escapeHTML(labelText)}</text>`;
-    labelHtml += `<text class="shape-dim${onImg}" x="${cx}" y="${cy + 0.35}">${dimText}</text>`;
-    labelHtml += `<text class="shape-dim shape-dim-in${onImg}" x="${cx}" y="${cy + 1.1}">${dimInches}</text>`;
+    labelHtml += `<text class="shape-label${onImg}" style="${fs(15)}" x="${cx}" y="${cy - line}">${escapeHTML(labelText)}</text>`;
+    labelHtml += `<text class="shape-dim${onImg}" style="${fs(12)}" x="${cx}" y="${cy + line * 0.15}">${dimText}</text>`;
+    labelHtml += `<text class="shape-dim shape-dim-in${onImg}" style="${fs(10)}" x="${cx}" y="${cy + line * 1.15}">${dimInches}</text>`;
   } else {
-    labelHtml += `<text class="shape-dim${onImg}" x="${cx}" y="${cy - 0.05}">${dimText}</text>`;
-    labelHtml += `<text class="shape-dim shape-dim-in${onImg}" x="${cx}" y="${cy + 0.65}">${dimInches}</text>`;
+    labelHtml += `<text class="shape-dim${onImg}" style="${fs(12)}" x="${cx}" y="${cy - line * 0.5}">${dimText}</text>`;
+    labelHtml += `<text class="shape-dim shape-dim-in${onImg}" style="${fs(10)}" x="${cx}" y="${cy + line * 0.6}">${dimInches}</text>`;
   }
   let handles = '';
   if (s.id === layoutSelectedId) {
@@ -9800,11 +9813,12 @@ function renderMeasurePreview() {
   if (!m) return;
   const len = Math.hypot(m.currentX - m.startX, m.currentY - m.startY);
   const midx = (m.startX + m.currentX) / 2, midy = (m.startY + m.currentY) / 2;
+  const u = layoutLabelUnit;
   const html =
     `<line class="measure-preview" x1="${m.startX}" y1="${m.startY}" x2="${m.currentX}" y2="${m.currentY}"/>` +
-    `<circle class="measure-preview" cx="${m.startX}" cy="${m.startY}" r="0.32"/>` +
-    `<circle class="measure-preview" cx="${m.currentX}" cy="${m.currentY}" r="0.32"/>` +
-    `<text class="measure-preview measure-label" x="${midx}" y="${midy - 0.7}">${Math.round(len * 10) / 10} ft now</text>`;
+    `<circle class="measure-preview" cx="${m.startX}" cy="${m.startY}" r="${5 * u}"/>` +
+    `<circle class="measure-preview" cx="${m.currentX}" cy="${m.currentY}" r="${5 * u}"/>` +
+    `<text class="measure-preview measure-label" style="font-size:${14 * u}px;stroke-width:${3 * u}px" x="${midx}" y="${midy - 11 * u}">${Math.round(len * 10) / 10} ft now</text>`;
   svg.insertAdjacentHTML('beforeend', html);
 }
 
@@ -10030,10 +10044,11 @@ function renderDrawingPreview() {
     shape = `<ellipse class="drawing-preview" cx="${x + w/2}" cy="${y + h/2}" rx="${w/2}" ry="${h/2}"/>`;
   }
   const cx = x + w/2, cy = y + h/2;
+  const u = layoutLabelUnit, line = 15 * u;
   const dimFt = `${fmtNum(w)}' × ${fmtNum(h)}'`;
   const dimIn = `(${Math.round(w * 12)}" × ${Math.round(h * 12)}")`;
-  const dim = `<text class="shape-dim drawing-dim" x="${cx}" y="${cy - 0.35}">${dimFt}</text>`
-            + `<text class="shape-dim shape-dim-in drawing-dim" x="${cx}" y="${cy + 0.4}">${dimIn}</text>`;
+  const dim = `<text class="shape-dim drawing-dim" style="font-size:${12 * u}px" x="${cx}" y="${cy - line * 0.4}">${dimFt}</text>`
+            + `<text class="shape-dim shape-dim-in drawing-dim" style="font-size:${10 * u}px" x="${cx}" y="${cy + line * 0.6}">${dimIn}</text>`;
   svg.insertAdjacentHTML('beforeend', shape + dim);
 }
 
