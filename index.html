@@ -10903,7 +10903,7 @@ async function processUploadFiles(room, files) {
   }
   hideUploadProgress();
   persist();
-  renderInspiration();
+  renderMoodboard();
   let msg = '';
   if (driveOk) msg += `${driveOk} uploaded to Drive (syncs to Tom). `;
   if (localFallback) msg += `${localFallback} saved locally only (Drive upload failed — Apps Script may need re-deploy). `;
