@@ -723,6 +723,11 @@
   }
   .shape-panel .sp-close:hover { border-color: var(--behind); color: var(--behind); }
   .shape-panel .sp-type { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-faint); font-weight: 700; margin-top: -3px; }
+  .shape-panel .sp-type-row { display: flex; align-items: center; justify-content: space-between; margin-top: -3px; }
+  .shape-panel .sp-type-row .sp-type { margin-top: 0; }
+  .shape-panel .sp-units { display: inline-flex; border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; }
+  .shape-panel .sp-units button { border: none; background: white; font-family: 'Manrope', sans-serif; font-size: 10.5px; font-weight: 700; letter-spacing: 0.02em; padding: 3px 9px; cursor: pointer; color: var(--ink-faint); }
+  .shape-panel .sp-units button.on { background: var(--clay); color: #fff; }
   .shape-panel .sp-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .shape-panel .sp-row > label { font-size: 12px; font-weight: 700; color: var(--ink-soft); }
   .shape-panel .sp-ftin { display: inline-flex; align-items: center; gap: 3px; }
@@ -9592,6 +9597,8 @@ let layoutResizing = null;
 let layoutRotating = null; // { id } while dragging the rotate handle
 let layoutLabelDragging = null; // { id, startX, startY, dx0, dy0 } while dragging a shape's label
 let shapePanelPos = null; // { left, top } in px if the editor panel has been dragged from its default corner
+let layoutUnitMode = 'ftin'; // 'ftin' (feet + inches) or 'in' (inches only) — how the shape editor shows dimensions
+try { const u = localStorage.getItem('mt-layout-units'); if (u === 'in' || u === 'ftin') layoutUnitMode = u; } catch (e) {}
 let layoutPanning = null; // {startClientX, startClientY, startVB}
 let layoutViewBox = null; // {x,y,w,h} current view region
 let layoutLabelUnit = 0.07; // user-units per screen-pixel — keeps shape labels a constant on-screen size at any zoom
@@ -9771,26 +9778,28 @@ function renderShapePanel() {
   }
   // Feet + inches display (carry 12" → 1')
   const toFtIn = v => { let ft = Math.floor(v), inch = Math.round((v - ft) * 12); if (inch >= 12) { ft += 1; inch = 0; } return [ft, inch]; };
-  const [wF, wI] = toFtIn(s.w);
-  const [hF, hI] = toFtIn(s.h);
   const rot = Math.round(Number(s.rotation) || 0);
   const typeLabel = { rect: 'Rectangle', wall: 'Wall', circle: 'Circle', oval: 'Oval' }[s.type] || 'Shape';
   const floorRooms = (state.inspiration && state.inspiration[layoutFloor]) || [];
+  // Dimension row: inches-only or feet+inches, depending on the unit toggle.
+  const dimRow = (label, val, cls) => layoutUnitMode === 'in'
+    ? `<div class="sp-row"><label>${label}</label><span class="sp-ftin"><input type="number" class="sp-${cls}-inonly" value="${Math.round(val * 12)}" min="0" step="1"><i>in</i></span></div>`
+    : (() => { const [ft, inch] = toFtIn(val); return `<div class="sp-row"><label>${label}</label><span class="sp-ftin"><input type="number" class="sp-${cls}-ft" value="${ft}" min="0" step="1"><i>ft</i><input type="number" class="sp-${cls}-in" value="${inch}" min="0" max="11" step="1"><i>in</i></span></div>`; })();
   panel.innerHTML = `
     <div class="sp-head">
       <span class="sp-grip" title="Drag to move this panel">⠿</span>
       <input type="text" class="sp-name" value="${escapeHTML(s.label || '')}" placeholder="Name (e.g., Sofa)">
       <button class="sp-close" data-act="close" title="Close">×</button>
     </div>
-    <div class="sp-type">${typeLabel}</div>
-    <div class="sp-row">
-      <label>Width</label>
-      <span class="sp-ftin"><input type="number" class="sp-w-ft" value="${wF}" min="0" step="1"><i>ft</i><input type="number" class="sp-w-in" value="${wI}" min="0" max="11" step="1"><i>in</i></span>
+    <div class="sp-type-row">
+      <span class="sp-type">${typeLabel}</span>
+      <span class="sp-units" title="Show dimensions in feet+inches or inches only">
+        <button type="button" data-u="ftin" class="${layoutUnitMode === 'ftin' ? 'on' : ''}">ft·in</button>
+        <button type="button" data-u="in" class="${layoutUnitMode === 'in' ? 'on' : ''}">in</button>
+      </span>
     </div>
-    <div class="sp-row">
-      <label>Height</label>
-      <span class="sp-ftin"><input type="number" class="sp-h-ft" value="${hF}" min="0" step="1"><i>ft</i><input type="number" class="sp-h-in" value="${hI}" min="0" max="11" step="1"><i>in</i></span>
-    </div>
+    ${dimRow('Width', s.w, 'w')}
+    ${dimRow('Height', s.h, 'h')}
     <div class="sp-row">
       <label>Angle</label>
       <span class="sp-ftin"><input type="number" class="sp-angle" value="${rot}" min="0" max="359" step="5"><i>°</i><button class="sp-btn sp-rot90" data-act="rot90" title="Rotate 90°">⟲ 90°</button></span>
@@ -9815,14 +9824,23 @@ function renderShapePanel() {
       <button class="sp-btn sp-del" data-act="del">🗑 Delete</button>
     </div>
   `;
+  const val = sel => { const el = panel.querySelector(sel); return el ? (parseFloat(el.value) || 0) : 0; };
   const commitDims = () => {
-    const wf = parseFloat(panel.querySelector('.sp-w-ft').value) || 0, wi = parseFloat(panel.querySelector('.sp-w-in').value) || 0;
-    const hf = parseFloat(panel.querySelector('.sp-h-ft').value) || 0, hi = parseFloat(panel.querySelector('.sp-h-in').value) || 0;
-    s.w = Math.max(0.1, wf + wi / 12);
-    s.h = Math.max(0.1, hf + hi / 12);
+    if (layoutUnitMode === 'in') {
+      s.w = Math.max(0.1, val('.sp-w-inonly') / 12);
+      s.h = Math.max(0.1, val('.sp-h-inonly') / 12);
+    } else {
+      s.w = Math.max(0.1, val('.sp-w-ft') + val('.sp-w-in') / 12);
+      s.h = Math.max(0.1, val('.sp-h-ft') + val('.sp-h-in') / 12);
+    }
     persist(); renderLayout();
   };
-  panel.querySelectorAll('.sp-w-ft, .sp-w-in, .sp-h-ft, .sp-h-in').forEach(inp => inp.addEventListener('change', commitDims));
+  panel.querySelectorAll('.sp-w-ft, .sp-w-in, .sp-h-ft, .sp-h-in, .sp-w-inonly, .sp-h-inonly').forEach(inp => inp.addEventListener('change', commitDims));
+  panel.querySelectorAll('.sp-units button').forEach(b => b.addEventListener('click', () => {
+    layoutUnitMode = b.dataset.u;
+    try { localStorage.setItem('mt-layout-units', layoutUnitMode); } catch (e) {}
+    renderShapePanel();
+  }));
   panel.querySelector('.sp-name').addEventListener('change', e => { s.label = e.target.value.trim(); persist(); renderLayout(); });
   panel.querySelector('.sp-room').addEventListener('change', e => { s.roomId = e.target.value || undefined; persist(); renderShapePanel(); });
   const orBtn = panel.querySelector('[data-act="openroom"]');
@@ -14303,7 +14321,7 @@ function renderBudgetDetailsRow(item) {
       <textarea data-field="note" placeholder="Anything else worth remembering…">${escapeHTML(item.note && !linkVal ? item.note : (item.notes || ''))}</textarea>
     </label>
     ${isHome ? `<div class="bd-sync-note">🎨 ${roomName
-      ? `This shows in <a data-act="goto-room">${escapeHTML(roomName)}</a>'s design board — its image, link &amp; price stay in sync.`
+      ? `This shows in <strong>${escapeHTML(roomName)}</strong>'s design board — its image, link &amp; price stay in sync.<div style="margin-top:8px;"><button class="mb-view-budget" data-act="goto-room">View in ${escapeHTML(roomName)}'s room →</button></div>`
       : `Assign a <strong>Room</strong> (above) and this purchase appears on that room's design board automatically.`}</div>` : ''}
   `;
   details.querySelectorAll('[data-field]').forEach(el => {
@@ -14345,13 +14363,8 @@ function openRoomFromBudget(roomId) {
   if (!foundFloor) return;
   const designBtn = document.querySelector('.tab-btn[data-tab="design"]');
   if (designBtn) designBtn.click();
-  mbFloor = foundFloor;
-  mbRoomId = roomId;
-  try {
-    localStorage.setItem('mt-mb-floor', foundFloor);
-    localStorage.setItem('mt-mb-room', roomId);
-  } catch (e) {}
-  renderMoodboard();
+  switchDesignSubtab(foundFloor); // sync the design sub-nav to this floor's moodboard
+  selectMbRoom(roomId);           // open the specific room
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
