@@ -1828,7 +1828,7 @@
   }
   .palette-table-head, .palette-table-row {
     display: grid;
-    grid-template-columns: 22px 44px 120px minmax(0,1.4fr) 80px 92px 58px minmax(0,1.4fr) 72px;
+    grid-template-columns: 22px 44px minmax(0,1.4fr) 80px 92px 58px minmax(0,1.4fr) 72px;
     gap: 12px; align-items: center; padding: 10px 16px;
   }
   .palette-table-head {
@@ -9882,6 +9882,12 @@ function renderShapePanel() {
     const allGrouped = shapes.length > 0 && shapes.every(x => x.groupId) && gids.size === 1
       && shapeGroupMembers(shapes[0]).length === shapes.length;
     const grpName = (shapes.find(x => x.label) || {}).label || '';
+    const statSet = new Set(shapes.map(x => shapeStatus(x)));
+    const commonStat = statSet.size === 1 ? [...statSet][0] : 'none';
+    const itemIds = new Set(shapes.map(x => x.itemId).filter(Boolean));
+    const grpLinkedItem = (shapes.length && shapes.every(x => x.itemId) && itemIds.size === 1) ? (state.budget.items || []).find(i => i.id === [...itemIds][0]) : null;
+    const grpLinkAmt = grpLinkedItem ? effectiveActual(grpLinkedItem) : 0;
+    const grpNotes = (shapes.find(x => x.notes) || {}).notes || '';
     panel.innerHTML = `
       <div class="sp-head">
         <span class="sp-grip" title="Drag to move this panel">⠿</span>
@@ -9895,6 +9901,18 @@ function renderShapePanel() {
         const common = roomIds.size === 1 ? [...roomIds][0] : '';
         return `<div class="sp-row"><label>Room</label><span class="sp-ftin"><select class="sp-room"><option value="">${roomIds.size > 1 ? '— mixed' : '— none'}</option>${fr.map(r => `<option value="${escapeHTML(r.id)}"${common === r.id ? ' selected' : ''}>${escapeHTML(r.name || 'Room')}</option>`).join('')}</select></span></div>`;
       })()}
+      <div class="sp-row">
+        <label>Status</label>
+        <span class="sp-status" title="${grpLinkedItem ? 'Set by the linked budget item' : 'Applies to all selected'}">
+          <button type="button" data-st="own" class="st-own ${commonStat === 'own' ? 'on' : ''}" ${grpLinkedItem ? 'disabled' : ''}>Own</button>
+          <button type="button" data-st="buy" class="st-buy ${commonStat === 'buy' ? 'on' : ''}" ${grpLinkedItem ? 'disabled' : ''}>To buy</button>
+          <button type="button" data-st="bought" class="st-bought ${commonStat === 'bought' ? 'on' : ''}" ${grpLinkedItem ? 'disabled' : ''}>Bought</button>
+        </span>
+      </div>
+      ${grpLinkedItem
+        ? `<div class="sp-linked"><span class="sp-linked-info">🔗 ${escapeHTML(grpLinkedItem.label || 'item')}${grpLinkAmt ? ' · ' + fmtMoney(grpLinkAmt) : ''} · ${grpLinkedItem.paid ? 'paid' : 'to buy'}</span><span class="sp-linked-btns"><button class="sp-btn" data-act="openbudget" title="Open in budget">↗</button><button class="sp-btn" data-act="unlink" title="Unlink">×</button></span></div>`
+        : `<div class="sp-row"><label>Budget item</label><button class="sp-btn sp-linkitem" data-act="linkitem">＋ Link line item</button></div>`}
+      <div class="sp-notes-wrap"><label>Notes</label><textarea class="sp-notes" rows="2" placeholder="Notes for this piece…">${escapeHTML(grpNotes)}</textarea></div>
       <div class="sp-actions">
         ${allGrouped
           ? '<button class="sp-btn" data-act="ungroup">Ungroup</button>'
@@ -9918,6 +9936,30 @@ function renderShapePanel() {
     if (ungBtn) ungBtn.addEventListener('click', () => { shapes.forEach(x => { delete x.groupId; }); persist(); renderLayout(); });
     const rm = panel.querySelector('.sp-room');
     if (rm) rm.addEventListener('change', () => { const v = rm.value || undefined; shapes.forEach(x => x.roomId = v); persist(); renderShapePanel(); });
+    panel.querySelectorAll('.sp-status button').forEach(b => b.addEventListener('click', () => {
+      if (b.disabled) return;
+      const v = (commonStat === b.dataset.st) ? undefined : b.dataset.st;
+      shapes.forEach(x => x.status = v);
+      persist(); renderLayout();
+    }));
+    const liBtn = panel.querySelector('[data-act="linkitem"]');
+    if (liBtn) liBtn.addEventListener('click', () => pickBudgetItem(shapes.find(x => x.label) || shapes[0], picked => {
+      if (picked && picked.__new) {
+        const primary = shapes.find(x => x.label) || shapes[0];
+        const cat = (state.budget.allocations || [])[0]?.category || (typeof HOME_CATEGORIES !== 'undefined' && HOME_CATEGORIES[0]) || 'Furniture';
+        const newItem = { id: 'b_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6), category: cat, label: primary.label || 'New item', estimated: 0, actual: 0, paid: false, room: primary.roomId || null, note: '' };
+        state.budget.items.push(newItem);
+        shapes.forEach(x => x.itemId = newItem.id);
+      } else if (picked === null) { shapes.forEach(x => { delete x.itemId; }); }
+      else if (picked) { shapes.forEach(x => { x.itemId = picked.id; if (!x.label && picked.label) x.label = picked.label; }); }
+      persist(); renderLayout();
+    }));
+    const unlinkB = panel.querySelector('[data-act="unlink"]');
+    if (unlinkB) unlinkB.addEventListener('click', () => { shapes.forEach(x => { delete x.itemId; }); persist(); renderLayout(); });
+    const openB = panel.querySelector('[data-act="openbudget"]');
+    if (openB && grpLinkedItem) openB.addEventListener('click', () => openBudgetForItem(grpLinkedItem.id));
+    const notesEl = panel.querySelector('.sp-notes');
+    if (notesEl) notesEl.addEventListener('change', () => { shapes.forEach(x => x.notes = notesEl.value); persist(); });
     panel.querySelector('[data-act="dup"]').addEventListener('click', duplicateLayoutSelection);
     panel.querySelector('[data-act="del"]').addEventListener('click', deleteSelectedShape);
     panel.querySelector('[data-act="close"]').addEventListener('click', () => { clearLayoutSelection(); renderLayout(); });
@@ -12076,6 +12118,19 @@ function ensurePaletteMaster() {
   for (const f of ['basement','ground','upper']) {
     (state.inspiration[f] || []).forEach(room => (room.paintAssignments || []).forEach(addToMaster));
   }
+  // Collapse any duplicate colors (same SW#/name) — legacy entries that differed only by the old "location" field.
+  const seen = new Map(); const deduped = [];
+  master.forEach(c => {
+    const key = (c.sw || '').trim() + '|' + (c.name || '').trim().toLowerCase();
+    if (seen.has(key)) {
+      const keep = seen.get(key);
+      if ((keep.lrv == null || String(keep.lrv).trim() === '') && c.lrv != null && String(c.lrv).trim() !== '') keep.lrv = c.lrv;
+      if (!keep.hex && c.hex) keep.hex = c.hex;
+      if (!keep.url && c.url) keep.url = c.url;
+      added = true; // list changed
+    } else { seen.set(key, c); deduped.push(c); }
+  });
+  if (deduped.length !== master.length) state.overallVision.palette = deduped;
   // Persist the master list so colors survive reloads even when not assigned to any room.
   if (added) persist();
 }
@@ -12152,7 +12207,7 @@ function renderPaletteTable(entries) {
   wrap.innerHTML = `
     <div class="palette-table">
       <div class="palette-table-head">
-        <div></div><div></div><div>Location</div><div>Color</div><div>SW #</div><div>Hex</div><div>LRV</div><div>Used in</div><div></div>
+        <div></div><div></div><div>Color</div><div>SW #</div><div>Hex</div><div>LRV</div><div>Used in</div><div></div>
       </div>
       <div class="palette-table-body"></div>
     </div>
@@ -12167,7 +12222,6 @@ function renderPaletteTable(entries) {
     row.innerHTML = `
       <span class="pt-drag" draggable="true" title="Drag to reorder">⠿</span>
       <input type="color" class="pt-swatch-input" value="${safeHexForInput(c.hex)}" title="Pick color">
-      <input type="text" class="pt-input pt-loc-input" value="${escapeHTML(c.location || '')}" placeholder="Location">
       <div class="pt-name-cell">
         <input type="text" class="pt-input pt-name-input" value="${escapeHTML(c.name || '')}" placeholder="Color name">
         <a class="pt-sw-link" target="_blank" rel="noopener" title="View on Sherwin-Williams" href="${escapeHTML(c.url || '')}" style="${c.url ? '' : 'display:none;'}">↗</a>
@@ -12199,7 +12253,6 @@ function renderPaletteTable(entries) {
       replaceColorEverywhere(prev, cur, false);
       if (cur.url) { swLink.href = cur.url; swLink.style.display = ''; } else { swLink.style.display = 'none'; }
     }
-    row.querySelector('.pt-loc-input').addEventListener('change', e => apply({ location: e.target.value.trim() }));
     row.querySelector('.pt-name-input').addEventListener('change', e => apply({ name: e.target.value.trim() }));
     row.querySelector('.pt-sw-input').addEventListener('change', e => apply({ sw: e.target.value.trim() }));
     row.querySelector('.pt-lrv-input').addEventListener('change', e => apply({ lrv: e.target.value.trim() }));
@@ -12303,7 +12356,6 @@ function renderPaletteCard(entry) {
   card.innerHTML = `
     <div class="palette-card-chip" style="background:${escapeHTML(c.hex || '#ccc')}"></div>
     <div class="palette-card-body">
-      <div class="palette-card-loc">${escapeHTML(c.location || '—')}</div>
       <div class="palette-card-name">${escapeHTML(c.name || 'Unnamed')}</div>
       <div class="palette-card-code">SW ${escapeHTML(c.sw || '')} · ${escapeHTML((c.hex || '').toUpperCase())}${c.lrv != null && String(c.lrv).trim() ? ' · LRV ' + escapeHTML(String(c.lrv)) : ''} ${c.url ? `· <a href="${escapeHTML(c.url)}" target="_blank" rel="noopener" style="color:var(--clay);text-decoration:none;">view on SW ↗</a>` : ''}</div>
       <div class="palette-card-rooms" id="rooms-${escapeHTML(c.sw || '')}-${Math.random().toString(36).slice(2,6)}">
@@ -12334,9 +12386,9 @@ function renderPaletteCard(entry) {
 }
 
 function colorMatches(a, b) {
+  // A color is identified by SW# + name. (The old per-color "location" was dropped — surfaces are per-room now.)
   return (a.sw || '') === (b.sw || '') &&
-         (a.name || '').toLowerCase() === (b.name || '').toLowerCase() &&
-         (a.location || '') === (b.location || '');
+         (a.name || '').toLowerCase() === (b.name || '').toLowerCase();
 }
 
 function paletteUrlFor(name, sw) {
