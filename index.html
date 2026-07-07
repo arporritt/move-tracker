@@ -728,6 +728,21 @@
   .shape-panel .sp-units { display: inline-flex; border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; }
   .shape-panel .sp-units button { border: none; background: white; font-family: 'Manrope', sans-serif; font-size: 10.5px; font-weight: 700; letter-spacing: 0.02em; padding: 3px 9px; cursor: pointer; color: var(--ink-faint); }
   .shape-panel .sp-units button.on { background: var(--clay); color: #fff; }
+  .shape-panel .sp-status { display: inline-flex; border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; }
+  .shape-panel .sp-status button { border: none; border-left: 1px solid var(--rule); background: white; font-family: 'Manrope', sans-serif; font-size: 10.5px; font-weight: 700; padding: 4px 8px; cursor: pointer; color: var(--ink-faint); }
+  .shape-panel .sp-status button:first-child { border-left: none; }
+  .shape-panel .sp-status button:disabled { opacity: 0.55; cursor: default; }
+  .shape-panel .sp-status button.st-own.on { background: var(--forest); color: #fff; }
+  .shape-panel .sp-status button.st-buy.on { background: var(--behind); color: #fff; }
+  .shape-panel .sp-status button.st-bought.on { background: var(--slate); color: #fff; }
+  .shape-panel .sp-linked { display: flex; align-items: center; justify-content: space-between; gap: 8px; background: rgba(166,160,148,0.12); border: 1px solid var(--rule); border-radius: 8px; padding: 6px 8px 6px 10px; }
+  .shape-panel .sp-linked-info { font-size: 12px; font-weight: 600; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .shape-panel .sp-linked-btns { display: inline-flex; gap: 4px; flex: 0 0 auto; }
+  .shape-panel .sp-linkitem { font-weight: 700; color: var(--clay); }
+  /* Layout status legend */
+  .layout-legend { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; margin-top: 8px; font-size: 11.5px; color: var(--ink-soft); }
+  .layout-legend .lg { display: inline-flex; align-items: center; gap: 5px; }
+  .layout-legend .lg-dot { width: 12px; height: 12px; border-radius: 3px; display: inline-block; border: 1px solid rgba(42,33,26,0.15); }
   .shape-panel .sp-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .shape-panel .sp-row > label { font-size: 12px; font-weight: 700; color: var(--ink-soft); }
   .shape-panel .sp-ftin { display: inline-flex; align-items: center; gap: 3px; }
@@ -847,6 +862,13 @@
   .layout-svg .shape.has-image { fill: transparent; }
   .layout-svg .shape.has-image:hover { fill: rgba(166,160,148,0.25); }
   .layout-svg .shape.has-image.selected { fill: rgba(123,114,105,0.25); }
+  /* Status color-coding: own (olive), to-buy (terracotta), bought (muted slate) */
+  .layout-svg .shape.st-own { stroke: var(--forest); stroke-width: 0.2; }
+  .layout-svg .shape.st-buy { stroke: var(--behind); stroke-width: 0.2; }
+  .layout-svg .shape.st-bought { stroke: var(--slate); stroke-width: 0.2; }
+  .layout-svg .shape.st-own:not(.has-image) { fill: rgba(110,114,91,0.28); }
+  .layout-svg .shape.st-buy:not(.has-image) { fill: rgba(188,91,68,0.24); }
+  .layout-svg .shape.st-bought:not(.has-image) { fill: rgba(136,129,120,0.26); }
   /* Labels drawn over a photo get a dark halo so they stay legible */
   .layout-svg .shape-label.on-image,
   .layout-svg .shape-dim.on-image {
@@ -7364,7 +7386,13 @@
       <svg id="layout-svg" class="layout-svg" preserveAspectRatio="xMidYMid meet"></svg>
       <div class="shape-panel" id="layout-shape-panel" hidden></div>
     </div>
-    <div class="layout-hint" id="layout-hint">Pick a shape tool and drag to draw. Switch to ↔ to move shapes. <strong>Click a shape</strong> to open its editor — type exact <strong>dimensions</strong>, rename, rotate, add notes or a photo. <strong>Shift-click</strong> several shapes, then <strong>Combine</strong> them into one piece (e.g., an L-shaped sofa). Copy/paste with <strong>⌘/Ctrl+C · V</strong> (or ⌘/Ctrl+D to duplicate). Resize by dragging the corner. With a shape selected you can <strong>drag its label</strong> to reposition it (double-click the label to re-center).</div>
+    <div class="layout-hint" id="layout-hint">Pick a shape tool and drag to draw. Switch to ↔ to move shapes. <strong>Click a shape</strong> to open its editor — type exact <strong>dimensions</strong>, rename, rotate, add notes or a photo. <strong>Shift-click</strong> several shapes, then <strong>Combine</strong> them into one piece (e.g., an L-shaped sofa). Copy/paste with <strong>⌘/Ctrl+C · V</strong> (or ⌘/Ctrl+D to duplicate). Resize by dragging the corner. With a shape selected you can <strong>drag its label</strong> to reposition it (double-click the label to re-center). Set a shape's <strong>Status</strong> (or link a budget line item) to color-code it below.</div>
+    <div class="layout-legend">
+      <span class="lg"><span class="lg-dot" style="background:var(--forest);"></span> Own it</span>
+      <span class="lg"><span class="lg-dot" style="background:var(--behind);"></span> To buy</span>
+      <span class="lg"><span class="lg-dot" style="background:var(--slate);"></span> Bought</span>
+      <span class="lg" style="color:var(--ink-faint);">— link a shape to a budget item and it colors itself from that item's paid status</span>
+    </div>
   </div>
 </div>
 
@@ -9719,6 +9747,92 @@ function renderLayout() {
   renderShapePanel();
 }
 
+// The budget line item a shape is linked to (or null).
+function shapeLinkedItem(s) { return s && s.itemId ? (state.budget && state.budget.items || []).find(i => i.id === s.itemId) : null; }
+// A shape's status for color-coding: linked items derive from their paid flag; otherwise the shape's own status.
+function shapeStatus(s) {
+  const it = shapeLinkedItem(s);
+  if (it) return it.paid ? 'bought' : 'buy';
+  return s.status || 'none';
+}
+// Link a shape to a budget item, unlink (null), or create a new item from the shape ({__new:true}).
+function linkShapeToItem(shape, picked) {
+  if (picked === null) { delete shape.itemId; }
+  else if (picked && picked.__new) {
+    const cat = (state.budget.allocations || [])[0]?.category || (typeof HOME_CATEGORIES !== 'undefined' && HOME_CATEGORIES[0]) || 'Furniture';
+    const newItem = { id: 'b_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6), category: cat, label: shape.label || 'New item', estimated: 0, actual: 0, paid: false, room: shape.roomId || null, note: '' };
+    state.budget.items.push(newItem);
+    shape.itemId = newItem.id;
+  } else if (picked) {
+    shape.itemId = picked.id;
+    if (!shape.label && picked.label) shape.label = picked.label;
+  }
+  persist(); renderLayout();
+}
+// Jump from a shape to its linked budget line item.
+function openBudgetForItem(itemId) {
+  const it = (state.budget.items || []).find(i => i.id === itemId);
+  if (!it) return;
+  const btn = document.querySelector('.tab-btn[data-tab="budget"]'); if (btn) btn.click();
+  if (typeof switchBudgetSubtab === 'function') switchBudgetSubtab(isHomeCategory(it.category) ? 'home' : (isPurchaseCategory(it.category) ? 'purchase' : 'sale'));
+  budgetExpandedIds.add(itemId);
+  renderBudget();
+  setTimeout(() => { const row = document.querySelector(`.actuals-row[data-id="${itemId}"], .budget-line[data-id="${itemId}"]`); if (row) row.scrollIntoView({ block: 'center', behavior: 'smooth' }); }, 60);
+}
+// Picker of budget line items to link a shape to (with a "create new" and "unlink" option).
+function pickBudgetItem(shape, onPick) {
+  ensureBudgetState();
+  const items = (state.budget.items || []).slice();
+  const roomMap = getBudgetRoomMap();
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay active';
+  overlay.innerHTML = `
+    <div class="picker">
+      <div class="picker-label">Link a budget line item</div>
+      <input type="text" class="picker-search" placeholder="Search purchases…" autocomplete="off">
+      <div class="picker-list"></div>
+      <div class="picker-footer"><button class="picker-clear" data-act="cancel">Cancel</button></div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const listEl = overlay.querySelector('.picker-list');
+  const searchEl = overlay.querySelector('.picker-search');
+  function close() { overlay.remove(); document.removeEventListener('keydown', onKey); }
+  function onKey(e) { if (e.key === 'Escape') close(); }
+  function draw() {
+    const q = searchEl.value.trim().toLowerCase();
+    listEl.innerHTML = '';
+    const create = document.createElement('div');
+    create.className = 'picker-row';
+    create.innerHTML = `<span class="picker-check" style="color:var(--clay);">＋</span><span class="picker-name" style="font-weight:700;color:var(--clay);">New line item from “${escapeHTML(shape.label || 'this shape')}”</span>`;
+    create.addEventListener('click', () => { close(); onPick({ __new: true }); });
+    listEl.appendChild(create);
+    if (shape.itemId) {
+      const unlink = document.createElement('div');
+      unlink.className = 'picker-row';
+      unlink.innerHTML = `<span class="picker-check"></span><span class="picker-name" style="color:var(--ink-faint);">— Unlink</span>`;
+      unlink.addEventListener('click', () => { close(); onPick(null); });
+      listEl.appendChild(unlink);
+    }
+    const matches = items.filter(i => !q || (i.label || '').toLowerCase().includes(q) || (i.category || '').toLowerCase().includes(q));
+    matches.forEach(i => {
+      const on = shape.itemId === i.id;
+      const roomNm = i.room ? (roomMap.get(i.room)?.name || (i.room === 'overall' ? 'Overall' : '')) : '';
+      const amt = effectiveActual(i);
+      const row = document.createElement('div');
+      row.className = 'picker-row' + (on ? ' selected' : '');
+      row.innerHTML = `<span class="picker-check">${on ? '✓' : ''}</span><span class="picker-name">${escapeHTML(i.label || '(unnamed)')}<span style="color:var(--ink-faint);font-weight:400;"> · ${i.paid ? '✓ paid' : 'to buy'}${amt ? ' · ' + fmtMoney(amt) : ''}${roomNm ? ' · ' + escapeHTML(roomNm) : ''}</span></span>`;
+      row.addEventListener('click', () => { close(); onPick(i); });
+      listEl.appendChild(row);
+    });
+  }
+  draw();
+  document.addEventListener('keydown', onKey);
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  overlay.querySelector('[data-act="cancel"]').addEventListener('click', close);
+  searchEl.addEventListener('input', draw);
+  setTimeout(() => searchEl.focus(), 0);
+}
+
 // Floating editor for the selected shape: name, exact dimensions (ft + in), angle, notes, photo, delete.
 function renderShapePanel() {
   const panel = document.getElementById('layout-shape-panel');
@@ -9781,6 +9895,9 @@ function renderShapePanel() {
   const rot = Math.round(Number(s.rotation) || 0);
   const typeLabel = { rect: 'Rectangle', wall: 'Wall', circle: 'Circle', oval: 'Oval' }[s.type] || 'Shape';
   const floorRooms = (state.inspiration && state.inspiration[layoutFloor]) || [];
+  const linkedItem = shapeLinkedItem(s);
+  const st = shapeStatus(s);
+  const linkAmt = linkedItem ? effectiveActual(linkedItem) : 0;
   // Dimension row: inches-only or feet+inches, depending on the unit toggle.
   const dimRow = (label, val, cls) => layoutUnitMode === 'in'
     ? `<div class="sp-row"><label>${label}</label><span class="sp-ftin"><input type="number" class="sp-${cls}-inonly" value="${Math.round(val * 12)}" min="0" step="1"><i>in</i></span></div>`
@@ -9814,6 +9931,17 @@ function renderShapePanel() {
         ${s.roomId && floorRooms.some(r => r.id === s.roomId) ? '<button class="sp-btn sp-openroom" data-act="openroom" title="Open this room\'s design view">↗</button>' : ''}
       </span>
     </div>
+    <div class="sp-row">
+      <label>Status</label>
+      <span class="sp-status" title="${linkedItem ? 'Set by the linked budget item' : 'Own it, need to buy, or already bought'}">
+        <button type="button" data-st="own" class="st-own ${st === 'own' ? 'on' : ''}" ${linkedItem ? 'disabled' : ''}>Own</button>
+        <button type="button" data-st="buy" class="st-buy ${st === 'buy' ? 'on' : ''}" ${linkedItem ? 'disabled' : ''}>To buy</button>
+        <button type="button" data-st="bought" class="st-bought ${st === 'bought' ? 'on' : ''}" ${linkedItem ? 'disabled' : ''}>Bought</button>
+      </span>
+    </div>
+    ${linkedItem
+      ? `<div class="sp-linked"><span class="sp-linked-info" title="Linked budget line item">🔗 ${escapeHTML(linkedItem.label || 'item')}${linkAmt ? ' · ' + fmtMoney(linkAmt) : ''} · ${linkedItem.paid ? 'paid' : 'to buy'}</span><span class="sp-linked-btns"><button class="sp-btn" data-act="openbudget" title="Open in budget">↗</button><button class="sp-btn" data-act="unlink" title="Unlink">×</button></span></div>`
+      : `<div class="sp-row"><label>Budget item</label><button class="sp-btn sp-linkitem" data-act="linkitem">＋ Link line item</button></div>`}
     <div class="sp-notes-wrap">
       <label>Notes</label>
       <textarea class="sp-notes" rows="3" placeholder="Notes — vendor, color, status, reminders…">${escapeHTML(s.notes || '')}</textarea>
@@ -9845,6 +9973,17 @@ function renderShapePanel() {
   panel.querySelector('.sp-room').addEventListener('change', e => { s.roomId = e.target.value || undefined; persist(); renderShapePanel(); });
   const orBtn = panel.querySelector('[data-act="openroom"]');
   if (orBtn) orBtn.addEventListener('click', () => openRoomFromLayout(s.roomId));
+  panel.querySelectorAll('.sp-status button').forEach(b => b.addEventListener('click', () => {
+    if (b.disabled) return;
+    s.status = (s.status === b.dataset.st) ? undefined : b.dataset.st; // click again to clear
+    persist(); renderLayout();
+  }));
+  const linkItemBtn = panel.querySelector('[data-act="linkitem"]');
+  if (linkItemBtn) linkItemBtn.addEventListener('click', () => pickBudgetItem(s, picked => linkShapeToItem(s, picked)));
+  const unlinkBtn = panel.querySelector('[data-act="unlink"]');
+  if (unlinkBtn) unlinkBtn.addEventListener('click', () => linkShapeToItem(s, null));
+  const openBudgetBtn = panel.querySelector('[data-act="openbudget"]');
+  if (openBudgetBtn) openBudgetBtn.addEventListener('click', () => openBudgetForItem(s.itemId));
   panel.querySelector('.sp-angle').addEventListener('change', e => { let a = parseFloat(e.target.value); if (isNaN(a)) a = 0; s.rotation = ((a % 360) + 360) % 360; persist(); renderLayout(); });
   panel.querySelector('.sp-notes').addEventListener('change', e => { s.notes = e.target.value; persist(); });
   panel.querySelector('[data-act="rot90"]').addEventListener('click', () => { s.rotation = ((Number(s.rotation) || 0) + 90) % 360; persist(); renderLayout(); });
@@ -9880,15 +10019,18 @@ function renderShapeSvg(s) {
   const wall = s.type === 'wall' ? ' is-wall' : '';
   const hasImg = !!s.image;
   const img = hasImg ? ' has-image' : '';
+  // Status color class (own/buy/bought) — only when not selected, so selection styling stays clean.
+  const stat = shapeStatus(s);
+  const statCls = (!selected && stat !== 'none') ? ` st-${stat}` : '';
   const fmtNum = n => Math.round(n * 10) / 10;
   let shapeEl = '';
   if (s.type === 'rect' || s.type === 'wall') {
-    shapeEl = `<rect class="shape${selected}${wall}${img}" data-shape-id="${s.id}" x="${s.x}" y="${s.y}" width="${s.w}" height="${s.h}"/>`;
+    shapeEl = `<rect class="shape${selected}${wall}${img}${statCls}" data-shape-id="${s.id}" x="${s.x}" y="${s.y}" width="${s.w}" height="${s.h}"/>`;
   } else if (s.type === 'circle') {
     const r = Math.min(s.w, s.h) / 2;
-    shapeEl = `<circle class="shape${selected}${img}" data-shape-id="${s.id}" cx="${s.x + s.w/2}" cy="${s.y + s.h/2}" r="${r}"/>`;
+    shapeEl = `<circle class="shape${selected}${img}${statCls}" data-shape-id="${s.id}" cx="${s.x + s.w/2}" cy="${s.y + s.h/2}" r="${r}"/>`;
   } else if (s.type === 'oval') {
-    shapeEl = `<ellipse class="shape${selected}${img}" data-shape-id="${s.id}" cx="${s.x + s.w/2}" cy="${s.y + s.h/2}" rx="${s.w/2}" ry="${s.h/2}"/>`;
+    shapeEl = `<ellipse class="shape${selected}${img}${statCls}" data-shape-id="${s.id}" cx="${s.x + s.w/2}" cy="${s.y + s.h/2}" rx="${s.w/2}" ry="${s.h/2}"/>`;
   }
   // Photo fill: rendered UNDER the outline (image first, shape on top with transparent fill)
   let imageEl = '';
