@@ -1539,9 +1539,11 @@
   .mb-two-col > .mb-section { margin: 0; min-width: 0; }
   @media (max-width: 860px) { .mb-two-col { grid-template-columns: 1fr; } }
   /* Room size inputs (On the floor plan) */
-  .room-dim-set { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-soft); margin-right: 10px; }
-  .room-dim-input { width: 46px; padding: 3px 5px; border: 1px solid var(--rule); border-radius: 6px; background: var(--bg-card); color: var(--ink); font-size: 12px; font-weight: 600; text-align: center; text-transform: none; letter-spacing: 0; }
+  .room-dim-set { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-soft); margin-right: 10px; }
+  .room-dim-pair { display: inline-flex; align-items: center; gap: 3px; }
+  .room-dim-input { width: 40px; padding: 3px 4px; border: 1px solid var(--rule); border-radius: 6px; background: var(--bg-card); color: var(--ink); font-size: 12px; font-weight: 600; text-align: center; text-transform: none; letter-spacing: 0; }
   .room-dim-input:focus { outline: none; border-color: var(--clay-soft); }
+  .room-dim-unit { font-size: 10px; font-weight: 700; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.02em; }
   /* Wallpaper cards */
   .mb-wallpaper-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; }
   .mb-wp-card { border: 1px solid var(--rule); border-radius: 12px; overflow: hidden; background: var(--bg-card); box-shadow: var(--shadow); }
@@ -9129,9 +9131,16 @@ function renderMoodboard() {
       <div class="mb-section-head">
         <span class="mb-section-title">On the floor plan</span>
         <span class="mb-head-right">
-          <span class="room-dim-set" title="Interior width × depth of this room, in feet — draws the room border to scale below">Room size
-            <input type="number" class="room-dim-input" id="room-dim-w" min="0" step="0.5" placeholder="W" value="${room.widthFt || ''}"> ×
-            <input type="number" class="room-dim-input" id="room-dim-d" min="0" step="0.5" placeholder="D" value="${room.depthFt || ''}"> ft
+          <span class="room-dim-set" title="Interior width × depth of this room (feet + inches) — draws the room border to scale below">Room size
+            <span class="room-dim-pair">
+              <input type="number" class="room-dim-input" id="room-dim-wft" min="0" step="1" placeholder="0" value="${room.widthFt ? splitFtIn(room.widthFt).ft : ''}"><span class="room-dim-unit">ft</span>
+              <input type="number" class="room-dim-input" id="room-dim-win" min="0" max="11" step="1" placeholder="0" value="${(room.widthFt && splitFtIn(room.widthFt).inch) ? splitFtIn(room.widthFt).inch : ''}"><span class="room-dim-unit">in</span>
+            </span>
+            ×
+            <span class="room-dim-pair">
+              <input type="number" class="room-dim-input" id="room-dim-dft" min="0" step="1" placeholder="0" value="${room.depthFt ? splitFtIn(room.depthFt).ft : ''}"><span class="room-dim-unit">ft</span>
+              <input type="number" class="room-dim-input" id="room-dim-din" min="0" max="11" step="1" placeholder="0" value="${(room.depthFt && splitFtIn(room.depthFt).inch) ? splitFtIn(room.depthFt).inch : ''}"><span class="room-dim-unit">in</span>
+            </span>
           </span>
           <button class="mb-section-add" id="mb-view-layout">View on layout ↗</button>
         </span>
@@ -9257,16 +9266,22 @@ function renderMoodboard() {
     paintMini();
     const viewBtn = document.getElementById('mb-view-layout');
     if (viewBtn) viewBtn.addEventListener('click', () => openLayoutForRoom(mbFloor, room.id));
-    // Room-size inputs → store dims and redraw the mini plan in place
-    const wIn = document.getElementById('room-dim-w'), dIn = document.getElementById('room-dim-d');
-    const commitDim = (key, el) => {
-      const v = parseFloat(el.value);
-      room[key] = (isFinite(v) && v > 0) ? v : null;
+    // Room-size inputs (feet + inches) → store as decimal feet and redraw the mini plan in place
+    const wft = document.getElementById('room-dim-wft'), win = document.getElementById('room-dim-win');
+    const dft = document.getElementById('room-dim-dft'), din = document.getElementById('room-dim-din');
+    const readDim = (ftEl, inEl) => {
+      const ft = Math.max(0, parseFloat(ftEl && ftEl.value) || 0);
+      const inch = Math.max(0, parseFloat(inEl && inEl.value) || 0);
+      const total = ft + inch / 12;
+      return total > 0 ? total : null;
+    };
+    const commitRoomSize = () => {
+      room.widthFt = readDim(wft, win);
+      room.depthFt = readDim(dft, din);
       persist();
       paintMini();
     };
-    if (wIn) wIn.addEventListener('change', () => commitDim('widthFt', wIn));
-    if (dIn) dIn.addEventListener('change', () => commitDim('depthFt', dIn));
+    [wft, win, dft, din].forEach(el => { if (el) el.addEventListener('change', commitRoomSize); });
   }
 
   // Current home photos (removable) + add-from-listing
@@ -9840,6 +9855,15 @@ function pickBudgetItem(shape, onPick) {
   overlay.querySelector('[data-act="cancel"]').addEventListener('click', close);
   searchEl.addEventListener('input', draw);
   setTimeout(() => searchEl.focus(), 0);
+}
+
+// Split a decimal-feet value into whole feet + inches (rounded), normalizing 12" up to the next foot.
+function splitFtIn(v) {
+  const t = Math.max(0, Number(v) || 0);
+  let ft = Math.floor(t + 1e-6);
+  let inch = Math.round((t - ft) * 12);
+  if (inch === 12) { ft += 1; inch = 0; }
+  return { ft, inch };
 }
 
 // A small visual layout of a room's tagged shapes (footprints in their real positions, colored by status).
