@@ -1858,6 +1858,8 @@
   .palette-table-body > .palette-group-header:first-child { border-top: none; }
   .palette-table-row.dragging { opacity: 0.4; }
   .palette-table-row.drag-over { border-top: 2px solid var(--clay); }
+  /* Star marking a color that comes from the White Duck & Neutral Ground PDF guide */
+  .pt-pdf-star { color: #C08A2D; font-size: 12px; line-height: 1; cursor: help; flex: 0 0 auto; }
   .pt-drag {
     cursor: grab; color: var(--ink-faint); font-size: 15px; line-height: 1;
     display: flex; align-items: center; justify-content: center; user-select: none;
@@ -2825,6 +2827,24 @@
     font-family: 'Manrope', sans-serif; font-size: 11.5px; color: var(--ink-soft);
   }
   .bd-image-btns button:hover { border-color: var(--clay); color: var(--clay); }
+  /* Product photo gallery (multiple photos per item) */
+  .bd-photos { display: flex; flex-wrap: wrap; gap: 8px; }
+  .bd-photo { position: relative; width: 72px; height: 72px; border-radius: 8px; overflow: hidden; border: 1px solid var(--rule); background: white; }
+  .bd-photo img { width: 100%; height: 100%; object-fit: cover; display: block; cursor: pointer; }
+  .bd-photo-del {
+    position: absolute; top: 2px; right: 2px; width: 18px; height: 18px; line-height: 16px;
+    border: none; border-radius: 50%; background: rgba(0,0,0,0.55); color: white;
+    font-size: 13px; cursor: pointer; padding: 0; display: flex; align-items: center; justify-content: center;
+  }
+  .bd-photo-del:hover { background: var(--clay); }
+  .bd-photo-add {
+    width: 72px; height: 72px; border-radius: 8px; flex: none;
+    border: 1px dashed var(--rule); background: rgba(166,160,148,0.05);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+    color: var(--ink-faint); cursor: pointer; font-family: 'Manrope', sans-serif; font-size: 10.5px; font-weight: 600;
+  }
+  .bd-photo-add:hover { border-color: var(--clay); color: var(--clay); }
+  .bd-photo-add-plus { font-size: 20px; line-height: 1; }
   .bd-sync-note {
     grid-column: 1 / -1;
     font-size: 11.5px; color: var(--ink-soft); font-style: italic;
@@ -9091,7 +9111,7 @@ function renderMoodboard() {
   const insp = room.inspirationPhotos || [];
   const currents = room.currentPhotos || [];
   const roomBudgetItems = (state.budget?.items || []).filter(i => i.room === room.id);
-  const productImages = roomBudgetItems.filter(i => i.image).map(i => ({ url: i.image, caption: i.label || '', id: i.id, _budget: true }));
+  const productImages = roomBudgetItems.flatMap(i => getItemImages(i).map(url => ({ url, caption: i.label || '', id: i.id, _budget: true })));
   const totalBuy = roomBudgetItems.reduce((s, i) => s + (Number(i.estimated) || 0), 0);
   const meta = [];
   meta.push(`<span class="stat"><strong>${insp.length + productImages.length}</strong> images</span>`);
@@ -9240,9 +9260,9 @@ function renderMoodboard() {
       fig.querySelector('img').addEventListener('click', () => openLightbox(productImages, i));
       fig.querySelector('.mb-photo-del').addEventListener('click', (e) => {
         e.stopPropagation();
-        if (!confirm('Remove this product image? (The to-buy item stays; only its photo is cleared.)')) return;
+        if (!confirm('Remove this product photo? (The to-buy item stays; only this photo is removed.)')) return;
         const it = (state.budget.items || []).find(x => x.id === p.id);
-        if (it) { it.image = ''; persist(); renderMoodboard(); }
+        if (it) { removeItemImage(it, p.url); persist(); renderMoodboard(); }
       });
       grid.appendChild(fig);
     });
@@ -9353,7 +9373,7 @@ function renderMbBuyTable(room, items) {
       <div class="check"><input type="checkbox" ${item.paid ? 'checked' : ''}></div>
       <div class="actions">
         ${mbLink ? `<a href="${escapeHTML(mbLink)}" target="_blank" rel="noopener" title="Open link">↗</a>` : ''}
-        <button data-act="img" title="${item.image ? 'Change' : 'Add'} product image">🖼</button>
+        <button data-act="img" title="Add product photo${item.image ? 's (has ' + getItemImages(item).length + ')' : ''}">🖼</button>
         <button data-act="link" title="Set link">🔗</button>
         <button data-act="move" title="Move to room">⇄</button>
         <button data-act="del" title="Delete">×</button>
@@ -9367,9 +9387,9 @@ function renderMbBuyTable(room, items) {
       state.budget.items = state.budget.items.filter(i => i.id !== item.id);
       persist(); renderMoodboard();
     });
-    row.querySelector('[data-act="img"]').addEventListener('click', () => pickAndUploadItemImage(item, renderMoodboard));
+    row.querySelector('[data-act="img"]').addEventListener('click', () => pickAndUploadItemPhotos(item, renderMoodboard));
     const thumb = row.querySelector('[data-act="img-view"]');
-    if (thumb) thumb.addEventListener('click', () => openLightbox([{ url: item.image, caption: item.label || '' }], 0));
+    if (thumb) thumb.addEventListener('click', () => openLightbox(getItemImages(item).map(u => ({ url: u, caption: item.label || '' })), 0));
     row.querySelector('[data-act="link"]').addEventListener('click', () => {
       const url = prompt('Link URL (e.g., Wayfair, Pinterest):', mbLink || '');
       if (url === null) return;
@@ -12099,6 +12119,53 @@ function pickAndUploadItemImage(item, onDone) {
   input.click();
 }
 
+// --- Product photos: items keep a primary `image` plus an `images[]` gallery (image stays === images[0]) ---
+function getItemImages(item) {
+  if (Array.isArray(item.images) && item.images.length) return item.images.filter(Boolean);
+  return item.image ? [item.image] : [];
+}
+function setItemImages(item, arr) {
+  const clean = [...new Set((arr || []).filter(Boolean))];
+  item.images = clean;
+  item.image = clean[0] || '';
+}
+function addItemImage(item, url) {
+  if (!url) return;
+  setItemImages(item, [...getItemImages(item), url]);
+}
+function removeItemImage(item, url) {
+  setItemImages(item, getItemImages(item).filter(u => u !== url));
+}
+
+// Pick one or more local images, upload each to Drive, and append them to an item's photo gallery.
+function pickAndUploadItemPhotos(item, onDone) {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.multiple = true;
+  input.style.display = 'none';
+  document.body.appendChild(input);
+  input.addEventListener('change', async () => {
+    const files = Array.from(input.files || []);
+    input.remove();
+    if (!files.length) return;
+    let anyOk = false, anyLocal = false, failed = 0;
+    for (let i = 0; i < files.length; i++) {
+      showUploadProgress(files.length > 1 ? `Uploading ${i + 1} of ${files.length}…` : 'Uploading image…');
+      const res = await uploadImageToDrive(files[i]);
+      if (res.ok) { addItemImage(item, res.url); anyOk = true; }
+      else if (res.fallback) { addItemImage(item, res.fallback); anyLocal = true; }
+      else { failed++; }
+    }
+    hideUploadProgress();
+    if (anyLocal) alert('Some photos saved locally only — Drive upload failed, so they won\'t sync to Tom until re-uploaded.');
+    if (!anyOk && !anyLocal) { alert('Image upload failed.'); return; }
+    persist();
+    onDone && onDone();
+  });
+  input.click();
+}
+
 function showUploadProgress(text) {
   let el = document.getElementById('mt-upload-toast');
   if (!el) {
@@ -12365,6 +12432,7 @@ function renderPaletteTable(entries) {
       <div class="pt-name-cell">
         <input type="text" class="pt-input pt-name-input" value="${escapeHTML(c.name || '')}" placeholder="Color name">
         <a class="pt-sw-link" target="_blank" rel="noopener" title="View on Sherwin-Williams" href="${escapeHTML(c.url || '')}" style="${c.url ? '' : 'display:none;'}">↗</a>
+        ${colorInPdfPalette(c) ? `<span class="pt-pdf-star" title="From the White Duck &amp; Neutral Ground palette guide">★</span>` : ''}
       </div>
       <div class="pt-sw-cell"><span>SW</span><input type="text" class="pt-input pt-sw-input" value="${escapeHTML(c.sw || '')}" placeholder="0000"></div>
       <input type="text" class="pt-input pt-hex-input" value="${escapeHTML((c.hex || '').toUpperCase())}" placeholder="#hex">
@@ -12496,7 +12564,7 @@ function renderPaletteCard(entry) {
   card.innerHTML = `
     <div class="palette-card-chip" style="background:${escapeHTML(c.hex || '#ccc')}"></div>
     <div class="palette-card-body">
-      <div class="palette-card-name">${escapeHTML(c.name || 'Unnamed')}</div>
+      <div class="palette-card-name">${escapeHTML(c.name || 'Unnamed')}${colorInPdfPalette(c) ? ` <span class="pt-pdf-star" title="From the White Duck &amp; Neutral Ground palette guide">★</span>` : ''}</div>
       <div class="palette-card-code">SW ${escapeHTML(c.sw || '')} · ${escapeHTML((c.hex || '').toUpperCase())}${c.lrv != null && String(c.lrv).trim() ? ' · LRV ' + escapeHTML(String(c.lrv)) : ''} ${c.url ? `· <a href="${escapeHTML(c.url)}" target="_blank" rel="noopener" style="color:var(--clay);text-decoration:none;">view on SW ↗</a>` : ''}</div>
       <div class="palette-card-rooms" id="rooms-${escapeHTML(c.sw || '')}-${Math.random().toString(36).slice(2,6)}">
         ${universalRef ? '<span class="palette-room-chip" style="background:rgba(111,114,83,0.14);color:var(--forest);">★ Every room (universal)</span>' : ''}
@@ -14688,21 +14756,15 @@ function renderBudgetDetailsRow(item) {
   const roomInfo = item.room ? roomMap.get(item.room) : null;
   const roomName = roomInfo ? roomInfo.name : '';
   const isHome = isHomeCategory(item.category);
+  const imgs = getItemImages(item);
   details.innerHTML = `
     <div class="full">
-      <div class="bd-field-label">Product image</div>
-      <div class="bd-image-row">
-        ${item.image
-          ? `<img class="bd-image-thumb" data-act="img-view" src="${escapeHTML(item.image)}" alt="product">`
-          : `<div class="bd-image-placeholder" data-act="img-upload">＋</div>`}
-        <div class="bd-image-controls">
-          <input type="url" class="bd-image-url" data-field="image" placeholder="Paste an image URL (or upload →)" value="${escapeHTML(item.image || '')}">
-          <div class="bd-image-btns">
-            <button data-act="img-upload">${item.image ? 'Replace' : 'Upload'} image</button>
-            ${item.image ? '<button data-act="img-remove">Remove</button>' : ''}
-          </div>
-        </div>
+      <div class="bd-field-label">Product photos</div>
+      <div class="bd-photos">
+        ${imgs.map((u, i) => `<div class="bd-photo"><img src="${escapeHTML(u)}" data-act="ph-view" data-idx="${i}" alt="product" loading="lazy"><button type="button" class="bd-photo-del" data-act="ph-del" data-idx="${i}" title="Remove photo">×</button></div>`).join('')}
+        <button type="button" class="bd-photo-add" data-act="ph-add" title="Add photos"><span class="bd-photo-add-plus">＋</span><span>Add</span></button>
       </div>
+      <input type="url" class="bd-image-url" data-field="addimage" placeholder="…or paste an image URL to add a photo" style="margin-top:8px;">
     </div>
     <label class="link-row full">
       Link / where to buy
@@ -14736,8 +14798,8 @@ function renderBudgetDetailsRow(item) {
       const f = e.target.getAttribute('data-field');
       if (f === 'link') {
         item.link = e.target.value.trim();
-      } else if (f === 'image') {
-        item.image = e.target.value.trim();
+      } else if (f === 'addimage') {
+        addItemImage(item, e.target.value.trim());
       } else if (f === 'note') {
         item.notes = e.target.value;
         if (!item.link && /^https?:\/\//.test(item.note || '')) item.link = item.note;
@@ -14749,12 +14811,13 @@ function renderBudgetDetailsRow(item) {
       renderBudget();
     });
   });
-  details.querySelectorAll('[data-act="img-upload"]').forEach(el =>
-    el.addEventListener('click', () => pickAndUploadItemImage(item, renderBudget)));
-  const viewBtn = details.querySelector('[data-act="img-view"]');
-  if (viewBtn) viewBtn.addEventListener('click', () => openLightbox([{ url: item.image, caption: item.label || '' }], 0));
-  const rmBtn = details.querySelector('[data-act="img-remove"]');
-  if (rmBtn) rmBtn.addEventListener('click', () => { item.image = ''; persist(); renderBudget(); });
+  const galleryLightbox = imgs.map(u => ({ url: u, caption: item.label || '' }));
+  details.querySelectorAll('[data-act="ph-add"]').forEach(el =>
+    el.addEventListener('click', () => pickAndUploadItemPhotos(item, renderBudget)));
+  details.querySelectorAll('[data-act="ph-view"]').forEach(el =>
+    el.addEventListener('click', () => openLightbox(galleryLightbox, Number(el.getAttribute('data-idx')) || 0)));
+  details.querySelectorAll('[data-act="ph-del"]').forEach(el =>
+    el.addEventListener('click', () => { removeItemImage(item, imgs[Number(el.getAttribute('data-idx'))]); persist(); renderBudget(); }));
   const gotoRoom = details.querySelector('[data-act="goto-room"]');
   if (gotoRoom) gotoRoom.addEventListener('click', () => openRoomFromBudget(item.room));
   return details;
