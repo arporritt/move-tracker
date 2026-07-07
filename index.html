@@ -9091,15 +9091,12 @@ function renderMoodboard() {
   meta.push(`<span class="stat"><strong>${insp.length + productImages.length}</strong> images</span>`);
   if (roomBudgetItems.length) meta.push(`<span class="stat"><strong>${roomBudgetItems.length}</strong> to buy · ${fmtMoney(totalBuy)}</span>`);
   if (currents.length) meta.push(`<span class="stat"><strong>${currents.length}</strong> current photos</span>`);
-  const desc = room.description || '';
-  const placeholderText = `What's the vibe for ${room.name || 'this room'}? Click here to describe its mood, materials, colors, function…`;
   board.innerHTML = `
     <div class="mb-board-header">
       <input type="text" class="mb-room-title-input" id="mb-room-title-input" value="${escapeHTML(room.name || '')}" placeholder="Room name">
       <div class="mb-room-header-actions"><button class="mb-room-move-btn" id="mb-room-move" title="Move to another floor">⇄ Floor</button><button class="mb-room-del-btn" id="mb-room-del" title="Delete this room">×</button></div>
       <div class="mb-board-meta">${meta.join('')}</div>
     </div>
-    <div class="mb-description ${desc ? '' : 'empty'}" contenteditable="true" spellcheck="true" data-placeholder="${escapeHTML(placeholderText)}" id="mb-desc">${escapeHTML(desc)}</div>
 
     <div class="mb-two-col">
       <div class="mb-section">
@@ -9113,22 +9110,19 @@ function renderMoodboard() {
       </div>
     </div>
 
-    <div class="mb-section">
-      <div class="mb-section-head">
-        <span class="mb-section-title">Inspiration</span>
-        <span class="mb-head-right">${photoSizeControlHTML('room-insp')}<button class="mb-section-add" id="mb-upload-insp">+ Upload photos</button></span>
+    <div class="mb-two-col">
+      <div class="mb-section">
+        <div class="mb-section-head">
+          <span class="mb-section-title">Inspiration</span>
+          <span class="mb-head-right">${photoSizeControlHTML('room-insp')}<button class="mb-section-add" id="mb-upload-insp">+ Upload photos</button></span>
+        </div>
+        <div id="mb-insp-host"></div>
       </div>
-      <div id="mb-insp-host"></div>
-    </div>
 
-    <div class="mb-section">
-      <div class="mb-section-head"><span class="mb-section-title">Product photos</span><span class="mb-head-right">${photoSizeControlHTML('room-prod')}</span></div>
-      <div id="mb-products-host"></div>
-    </div>
-
-    <div class="mb-section">
-      <div class="mb-section-head"><span class="mb-section-title">To buy</span></div>
-      <div id="mb-buy-table-host"></div>
+      <div class="mb-section">
+        <div class="mb-section-head"><span class="mb-section-title">Product photos</span><span class="mb-head-right">${photoSizeControlHTML('room-prod')}</span></div>
+        <div id="mb-products-host"></div>
+      </div>
     </div>
 
     <div class="mb-section">
@@ -9146,6 +9140,11 @@ function renderMoodboard() {
     </div>
 
     <div class="mb-section">
+      <div class="mb-section-head"><span class="mb-section-title">To buy</span></div>
+      <div id="mb-buy-table-host"></div>
+    </div>
+
+    <div class="mb-section">
       <div class="mb-section-head">
         <span class="mb-section-title">Current home</span>
         <button class="mb-section-add" id="mb-add-current">+ Add from listing</button>
@@ -9153,20 +9152,6 @@ function renderMoodboard() {
       <div id="mb-current-host"></div>
     </div>
   `;
-  const descEl = board.querySelector('#mb-desc');
-  descEl.addEventListener('blur', () => {
-    const newText = descEl.innerText.trim();
-    descEl.classList.toggle('empty', !newText);
-    if (newText !== (room.description || '')) {
-      room.description = newText;
-      persist();
-    }
-  });
-  descEl.addEventListener('paste', e => {
-    e.preventDefault();
-    const text = (e.clipboardData || window.clipboardData).getData('text/plain');
-    document.execCommand('insertText', false, text);
-  });
   // Editable paint plan (per-surface assignments)
   const paletteHost = board.querySelector('#mb-room-palette-host');
   if (paletteHost) {
