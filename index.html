@@ -1315,6 +1315,8 @@
     display: flex; align-items: center; justify-content: center;
   }
   .cs-block-del:hover { background: var(--behind); }
+  .cs-drag { margin-right: auto; cursor: grab; color: rgba(255,255,255,0.92); font-size: 15px; line-height: 1; text-shadow: 0 1px 2px rgba(0,0,0,0.5); user-select: none; }
+  .cs-block.cs-drop { outline: 2px dashed var(--clay); outline-offset: -3px; }
   .cs-block-labels { position: relative; z-index: 2; width: 100%; padding: 10px 12px 12px; }
   .cs-block-name, .cs-block-usage {
     width: 100%; background: transparent; border: none; outline: none; padding: 0;
@@ -1719,9 +1721,9 @@
   .palette-room-chip {
     display: inline-flex; align-items: center; gap: 4px;
     background: rgba(166,160,148,0.10);
-    padding: 3px 10px 3px 10px;
+    padding: 2px 8px;
     border-radius: 100px;
-    font-size: 11px;
+    font-size: 9.5px;
     font-weight: 600;
     color: var(--ink-soft);
   }
@@ -1838,8 +1840,22 @@
   }
   .pt-input:hover { border-color: var(--rule-soft); }
   .pt-input:focus { border-color: var(--clay); background: white; }
-  .pt-loc-input { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); font-weight: 700; }
+  .pt-loc-input { font-size: 12px; color: var(--ink-soft); font-weight: 600; }
   .pt-name-input { font-family: 'Fraunces', serif; font-size: 15px; letter-spacing: -0.01em; }
+  /* Paint schedule matrix (rooms × surfaces) */
+  .paint-schedule-wrap { overflow-x: auto; border: 1px solid var(--rule); border-radius: 12px; background: var(--bg-card); box-shadow: var(--shadow); }
+  .paint-schedule { border-collapse: collapse; font-family: 'Manrope', sans-serif; }
+  .paint-schedule th, .paint-schedule td { border-bottom: 1px solid var(--rule-soft); border-right: 1px solid var(--rule-soft); }
+  .paint-schedule .ps-corner { position: sticky; left: 0; z-index: 3; background: var(--bg-card); box-shadow: 1px 0 0 var(--rule); }
+  .paint-schedule .ps-floor { font-size: 9.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-faint); font-weight: 700; text-align: center; padding: 7px 6px 3px; background: rgba(166,160,148,0.06); }
+  .paint-schedule .ps-room { font-size: 11px; font-weight: 600; color: var(--ink); padding: 5px 8px; text-align: center; white-space: nowrap; vertical-align: bottom; min-width: 76px; background: var(--bg-card); }
+  .paint-schedule .ps-room-row th.ps-room { border-bottom: 1px solid var(--rule); }
+  .paint-schedule .ps-surface { position: sticky; left: 0; z-index: 2; background: var(--bg-card); font-size: 12.5px; font-weight: 600; color: var(--ink); padding: 8px 16px 8px 12px; white-space: nowrap; text-align: left; box-shadow: 1px 0 0 var(--rule); }
+  .paint-schedule .ps-cell { padding: 4px; text-align: center; cursor: pointer; }
+  .paint-schedule .ps-cell:hover { background: rgba(166,160,148,0.12); }
+  .ps-swatch { display: inline-block; width: 32px; height: 20px; border-radius: 5px; border: 1px solid rgba(42,33,26,0.16); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.25); vertical-align: middle; }
+  .ps-empty { color: var(--clay-soft); font-size: 15px; line-height: 1; }
+  .paint-schedule-empty { padding: 18px; font-size: 13px; color: var(--ink-faint); font-style: italic; }
   .pt-sw-input, .pt-hex-input, .pt-lrv-input { font-variant-numeric: tabular-nums; font-size: 12.5px; letter-spacing: 0.04em; }
   .pt-lrv-input { text-align: center; }
   .pt-name-cell { display: flex; align-items: center; gap: 4px; min-width: 0; }
@@ -12011,15 +12027,15 @@ function renderPaletteTable(entries) {
       chip.textContent = '★ Every room';
       roomsBox.appendChild(chip);
     }
-    roomRefs.forEach(ref => {
+    // Collapse to one pill per surface (edit the actual rooms in the Paint schedule matrix or each room's Paint plan).
+    const bySurface = {};
+    roomRefs.forEach(ref => { const s = ref.surface || '(unspecified)'; (bySurface[s] = bySurface[s] || []).push(ref.roomName || 'Room'); });
+    Object.keys(bySurface).forEach(surface => {
+      const rms = bySurface[surface];
       const chip = document.createElement('span');
       chip.className = 'palette-room-chip';
-      const surf = ref.surface ? ` · ${escapeHTML(ref.surface)}` : '';
-      chip.innerHTML = `${escapeHTML(ref.roomName || 'Room')}${surf} <button title="Remove this assignment">×</button>`;
-      chip.querySelector('button').addEventListener('click', () => {
-        if (!confirm(`Remove "${cur.name}" from ${ref.roomName}${ref.surface ? ' · ' + ref.surface : ''}?`)) return;
-        removeAssignmentRef(cur, ref.floor, ref.roomId, ref.surface);
-      });
+      chip.title = rms.join(', ');
+      chip.textContent = rms.length === 1 ? `${surface} · ${rms[0]}` : `${surface} · ${rms.length} rooms`;
       roomsBox.appendChild(chip);
     });
     if (!universalRef && roomRefs.length === 0) {
@@ -12108,15 +12124,14 @@ function renderPaletteCard(entry) {
     </div>
   `;
   const roomsBox = card.querySelector('.palette-card-rooms');
-  roomRefs.forEach(ref => {
+  const cardBySurface = {};
+  roomRefs.forEach(ref => { const s = ref.surface || '(unspecified)'; (cardBySurface[s] = cardBySurface[s] || []).push(ref.roomName || 'Room'); });
+  Object.keys(cardBySurface).forEach(surface => {
+    const rms = cardBySurface[surface];
     const chip = document.createElement('span');
     chip.className = 'palette-room-chip';
-    const surf = ref.surface ? ` · ${escapeHTML(ref.surface)}` : '';
-    chip.innerHTML = `${escapeHTML(ref.roomName || 'Room')}${surf} <button title="Remove this assignment">×</button>`;
-    chip.querySelector('button').addEventListener('click', () => {
-      if (!confirm(`Remove "${c.name}" from ${ref.roomName}${ref.surface ? ' · ' + ref.surface : ''}?`)) return;
-      removeAssignmentRef(c, ref.floor, ref.roomId, ref.surface);
-    });
+    chip.title = rms.join(', ');
+    chip.textContent = rms.length === 1 ? `${surface} · ${rms[0]}` : `${surface} · ${rms.length} rooms`;
     roomsBox.appendChild(chip);
   });
   card.querySelector('.edit-color-btn').addEventListener('click', () => editColorEverywhere(c));
@@ -12302,6 +12317,7 @@ function assignColorToRoom(c) {
       if (!Array.isArray(room.paintAssignments)) room.paintAssignments = [];
       const dup = room.paintAssignments.some(a => assignmentIsColor(a, c) && (a.surface || '') === surface);
       if (!dup) room.paintAssignments.push({ surface, name: c.name || '', sw: c.sw || '', hex: c.hex || '#CCCCCC', lrv: (c.lrv != null ? c.lrv : ''), url: c.url || '' });
+      ensureColorInStory(c);
     });
     persist(); close(); renderPalette();
   }
@@ -12510,6 +12526,7 @@ function renderRoomPaintPlan(room, onChange) {
         if (!picked) return;
         a.name = picked.name || ''; a.sw = picked.sw || ''; a.hex = picked.hex || '#CCCCCC';
         a.lrv = (picked.lrv != null ? picked.lrv : ''); a.url = picked.url || '';
+        ensureColorInStory(picked);
         onChange();
       });
     });
@@ -12554,8 +12571,16 @@ function pickPaletteColor(current, onPick) {
   function draw() {
     const q = searchEl.value.trim().toLowerCase();
     listEl.innerHTML = '';
+    // "None" clears the assignment (only when there's currently a color and you're not searching).
+    if (current && (current.name || current.sw) && !q) {
+      const none = document.createElement('div');
+      none.className = 'picker-row';
+      none.innerHTML = `<span class="picker-check"></span><span class="room-pick-swatch" style="background:transparent;border:1px dashed var(--rule);"></span><span class="picker-name" style="color:var(--ink-faint);">— None (clear)</span>`;
+      none.addEventListener('click', () => { close(); onPick(null); });
+      listEl.appendChild(none);
+    }
     const matches = colors.filter(c => !q || (c.name || '').toLowerCase().includes(q) || (c.sw || '').includes(q));
-    if (!matches.length) { listEl.innerHTML = '<div class="picker-empty">No colors match.</div>'; return; }
+    if (!matches.length) { if (!listEl.children.length) listEl.innerHTML = '<div class="picker-empty">No colors match.</div>'; return; }
     matches.forEach(c => {
       const on = current && assignmentIsColor(current, c);
       const row = document.createElement('div');
@@ -12787,6 +12812,7 @@ function syncPdfPalette(force) {
 
 // The "full palette" — a single labeled ribbon. Each block shows the color with its name + category
 // layered on top, all editable in place. Lives at the top of Overall.
+let csDragFrom = null; // index of the ribbon color being dragged to reorder
 function renderColorStory(host) {
   ensureColorStory();
   const story = state.overallVision.colorStory;
@@ -12811,6 +12837,7 @@ function renderColorStory(host) {
     block.innerHTML = `
       <div class="cs-scrim"></div>
       <div class="cs-block-controls">
+        <span class="cs-drag" draggable="true" title="Drag to reorder">⠿</span>
         <label class="cs-color-chip" title="Change color"><input type="color" value="${hex}"></label>
         <button class="cs-block-del" title="Remove color">×</button>
       </div>
@@ -12834,6 +12861,21 @@ function renderColorStory(host) {
       persist();
       renderColorStory(host);
     });
+    // Drag to reorder
+    const grip = block.querySelector('.cs-drag');
+    grip.addEventListener('dragstart', e => { csDragFrom = i; e.dataTransfer.effectAllowed = 'move'; });
+    block.addEventListener('dragover', e => { if (csDragFrom != null) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; block.classList.add('cs-drop'); } });
+    block.addEventListener('dragleave', () => block.classList.remove('cs-drop'));
+    block.addEventListener('drop', e => {
+      e.preventDefault();
+      block.classList.remove('cs-drop');
+      const from = csDragFrom; csDragFrom = null;
+      if (from == null || from === i) return;
+      const [moved] = story.splice(from, 1);
+      story.splice(from < i ? i - 1 : i, 0, moved);
+      persist();
+      renderColorStory(host);
+    });
     ribbon.appendChild(block);
   });
   const add = document.createElement('button');
@@ -12849,6 +12891,76 @@ function renderColorStory(host) {
   });
   ribbon.appendChild(add);
   host.appendChild(ribbon);
+}
+
+// Add a color to the palette ribbon (colorStory) if it's not already there — used when a color is assigned to a room.
+function ensureColorInStory(color) {
+  if (!color || !(color.name || color.sw)) return;
+  ensureColorStory();
+  const story = state.overallVision.colorStory;
+  const has = story.some(c => (color.name && (c.name || '').toLowerCase() === (color.name || '').toLowerCase()) || (color.sw && c.sw && c.sw === color.sw));
+  if (!has) story.push({ name: color.name || '', hex: color.hex || '#CCCCCC', usage: '', lrv: (color.lrv != null ? color.lrv : ''), sw: color.sw || '' });
+}
+
+// Set (or clear, if color is null) the paint color for one room + surface in the schedule matrix.
+function setScheduleCell(floor, roomId, surface, color) {
+  const room = (state.inspiration[floor] || []).find(r => r.id === roomId);
+  if (!room) return;
+  if (!Array.isArray(room.paintAssignments)) room.paintAssignments = [];
+  const i = room.paintAssignments.findIndex(a => (a.surface || '') === surface);
+  if (!color) {
+    if (i >= 0) room.paintAssignments.splice(i, 1);
+  } else {
+    const entry = { surface, name: color.name || '', sw: color.sw || '', hex: color.hex || '#CCCCCC', lrv: (color.lrv != null ? color.lrv : ''), url: color.url || '' };
+    if (i >= 0) room.paintAssignments[i] = entry; else room.paintAssignments.push(entry);
+    ensureColorInStory(color);
+  }
+  persist();
+  renderMoodboard();
+}
+
+const DEFAULT_SCHEDULE_SURFACES = ['Walls', 'Trim & baseboards', 'Ceiling', 'Doors', 'Cabinets'];
+// Room × surface matrix: rooms as columns (grouped by floor), surfaces as rows, a color swatch per cell.
+function renderPaintSchedule(host) {
+  if (!host) return;
+  ensureInspirationState();
+  const floors = ['basement', 'ground', 'upper'];
+  const roomsByFloor = floors.map(f => ({ floor: f, rooms: (state.inspiration[f] || []) })).filter(g => g.rooms.length);
+  const allRooms = [];
+  roomsByFloor.forEach(g => g.rooms.forEach(r => allRooms.push({ id: r.id, name: r.name || 'Room', floor: g.floor, room: r })));
+  if (!allRooms.length) { host.innerHTML = '<div class="paint-schedule-empty">Add rooms in the Design tab to build a paint schedule.</div>'; return; }
+  const usedSurfaces = [];
+  allRooms.forEach(({ room }) => (room.paintAssignments || []).forEach(a => { const s = (a.surface || '').trim(); if (s && !usedSurfaces.includes(s)) usedSurfaces.push(s); }));
+  const surfaces = [...DEFAULT_SCHEDULE_SURFACES];
+  usedSurfaces.forEach(s => { if (!surfaces.includes(s)) surfaces.push(s); });
+  const colorFor = (room, surface) => (room.paintAssignments || []).find(a => (a.surface || '') === surface);
+  let html = '<div class="paint-schedule-wrap"><table class="paint-schedule"><thead>';
+  html += '<tr class="ps-floor-row"><th class="ps-corner"></th>';
+  roomsByFloor.forEach(g => { html += `<th class="ps-floor" colspan="${g.rooms.length}">${escapeHTML(FLOOR_LABELS[g.floor])}</th>`; });
+  html += '</tr><tr class="ps-room-row"><th class="ps-surface">Surface</th>';
+  allRooms.forEach(r => { html += `<th class="ps-room" title="${escapeHTML(r.name)}">${escapeHTML(r.name)}</th>`; });
+  html += '</tr></thead><tbody>';
+  surfaces.forEach(surface => {
+    html += `<tr><th class="ps-surface">${escapeHTML(surface)}</th>`;
+    allRooms.forEach(r => {
+      const a = colorFor(r.room, surface);
+      const cell = a
+        ? `<span class="ps-swatch" style="background:${escapeHTML(a.hex || '#ccc')}" title="${escapeHTML((a.name || 'Color') + ' — ' + r.name + ' · ' + surface)}"></span>`
+        : `<span class="ps-empty" title="Assign a color">+</span>`;
+      html += `<td class="ps-cell" data-room="${escapeHTML(r.id)}" data-floor="${r.floor}" data-surface="${escapeHTML(surface)}">${cell}</td>`;
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table></div>';
+  host.innerHTML = html;
+  host.querySelectorAll('.ps-cell').forEach(td => {
+    td.addEventListener('click', () => {
+      const floor = td.getAttribute('data-floor'), roomId = td.getAttribute('data-room'), surface = td.getAttribute('data-surface');
+      const room = (state.inspiration[floor] || []).find(r => r.id === roomId);
+      const cur = room ? (room.paintAssignments || []).find(a => (a.surface || '') === surface) : null;
+      pickPaletteColor(cur, picked => setScheduleCell(floor, roomId, surface, picked));
+    });
+  });
 }
 
 function renderOverallMoodboard(board) {
@@ -12897,6 +13009,12 @@ function renderOverallMoodboard(board) {
     <div id="cs-host"></div>
 
     <div id="palette-board"></div>
+
+    <div class="mb-section-head" style="margin-top:28px;">
+      <span class="mb-section-title">Paint schedule</span>
+      <span class="mb-head-right" style="font-weight:400;color:var(--ink-faint);font-size:12px;">room × surface → color · click a cell to assign</span>
+    </div>
+    <div id="paint-schedule-host"></div>
   `;
   const descEl = board.querySelector('#mb-desc-overall');
   descEl.addEventListener('blur', () => {
@@ -12940,6 +13058,7 @@ function renderOverallMoodboard(board) {
   renderColorStory(board.querySelector('#cs-host'));
   // Paint selections (the master palette — moved here from the old Palette tab)
   renderPalette();
+  renderPaintSchedule(board.querySelector('#paint-schedule-host'));
   wirePhotoSize(board);
 }
 
