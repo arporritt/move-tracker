@@ -1463,6 +1463,9 @@
   .mb-layout-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 8px 12px; background: var(--bg-card); border: 1px solid var(--rule); border-radius: 8px; }
   .mb-layout-name { font-family: 'Manrope', sans-serif; font-size: 14px; font-weight: 600; color: var(--ink); }
   .mb-layout-dim { font-size: 12.5px; color: var(--ink-soft); font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
+  .room-mini-wrap { border: 1px solid var(--rule); border-radius: 12px; background: linear-gradient(135deg, #FBFCFD 0%, #F4F8FA 100%); padding: 12px; }
+  .room-mini-svg { display: block; }
+  .room-mini-svg .rm-shape { stroke-width: 1.4; vector-effect: non-scaling-stroke; }
   .mb-swatch {
     background: var(--bg-card);
     border: 1px solid var(--rule);
@@ -1883,6 +1886,11 @@
   .ps-swatch { display: inline-block; width: 32px; height: 20px; border-radius: 5px; border: 1px solid rgba(42,33,26,0.16); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.25); vertical-align: middle; }
   .ps-empty { color: var(--clay-soft); font-size: 15px; line-height: 1; }
   .paint-schedule-empty { padding: 18px; font-size: 13px; color: var(--ink-faint); font-style: italic; }
+  .paint-schedule .ps-surface-input { width: 100%; min-width: 74px; box-sizing: border-box; border: none; background: transparent; font-family: 'Manrope', sans-serif; font-size: 12px; font-weight: 600; color: var(--ink); padding: 2px 4px; border-radius: 5px; outline: none; text-align: inherit; }
+  .paint-schedule .ps-surface-input:hover { background: rgba(166,160,148,0.14); }
+  .paint-schedule .ps-surface-input:focus { background: white; box-shadow: inset 0 0 0 1px var(--clay-soft); }
+  .paint-schedule .ps-floor-cell { font-size: 9.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-faint); font-weight: 700; background: rgba(166,160,148,0.08); }
+  .paint-schedule .ps-floor-fill { background: rgba(166,160,148,0.08); }
   .pt-sw-input, .pt-hex-input, .pt-lrv-input { font-variant-numeric: tabular-nums; font-size: 12.5px; letter-spacing: 0.04em; }
   .pt-lrv-input { text-align: center; }
   .pt-name-cell { display: flex; align-items: center; gap: 4px; min-width: 0; }
@@ -9233,29 +9241,17 @@ function renderMoodboard() {
   // To buy table (synced with budget)
   document.getElementById('mb-buy-table-host').appendChild(renderMbBuyTable(room, roomBudgetItems));
 
-  // On the floor plan — shapes tagged to this room (groups collapsed to one row)
+  // On the floor plan — a mini visual layout of the shapes tagged to this room
   const layoutHost = document.getElementById('mb-layout-host');
   if (layoutHost) {
     const floorShapes = (state.layouts && state.layouts[mbFloor] && state.layouts[mbFloor].shapes) || [];
     const roomShapes = floorShapes.filter(sh => sh.roomId === room.id);
-    const seenG = new Set();
-    const rows = [];
-    roomShapes.forEach(sh => {
-      if (sh.groupId) {
-        if (seenG.has(sh.groupId)) return;
-        seenG.add(sh.groupId);
-        const members = floorShapes.filter(m => m.groupId === sh.groupId);
-        const minX = Math.min(...members.map(m => m.x)), minY = Math.min(...members.map(m => m.y));
-        const maxX = Math.max(...members.map(m => m.x + m.w)), maxY = Math.max(...members.map(m => m.y + m.h));
-        rows.push({ name: (members.find(m => m.label) || {}).label || 'Grouped piece', w: maxX - minX, h: maxY - minY });
-      } else {
-        rows.push({ name: sh.label || '(unnamed)', w: sh.w, h: sh.h });
-      }
-    });
-    const ft = n => Math.round(n * 10) / 10;
-    layoutHost.innerHTML = rows.length
-      ? `<div class="mb-layout-list">${rows.map(r => `<div class="mb-layout-row"><span class="mb-layout-name">${escapeHTML(r.name)}</span><span class="mb-layout-dim">${ft(r.w)}' × ${ft(r.h)}'</span></div>`).join('')}</div>`
-      : `<div class="mb-empty">No furniture tagged to this room yet. On the <strong>Layout</strong> tab, select a shape and set its <strong>Room</strong> to “${escapeHTML(room.name || 'this room')}”.</div>`;
+    if (roomShapes.length) {
+      layoutHost.innerHTML = '';
+      layoutHost.appendChild(renderRoomLayoutMini(roomShapes));
+    } else {
+      layoutHost.innerHTML = `<div class="mb-empty">No furniture tagged to this room yet. On the <strong>Layout</strong> tab, select a shape and set its <strong>Room</strong> to “${escapeHTML(room.name || 'this room')}”.</div>`;
+    }
     const viewBtn = document.getElementById('mb-view-layout');
     if (viewBtn) viewBtn.addEventListener('click', () => openLayoutForRoom(mbFloor, room.id));
   }
@@ -9831,6 +9827,43 @@ function pickBudgetItem(shape, onPick) {
   overlay.querySelector('[data-act="cancel"]').addEventListener('click', close);
   searchEl.addEventListener('input', draw);
   setTimeout(() => searchEl.focus(), 0);
+}
+
+// A small visual layout of a room's tagged shapes (footprints in their real positions, colored by status).
+function renderRoomLayoutMini(shapes) {
+  const wrap = document.createElement('div');
+  wrap.className = 'room-mini-wrap';
+  if (!shapes.length) return wrap;
+  const pad = 1.2;
+  const minX = Math.min(...shapes.map(s => s.x)) - pad, minY = Math.min(...shapes.map(s => s.y)) - pad;
+  const maxX = Math.max(...shapes.map(s => s.x + s.w)) + pad, maxY = Math.max(...shapes.map(s => s.y + s.h)) + pad;
+  const w = Math.max(1, maxX - minX), h = Math.max(1, maxY - minY);
+  const fs = Math.min(1.2, Math.max(0.4, Math.min(w, h) * 0.055));
+  const cFill = st => st === 'own' ? 'rgba(110,114,91,0.32)' : st === 'buy' ? 'rgba(188,91,68,0.28)' : st === 'bought' ? 'rgba(136,129,120,0.30)' : 'rgba(166,160,148,0.30)';
+  const cStroke = st => st === 'own' ? '#6E725B' : st === 'buy' ? '#BC5B44' : st === 'bought' ? '#888178' : '#A29B8E';
+  const seenG = new Set();
+  let inner = '';
+  shapes.forEach(s => {
+    const st = shapeStatus(s);
+    const fill = cFill(st), stroke = cStroke(st);
+    const cx = s.x + s.w / 2, cy = s.y + s.h / 2;
+    const rot = Number(s.rotation) || 0;
+    const g = rot ? `<g transform="rotate(${rot} ${cx} ${cy})">` : '<g>';
+    let shp;
+    if (s.type === 'circle') shp = `<circle class="rm-shape" cx="${cx}" cy="${cy}" r="${Math.min(s.w, s.h) / 2}" fill="${fill}" stroke="${stroke}"/>`;
+    else if (s.type === 'oval') shp = `<ellipse class="rm-shape" cx="${cx}" cy="${cy}" rx="${s.w / 2}" ry="${s.h / 2}" fill="${fill}" stroke="${stroke}"/>`;
+    else shp = `<rect class="rm-shape" x="${s.x}" y="${s.y}" width="${s.w}" height="${s.h}" rx="0.15" fill="${fill}" stroke="${stroke}"/>`;
+    inner += g + shp + '</g>';
+    // Label once per shape (or once per group), upright at center
+    let showLabel = true;
+    if (s.groupId) { if (seenG.has(s.groupId)) showLabel = false; else seenG.add(s.groupId); }
+    const nm = s.label || '';
+    if (showLabel && nm) inner += `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle" style="font-size:${fs}px;font-family:'Manrope',sans-serif;fill:var(--ink);font-weight:600;">${escapeHTML(nm)}</text>`;
+  });
+  const aspect = h / w;
+  const maxH = Math.min(360, Math.max(140, Math.round(560 * aspect)));
+  wrap.innerHTML = `<svg class="room-mini-svg" viewBox="${minX} ${minY} ${w} ${h}" preserveAspectRatio="xMidYMid meet" style="width:100%;height:auto;max-height:${maxH}px;">${inner}</svg>`;
+  return wrap;
 }
 
 // Floating editor for the selected shape: name, exact dimensions (ft + in), angle, notes, photo, delete.
@@ -13080,7 +13113,16 @@ function setScheduleCell(floor, roomId, surface, color) {
 }
 
 const DEFAULT_SCHEDULE_SURFACES = ['Walls', 'Trim & baseboards', 'Ceiling', 'Doors', 'Cabinets'];
-// Room × surface matrix: rooms as columns (grouped by floor), surfaces as rows, a color swatch per cell.
+let paintScheduleFlip = true; // true = rooms as rows, surfaces as columns
+try { const v = localStorage.getItem('mt-paint-schedule-flip'); if (v === '0' || v === '1') paintScheduleFlip = v === '1'; } catch (e) {}
+// Rename a surface everywhere it's assigned across all rooms.
+function renameScheduleSurface(oldName, newName) {
+  newName = (newName || '').trim();
+  if (!newName || newName === oldName) { renderMoodboard(); return; }
+  ['basement', 'ground', 'upper'].forEach(f => (state.inspiration[f] || []).forEach(r => (r.paintAssignments || []).forEach(a => { if ((a.surface || '') === oldName) a.surface = newName; })));
+  persist(); renderMoodboard();
+}
+// Room × surface matrix; orientation toggled by paintScheduleFlip. Cells hold a color swatch; surface headers rename.
 function renderPaintSchedule(host) {
   if (!host) return;
   ensureInspirationState();
@@ -13094,24 +13136,45 @@ function renderPaintSchedule(host) {
   const surfaces = [...DEFAULT_SCHEDULE_SURFACES];
   usedSurfaces.forEach(s => { if (!surfaces.includes(s)) surfaces.push(s); });
   const colorFor = (room, surface) => (room.paintAssignments || []).find(a => (a.surface || '') === surface);
-  let html = '<div class="paint-schedule-wrap"><table class="paint-schedule"><thead>';
-  html += '<tr class="ps-floor-row"><th class="ps-corner"></th>';
-  roomsByFloor.forEach(g => { html += `<th class="ps-floor" colspan="${g.rooms.length}">${escapeHTML(FLOOR_LABELS[g.floor])}</th>`; });
-  html += '</tr><tr class="ps-room-row"><th class="ps-surface">Surface</th>';
-  allRooms.forEach(r => { html += `<th class="ps-room" title="${escapeHTML(r.name)}">${escapeHTML(r.name)}</th>`; });
-  html += '</tr></thead><tbody>';
-  surfaces.forEach(surface => {
-    html += `<tr><th class="ps-surface">${escapeHTML(surface)}</th>`;
-    allRooms.forEach(r => {
-      const a = colorFor(r.room, surface);
-      const cell = a
-        ? `<span class="ps-swatch" style="background:${escapeHTML(a.hex || '#ccc')}" title="${escapeHTML((a.name || 'Color') + ' — ' + r.name + ' · ' + surface)}"></span>`
-        : `<span class="ps-empty" title="Assign a color">+</span>`;
-      html += `<td class="ps-cell" data-room="${escapeHTML(r.id)}" data-floor="${r.floor}" data-surface="${escapeHTML(surface)}">${cell}</td>`;
+  const cellHtml = (r, surface) => {
+    const a = colorFor(r.room, surface);
+    const inner = a
+      ? `<span class="ps-swatch" style="background:${escapeHTML(a.hex || '#ccc')}" title="${escapeHTML((a.name || 'Color') + ' — ' + r.name + ' · ' + surface)}"></span>`
+      : `<span class="ps-empty" title="Assign a color">+</span>`;
+    return `<td class="ps-cell" data-room="${escapeHTML(r.id)}" data-floor="${r.floor}" data-surface="${escapeHTML(surface)}">${inner}</td>`;
+  };
+  const surfInput = surface => `<input class="ps-surface-input" data-surface="${escapeHTML(surface)}" value="${escapeHTML(surface)}" title="Rename this surface everywhere it's used">`;
+  let html = '<div class="paint-schedule-wrap"><table class="paint-schedule">';
+  if (!paintScheduleFlip) {
+    // rooms = columns (grouped by floor), surfaces = rows
+    html += '<thead><tr class="ps-floor-row"><th class="ps-corner"></th>';
+    roomsByFloor.forEach(g => { html += `<th class="ps-floor" colspan="${g.rooms.length}">${escapeHTML(FLOOR_LABELS[g.floor])}</th>`; });
+    html += '</tr><tr class="ps-room-row"><th class="ps-surface">Surface</th>';
+    allRooms.forEach(r => { html += `<th class="ps-room" title="${escapeHTML(r.name)}">${escapeHTML(r.name)}</th>`; });
+    html += '</tr></thead><tbody>';
+    surfaces.forEach(surface => {
+      html += `<tr><th class="ps-surface">${surfInput(surface)}</th>`;
+      allRooms.forEach(r => { html += cellHtml(r, surface); });
+      html += '</tr>';
     });
-    html += '</tr>';
-  });
-  html += '</tbody></table></div>';
+    html += '</tbody>';
+  } else {
+    // surfaces = columns, rooms = rows (grouped by floor)
+    html += '<thead><tr class="ps-room-row"><th class="ps-surface">Room</th>';
+    surfaces.forEach(surface => { html += `<th class="ps-room">${surfInput(surface)}</th>`; });
+    html += '</tr></thead><tbody>';
+    roomsByFloor.forEach(g => {
+      html += `<tr class="ps-floor-tr"><th class="ps-surface ps-floor-cell">${escapeHTML(FLOOR_LABELS[g.floor])}</th><td class="ps-floor-fill" colspan="${surfaces.length}"></td></tr>`;
+      g.rooms.forEach(r0 => {
+        const r = { id: r0.id, name: r0.name || 'Room', floor: g.floor, room: r0 };
+        html += `<tr><th class="ps-surface">${escapeHTML(r.name)}</th>`;
+        surfaces.forEach(surface => { html += cellHtml(r, surface); });
+        html += '</tr>';
+      });
+    });
+    html += '</tbody>';
+  }
+  html += '</table></div>';
   host.innerHTML = html;
   host.querySelectorAll('.ps-cell').forEach(td => {
     td.addEventListener('click', () => {
@@ -13121,6 +13184,16 @@ function renderPaintSchedule(host) {
       pickPaletteColor(cur, picked => setScheduleCell(floor, roomId, surface, picked));
     });
   });
+  host.querySelectorAll('.ps-surface-input').forEach(inp => {
+    inp.addEventListener('click', e => e.stopPropagation());
+    inp.addEventListener('change', () => renameScheduleSurface(inp.getAttribute('data-surface'), inp.value));
+  });
+  const flipBtn = document.getElementById('ps-flip');
+  if (flipBtn) flipBtn.onclick = () => {
+    paintScheduleFlip = !paintScheduleFlip;
+    try { localStorage.setItem('mt-paint-schedule-flip', paintScheduleFlip ? '1' : '0'); } catch (e) {}
+    renderPaintSchedule(host);
+  };
 }
 
 function renderOverallMoodboard(board) {
@@ -13171,8 +13244,8 @@ function renderOverallMoodboard(board) {
     <div id="palette-board"></div>
 
     <div class="mb-section-head" style="margin-top:28px;">
-      <span class="mb-section-title">Paint schedule</span>
-      <span class="mb-head-right" style="font-weight:400;color:var(--ink-faint);font-size:12px;">room × surface → color · click a cell to assign</span>
+      <span class="mb-section-title">Paint assignments</span>
+      <span class="mb-head-right"><button id="ps-flip" class="mb-section-add" title="Swap rooms and surfaces">⇄ Flip</button><span style="font-weight:400;color:var(--ink-faint);font-size:12px;margin-left:10px;">click a cell to assign · rename a surface in its header</span></span>
     </div>
     <div id="paint-schedule-host"></div>
   `;
