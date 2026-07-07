@@ -1466,6 +1466,10 @@
   .room-mini-wrap { border: 1px solid var(--rule); border-radius: 12px; background: linear-gradient(135deg, #FBFCFD 0%, #F4F8FA 100%); padding: 12px; }
   .room-mini-svg { display: block; }
   .room-mini-svg .rm-shape { stroke-width: 1.4; vector-effect: non-scaling-stroke; }
+  .room-mini-svg .rm-shape-g { cursor: grab; touch-action: none; }
+  .room-mini-svg.dragging { cursor: grabbing; }
+  .room-mini-svg.dragging .rm-shape-g { cursor: grabbing; }
+  .room-mini-hint { font-size: 11px; color: var(--ink-faint); margin-top: 8px; font-style: italic; }
   .mb-swatch {
     background: var(--bg-card);
     border: 1px solid var(--rule);
@@ -9898,27 +9902,31 @@ function renderRoomLayoutMini(shapes, room) {
     roomW = fbW; roomH = fbH;
   }
   const fs = Math.min(1.2, Math.max(0.4, Math.min(roomW, roomH) * 0.055));
+  // Displayed top-left of a shape within the room frame: its own saved room position
+  // (roomX/roomY, set by dragging here) if present, else the centered layout projection.
+  const posX = s => (s.roomX != null && isFinite(s.roomX)) ? s.roomX : (s.x + offX);
+  const posY = s => (s.roomY != null && isFinite(s.roomY)) ? s.roomY : (s.y + offY);
   const seenG = new Set();
   let inner = '';
   shapes.forEach(s => {
     const st = shapeStatus(s);
     const fill = cFill(st), stroke = cStroke(st);
-    const cx = s.x + s.w / 2, cy = s.y + s.h / 2;
+    const cw = s.w, ch = s.h;
     const rot = Number(s.rotation) || 0;
-    const g = rot ? `<g transform="rotate(${rot} ${cx} ${cy})">` : '<g>';
+    // Draw each shape relative to its own top-left (0,0), then position it with a group
+    // transform so it can be dragged live by updating that transform.
     let shp;
-    if (s.type === 'circle') shp = `<circle class="rm-shape" cx="${cx}" cy="${cy}" r="${Math.min(s.w, s.h) / 2}" fill="${fill}" stroke="${stroke}"/>`;
-    else if (s.type === 'oval') shp = `<ellipse class="rm-shape" cx="${cx}" cy="${cy}" rx="${s.w / 2}" ry="${s.h / 2}" fill="${fill}" stroke="${stroke}"/>`;
-    else shp = `<rect class="rm-shape" x="${s.x}" y="${s.y}" width="${s.w}" height="${s.h}" rx="0.15" fill="${fill}" stroke="${stroke}"/>`;
-    inner += g + shp + '</g>';
-    // Label once per shape (or once per group), upright at center
+    if (s.type === 'circle') shp = `<circle class="rm-shape" cx="${cw / 2}" cy="${ch / 2}" r="${Math.min(cw, ch) / 2}" fill="${fill}" stroke="${stroke}"/>`;
+    else if (s.type === 'oval') shp = `<ellipse class="rm-shape" cx="${cw / 2}" cy="${ch / 2}" rx="${cw / 2}" ry="${ch / 2}" fill="${fill}" stroke="${stroke}"/>`;
+    else shp = `<rect class="rm-shape" x="0" y="0" width="${cw}" height="${ch}" rx="0.15" fill="${fill}" stroke="${stroke}"/>`;
+    const rotShp = rot ? `<g transform="rotate(${rot} ${cw / 2} ${ch / 2})">${shp}</g>` : shp;
+    // Label once per shape (or once per group), upright at the shape's center
     let showLabel = true;
     if (s.groupId) { if (seenG.has(s.groupId)) showLabel = false; else seenG.add(s.groupId); }
     const nm = s.label || '';
-    if (showLabel && nm) inner += `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle" style="font-size:${fs}px;font-family:'Manrope',sans-serif;fill:var(--ink);font-weight:600;">${escapeHTML(nm)}</text>`;
+    const labelSvg = (showLabel && nm) ? `<text x="${cw / 2}" y="${ch / 2}" text-anchor="middle" dominant-baseline="middle" style="font-size:${fs}px;font-family:'Manrope',sans-serif;fill:var(--ink);font-weight:600;pointer-events:none;">${escapeHTML(nm)}</text>` : '';
+    inner += `<g class="rm-shape-g" data-sid="${s.id}"${s.groupId ? ` data-gid="${escapeHTML(s.groupId)}"` : ''} transform="translate(${posX(s)} ${posY(s)})">${rotShp}${labelSvg}</g>`;
   });
-  // Shift the furniture so it sits (centered) inside the room frame.
-  const furniture = (offX || offY) ? `<g transform="translate(${offX} ${offY})">${inner}</g>` : inner;
   // Room border + dimension labels (only when a size is entered).
   let frame = '';
   if (hasRoom) {
@@ -9931,7 +9939,70 @@ function renderRoomLayoutMini(shapes, room) {
   }
   const aspect = vbH / vbW;
   const maxH = Math.min(400, Math.max(140, Math.round(560 * aspect)));
-  wrap.innerHTML = `<svg class="room-mini-svg" viewBox="${vbX} ${vbY} ${vbW} ${vbH}" preserveAspectRatio="xMidYMid meet" style="width:100%;height:auto;max-height:${maxH}px;">${frame}${furniture}</svg>`;
+  wrap.innerHTML = `<svg class="room-mini-svg" viewBox="${vbX} ${vbY} ${vbW} ${vbH}" preserveAspectRatio="xMidYMid meet" style="width:100%;height:auto;max-height:${maxH}px;">${frame}${inner}</svg>`;
+  if (shapes.length) {
+    const hint = document.createElement('div');
+    hint.className = 'room-mini-hint';
+    hint.textContent = 'Drag furniture to arrange it within the room — positions here are saved per room.';
+    wrap.appendChild(hint);
+  }
+  // --- Drag furniture to reposition it within the room (grouped pieces move together) ---
+  const svg = wrap.querySelector('svg');
+  if (svg && shapes.length) {
+    const toFeet = (evt) => {
+      const m = svg.getScreenCTM();
+      if (!m) return null;
+      const p = svg.createSVGPoint(); p.x = evt.clientX; p.y = evt.clientY;
+      const u = p.matrixTransform(m.inverse());
+      return { x: u.x, y: u.y };
+    };
+    let drag = null;
+    svg.addEventListener('pointerdown', (e) => {
+      const g = e.target.closest('.rm-shape-g');
+      if (!g) return;
+      const start = toFeet(e);
+      if (!start) return;
+      e.preventDefault();
+      const gid = g.dataset.gid;
+      const members = gid ? shapes.filter(s => s.groupId === gid) : shapes.filter(s => s.id === g.dataset.sid);
+      const items = members.map(s => ({ s, el: svg.querySelector(`.rm-shape-g[data-sid="${s.id}"]`), px: posX(s), py: posY(s) }));
+      drag = { items, start };
+      try { svg.setPointerCapture(e.pointerId); } catch (_) {}
+      svg.classList.add('dragging');
+    });
+    svg.addEventListener('pointermove', (e) => {
+      if (!drag) return;
+      const cur = toFeet(e);
+      if (!cur) return;
+      let dx = cur.x - drag.start.x, dy = cur.y - drag.start.y;
+      if (hasRoom) {
+        // Clamp the whole (rigid) group so every member stays inside the room border.
+        const dxLo = Math.max(...drag.items.map(it => -it.px));
+        const dxHi = Math.min(...drag.items.map(it => roomW - it.s.w - it.px));
+        const dyLo = Math.max(...drag.items.map(it => -it.py));
+        const dyHi = Math.min(...drag.items.map(it => roomH - it.s.h - it.py));
+        if (dxLo <= dxHi) dx = Math.max(dxLo, Math.min(dxHi, dx));
+        if (dyLo <= dyHi) dy = Math.max(dyLo, Math.min(dyHi, dy));
+      }
+      drag.items.forEach(it => {
+        it.nx = it.px + dx; it.ny = it.py + dy;
+        if (it.el) it.el.setAttribute('transform', `translate(${it.nx} ${it.ny})`);
+      });
+    });
+    const endDrag = (e) => {
+      if (!drag) return;
+      const moved = drag.items.some(it => it.nx != null);
+      if (moved) {
+        drag.items.forEach(it => { it.s.roomX = it.nx; it.s.roomY = it.ny; });
+        persist();
+      }
+      try { svg.releasePointerCapture(e.pointerId); } catch (_) {}
+      svg.classList.remove('dragging');
+      drag = null;
+    };
+    svg.addEventListener('pointerup', endDrag);
+    svg.addEventListener('pointercancel', endDrag);
+  }
   return wrap;
 }
 
