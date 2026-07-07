@@ -1429,6 +1429,11 @@
     font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.12s;
   }
   .rp-add:hover { background: rgba(122,110,94,0.08); border-color: var(--clay); }
+  /* "On the floor plan" list in the room design view */
+  .mb-layout-list { display: flex; flex-direction: column; gap: 4px; }
+  .mb-layout-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 8px 12px; background: var(--bg-card); border: 1px solid var(--rule); border-radius: 8px; }
+  .mb-layout-name { font-family: 'Manrope', sans-serif; font-size: 14px; font-weight: 600; color: var(--ink); }
+  .mb-layout-dim { font-size: 12.5px; color: var(--ink-soft); font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
   .mb-swatch {
     background: var(--bg-card);
     border: 1px solid var(--rule);
@@ -9064,6 +9069,14 @@ function renderMoodboard() {
 
     <div class="mb-section">
       <div class="mb-section-head">
+        <span class="mb-section-title">On the floor plan</span>
+        <span class="mb-head-right"><button class="mb-section-add" id="mb-view-layout">View on layout ↗</button></span>
+      </div>
+      <div id="mb-layout-host"></div>
+    </div>
+
+    <div class="mb-section">
+      <div class="mb-section-head">
         <span class="mb-section-title">Current home</span>
         <button class="mb-section-add" id="mb-add-current">+ Add from listing</button>
       </div>
@@ -9170,6 +9183,33 @@ function renderMoodboard() {
 
   // To buy table (synced with budget)
   document.getElementById('mb-buy-table-host').appendChild(renderMbBuyTable(room, roomBudgetItems));
+
+  // On the floor plan — shapes tagged to this room (groups collapsed to one row)
+  const layoutHost = document.getElementById('mb-layout-host');
+  if (layoutHost) {
+    const floorShapes = (state.layouts && state.layouts[mbFloor] && state.layouts[mbFloor].shapes) || [];
+    const roomShapes = floorShapes.filter(sh => sh.roomId === room.id);
+    const seenG = new Set();
+    const rows = [];
+    roomShapes.forEach(sh => {
+      if (sh.groupId) {
+        if (seenG.has(sh.groupId)) return;
+        seenG.add(sh.groupId);
+        const members = floorShapes.filter(m => m.groupId === sh.groupId);
+        const minX = Math.min(...members.map(m => m.x)), minY = Math.min(...members.map(m => m.y));
+        const maxX = Math.max(...members.map(m => m.x + m.w)), maxY = Math.max(...members.map(m => m.y + m.h));
+        rows.push({ name: (members.find(m => m.label) || {}).label || 'Grouped piece', w: maxX - minX, h: maxY - minY });
+      } else {
+        rows.push({ name: sh.label || '(unnamed)', w: sh.w, h: sh.h });
+      }
+    });
+    const ft = n => Math.round(n * 10) / 10;
+    layoutHost.innerHTML = rows.length
+      ? `<div class="mb-layout-list">${rows.map(r => `<div class="mb-layout-row"><span class="mb-layout-name">${escapeHTML(r.name)}</span><span class="mb-layout-dim">${ft(r.w)}' × ${ft(r.h)}'</span></div>`).join('')}</div>`
+      : `<div class="mb-empty">No furniture tagged to this room yet. On the <strong>Layout</strong> tab, select a shape and set its <strong>Room</strong> to “${escapeHTML(room.name || 'this room')}”.</div>`;
+    const viewBtn = document.getElementById('mb-view-layout');
+    if (viewBtn) viewBtn.addEventListener('click', () => openLayoutForRoom(mbFloor, room.id));
+  }
 
   // Current home photos (removable) + add-from-listing
   const curHost = document.getElementById('mb-current-host');
@@ -9508,6 +9548,28 @@ function duplicateLayoutSelection() {
   const src = (state.layouts[layoutFloor].shapes || []).filter(s => ids.has(s.id)).map(s => ({ ...s }));
   pasteShapes(src);
 }
+// Layout → room: open a room's design view from a shape's Room link.
+function openRoomFromLayout(roomId) {
+  if (!roomId) return;
+  const designBtn = document.querySelector('.tab-btn[data-tab="design"]');
+  if (designBtn) designBtn.click();
+  switchDesignSubtab(layoutFloor); // show this floor's moodboard (clears the room)
+  selectMbRoom(roomId);            // open the specific room
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+// Room → layout: jump to the Layout tab for a room's floor and select its tagged shapes.
+function openLayoutForRoom(floor, roomId) {
+  const designBtn = document.querySelector('.tab-btn[data-tab="design"]');
+  if (designBtn) designBtn.click();
+  switchDesignSubtab('layout');
+  switchLayoutFloor(floor); // sets floor, resets view, renders
+  const shapes = ((state.layouts[floor] && state.layouts[floor].shapes) || []).filter(s => s.roomId === roomId);
+  layoutSelectedIds = shapes.map(s => s.id);
+  layoutSelectedId = shapes.length ? shapes[shapes.length - 1].id : null;
+  layoutTool = 'select';
+  renderLayout();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
 let layoutDrawing = null;
 let layoutDragging = null;
 let layoutResizing = null;
@@ -9657,6 +9719,12 @@ function renderShapePanel() {
         <button class="sp-close" data-act="close" title="Close">×</button>
       </div>
       ${allGrouped ? `<input type="text" class="sp-name" value="${escapeHTML(grpName)}" placeholder="Group name (e.g., Sofa)">` : ''}
+      ${(() => {
+        const fr = (state.inspiration && state.inspiration[layoutFloor]) || [];
+        const roomIds = new Set(shapes.map(x => x.roomId || ''));
+        const common = roomIds.size === 1 ? [...roomIds][0] : '';
+        return `<div class="sp-row"><label>Room</label><span class="sp-ftin"><select class="sp-room"><option value="">${roomIds.size > 1 ? '— mixed' : '— none'}</option>${fr.map(r => `<option value="${escapeHTML(r.id)}"${common === r.id ? ' selected' : ''}>${escapeHTML(r.name || 'Room')}</option>`).join('')}</select></span></div>`;
+      })()}
       <div class="sp-actions">
         ${allGrouped
           ? '<button class="sp-btn" data-act="ungroup">Ungroup</button>'
@@ -9678,6 +9746,8 @@ function renderShapePanel() {
     });
     const ungBtn = panel.querySelector('[data-act="ungroup"]');
     if (ungBtn) ungBtn.addEventListener('click', () => { shapes.forEach(x => { delete x.groupId; }); persist(); renderLayout(); });
+    const rm = panel.querySelector('.sp-room');
+    if (rm) rm.addEventListener('change', () => { const v = rm.value || undefined; shapes.forEach(x => x.roomId = v); persist(); renderShapePanel(); });
     panel.querySelector('[data-act="dup"]').addEventListener('click', duplicateLayoutSelection);
     panel.querySelector('[data-act="del"]').addEventListener('click', deleteSelectedShape);
     panel.querySelector('[data-act="close"]').addEventListener('click', () => { clearLayoutSelection(); renderLayout(); });
@@ -9689,6 +9759,7 @@ function renderShapePanel() {
   const [hF, hI] = toFtIn(s.h);
   const rot = Math.round(Number(s.rotation) || 0);
   const typeLabel = { rect: 'Rectangle', wall: 'Wall', circle: 'Circle', oval: 'Oval' }[s.type] || 'Shape';
+  const floorRooms = (state.inspiration && state.inspiration[layoutFloor]) || [];
   panel.innerHTML = `
     <div class="sp-head">
       <span class="sp-grip" title="Drag to move this panel">⠿</span>
@@ -9707,6 +9778,16 @@ function renderShapePanel() {
     <div class="sp-row">
       <label>Angle</label>
       <span class="sp-ftin"><input type="number" class="sp-angle" value="${rot}" min="0" max="359" step="5"><i>°</i><button class="sp-btn sp-rot90" data-act="rot90" title="Rotate 90°">⟲ 90°</button></span>
+    </div>
+    <div class="sp-row">
+      <label>Room</label>
+      <span class="sp-ftin" style="gap:6px;">
+        <select class="sp-room">
+          <option value="">— none</option>
+          ${floorRooms.map(r => `<option value="${escapeHTML(r.id)}"${s.roomId === r.id ? ' selected' : ''}>${escapeHTML(r.name || 'Room')}</option>`).join('')}
+        </select>
+        ${s.roomId && floorRooms.some(r => r.id === s.roomId) ? '<button class="sp-btn sp-openroom" data-act="openroom" title="Open this room\'s design view">↗</button>' : ''}
+      </span>
     </div>
     <div class="sp-notes-wrap">
       <label>Notes</label>
@@ -9727,6 +9808,9 @@ function renderShapePanel() {
   };
   panel.querySelectorAll('.sp-w-ft, .sp-w-in, .sp-h-ft, .sp-h-in').forEach(inp => inp.addEventListener('change', commitDims));
   panel.querySelector('.sp-name').addEventListener('change', e => { s.label = e.target.value.trim(); persist(); renderLayout(); });
+  panel.querySelector('.sp-room').addEventListener('change', e => { s.roomId = e.target.value || undefined; persist(); renderShapePanel(); });
+  const orBtn = panel.querySelector('[data-act="openroom"]');
+  if (orBtn) orBtn.addEventListener('click', () => openRoomFromLayout(s.roomId));
   panel.querySelector('.sp-angle').addEventListener('change', e => { let a = parseFloat(e.target.value); if (isNaN(a)) a = 0; s.rotation = ((a % 360) + 360) % 360; persist(); renderLayout(); });
   panel.querySelector('.sp-notes').addEventListener('change', e => { s.notes = e.target.value; persist(); });
   panel.querySelector('[data-act="rot90"]').addEventListener('click', () => { s.rotation = ((Number(s.rotation) || 0) + 90) % 360; persist(); renderLayout(); });
