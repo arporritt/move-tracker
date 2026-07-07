@@ -1534,6 +1534,14 @@
     min-height: 156px;
   }
   .mb-swatch-add:hover { color: var(--clay); border-color: var(--clay-soft); background: rgba(166,160,148,0.14); }
+  /* Paint plan + Wallpaper shown side by side */
+  .mb-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px 30px; align-items: start; margin-bottom: 24px; }
+  .mb-two-col > .mb-section { margin: 0; min-width: 0; }
+  @media (max-width: 860px) { .mb-two-col { grid-template-columns: 1fr; } }
+  /* Room size inputs (On the floor plan) */
+  .room-dim-set { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-soft); margin-right: 10px; }
+  .room-dim-input { width: 46px; padding: 3px 5px; border: 1px solid var(--rule); border-radius: 6px; background: var(--bg-card); color: var(--ink); font-size: 12px; font-weight: 600; text-align: center; text-transform: none; letter-spacing: 0; }
+  .room-dim-input:focus { outline: none; border-color: var(--clay-soft); }
   /* Wallpaper cards */
   .mb-wallpaper-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; }
   .mb-wp-card { border: 1px solid var(--rule); border-radius: 12px; overflow: hidden; background: var(--bg-card); box-shadow: var(--shadow); }
@@ -4069,6 +4077,7 @@
     <button class="tab-btn active" data-tab="project">Plan</button>
     <button class="tab-btn" data-tab="budget">Budget</button>
     <button class="tab-btn" data-tab="design">Design</button>
+    <button class="tab-btn" data-tab="layout">Layout</button>
   </div>
 </div>
 
@@ -7352,7 +7361,6 @@
       <button class="dn-btn" data-design-subtab="upper" onclick="switchDesignSubtab('upper')">Upper</button>
       <span class="dn-sep"></span>
       <button class="dn-btn" data-design-subtab="greenview" onclick="switchDesignSubtab('greenview')">Listing photos</button>
-      <button class="dn-btn" data-design-subtab="layout" onclick="switchDesignSubtab('layout')">Layout</button>
     </div>
   </div>
 <!-- ============ MOOD BOARDS (room views — overall/basement/ground/upper share this) ============ -->
@@ -7363,8 +7371,34 @@
   </div>
 </div>
 
-<!-- ============ LAYOUT (inside Design) ============ -->
-<div class="design-subtab-content" id="tab-layout">
+<!-- ============ LISTING IMAGES (inside Design) ============ -->
+<div class="design-subtab-content" id="tab-greenview">
+  <div class="container" style="max-width: 1240px; margin: 0 auto; padding: 24px 40px;">
+    <div style="margin-bottom:18px;">
+      <h2 style="font-family:'Fraunces',serif;font-weight:400;font-size:24px;letter-spacing:-0.01em;margin:0 0 6px;">565 N Boulder Ridge — listing photos</h2>
+      <p style="color:var(--ink-soft);font-size:13.5px;margin:0;">Click a photo to assign it to one or more rooms. The photo will appear in those rooms' "Current home photos" sections.</p>
+    </div>
+    <div id="greenview-grid" class="greenview-grid"></div>
+  </div>
+</div>
+
+<!-- ============ DESIGN VISION (inside Design) ============ -->
+<div class="design-subtab-content active" id="tab-inspiration">
+  <div class="container" style="max-width: 1240px; margin: 0 auto; padding: 24px 40px;">
+    <div class="floor-segment" style="margin-bottom:18px;">
+      <button class="floor-segment-btn active" data-floor="basement" onclick="switchFloor('basement')">Basement</button>
+      <button class="floor-segment-btn" data-floor="ground" onclick="switchFloor('ground')">Ground floor</button>
+      <button class="floor-segment-btn" data-floor="upper" onclick="switchFloor('upper')">Upper floor</button>
+    </div>
+    <div id="rooms-container" class="rooms-container"></div>
+    <button class="add-room-btn" onclick="addRoom()">+ Add room to this floor</button>
+  </div>
+</div>
+
+</div><!-- /tab-design -->
+
+<!-- ============ LAYOUT (top-level tab) ============ -->
+<div class="tab-content" id="tab-layout">
   <div class="container" style="max-width: 1240px; margin: 0 auto; padding: 16px 40px;">
     <div class="layout-controls">
       <div class="floor-segment" style="margin-bottom:0;flex:0 0 auto;">
@@ -7402,33 +7436,7 @@
       <span class="lg" style="color:var(--ink-faint);">— link a shape to a budget item and it colors itself from that item's paid status</span>
     </div>
   </div>
-</div>
-
-<!-- ============ LISTING IMAGES (inside Design) ============ -->
-<div class="design-subtab-content" id="tab-greenview">
-  <div class="container" style="max-width: 1240px; margin: 0 auto; padding: 24px 40px;">
-    <div style="margin-bottom:18px;">
-      <h2 style="font-family:'Fraunces',serif;font-weight:400;font-size:24px;letter-spacing:-0.01em;margin:0 0 6px;">565 N Boulder Ridge — listing photos</h2>
-      <p style="color:var(--ink-soft);font-size:13.5px;margin:0;">Click a photo to assign it to one or more rooms. The photo will appear in those rooms' "Current home photos" sections.</p>
-    </div>
-    <div id="greenview-grid" class="greenview-grid"></div>
-  </div>
-</div>
-
-<!-- ============ DESIGN VISION (inside Design) ============ -->
-<div class="design-subtab-content active" id="tab-inspiration">
-  <div class="container" style="max-width: 1240px; margin: 0 auto; padding: 24px 40px;">
-    <div class="floor-segment" style="margin-bottom:18px;">
-      <button class="floor-segment-btn active" data-floor="basement" onclick="switchFloor('basement')">Basement</button>
-      <button class="floor-segment-btn" data-floor="ground" onclick="switchFloor('ground')">Ground floor</button>
-      <button class="floor-segment-btn" data-floor="upper" onclick="switchFloor('upper')">Upper floor</button>
-    </div>
-    <div id="rooms-container" class="rooms-container"></div>
-    <button class="add-room-btn" onclick="addRoom()">+ Add room to this floor</button>
-  </div>
-</div>
-
-</div><!-- /tab-design -->
+</div><!-- /tab-layout -->
 
 <!-- ============ BUDGET TAB ============ -->
 <div class="tab-content" id="tab-budget">
@@ -8922,7 +8930,7 @@ let designSubtab = 'overall';
 const FLOOR_VIEWS = ['overall','basement','ground','upper'];
 try {
   const saved = localStorage.getItem('mt-design-subtab');
-  const validViews = [...FLOOR_VIEWS, 'greenview', 'layout'];
+  const validViews = [...FLOOR_VIEWS, 'greenview'];
   if (validViews.includes(saved)) designSubtab = saved;
   // 'palette' merged into the Overall view; legacy values fall back to overall
   if (saved === 'palette' || saved === 'inspiration' || saved === 'moodboard') designSubtab = 'overall';
@@ -8944,9 +8952,6 @@ function switchDesignSubtab(name) {
   } else if (name === 'greenview') {
     document.getElementById('tab-greenview').classList.add('active');
     renderGreenview();
-  } else if (name === 'layout') {
-    document.getElementById('tab-layout').classList.add('active');
-    renderLayout();
   }
 }
 
@@ -9096,14 +9101,16 @@ function renderMoodboard() {
     </div>
     <div class="mb-description ${desc ? '' : 'empty'}" contenteditable="true" spellcheck="true" data-placeholder="${escapeHTML(placeholderText)}" id="mb-desc">${escapeHTML(desc)}</div>
 
-    <div class="mb-section">
-      <div class="mb-section-head"><span class="mb-section-title">Paint plan</span></div>
-      <div id="mb-room-palette-host"></div>
-    </div>
+    <div class="mb-two-col">
+      <div class="mb-section">
+        <div class="mb-section-head"><span class="mb-section-title">Paint plan</span></div>
+        <div id="mb-room-palette-host"></div>
+      </div>
 
-    <div class="mb-section">
-      <div class="mb-section-head"><span class="mb-section-title">Wallpaper</span></div>
-      <div id="mb-wallpaper-host"></div>
+      <div class="mb-section">
+        <div class="mb-section-head"><span class="mb-section-title">Wallpaper</span></div>
+        <div id="mb-wallpaper-host"></div>
+      </div>
     </div>
 
     <div class="mb-section">
@@ -9127,7 +9134,13 @@ function renderMoodboard() {
     <div class="mb-section">
       <div class="mb-section-head">
         <span class="mb-section-title">On the floor plan</span>
-        <span class="mb-head-right"><button class="mb-section-add" id="mb-view-layout">View on layout ↗</button></span>
+        <span class="mb-head-right">
+          <span class="room-dim-set" title="Interior width × depth of this room, in feet — draws the room border to scale below">Room size
+            <input type="number" class="room-dim-input" id="room-dim-w" min="0" step="0.5" placeholder="W" value="${room.widthFt || ''}"> ×
+            <input type="number" class="room-dim-input" id="room-dim-d" min="0" step="0.5" placeholder="D" value="${room.depthFt || ''}"> ft
+          </span>
+          <button class="mb-section-add" id="mb-view-layout">View on layout ↗</button>
+        </span>
       </div>
       <div id="mb-layout-host"></div>
     </div>
@@ -9241,19 +9254,34 @@ function renderMoodboard() {
   // To buy table (synced with budget)
   document.getElementById('mb-buy-table-host').appendChild(renderMbBuyTable(room, roomBudgetItems));
 
-  // On the floor plan — a mini visual layout of the shapes tagged to this room
+  // On the floor plan — a mini visual layout of the shapes tagged to this room,
+  // drawn inside the room's border (if a room size has been entered).
   const layoutHost = document.getElementById('mb-layout-host');
   if (layoutHost) {
-    const floorShapes = (state.layouts && state.layouts[mbFloor] && state.layouts[mbFloor].shapes) || [];
-    const roomShapes = floorShapes.filter(sh => sh.roomId === room.id);
-    if (roomShapes.length) {
-      layoutHost.innerHTML = '';
-      layoutHost.appendChild(renderRoomLayoutMini(roomShapes));
-    } else {
-      layoutHost.innerHTML = `<div class="mb-empty">No furniture tagged to this room yet. On the <strong>Layout</strong> tab, select a shape and set its <strong>Room</strong> to “${escapeHTML(room.name || 'this room')}”.</div>`;
-    }
+    const paintMini = () => {
+      const floorShapes = (state.layouts && state.layouts[mbFloor] && state.layouts[mbFloor].shapes) || [];
+      const roomShapes = floorShapes.filter(sh => sh.roomId === room.id);
+      const hasDims = Number(room.widthFt) > 0 && Number(room.depthFt) > 0;
+      if (roomShapes.length || hasDims) {
+        layoutHost.innerHTML = '';
+        layoutHost.appendChild(renderRoomLayoutMini(roomShapes, room));
+      } else {
+        layoutHost.innerHTML = `<div class="mb-empty">No furniture tagged to this room yet. On the <strong>Layout</strong> tab, select a shape and set its <strong>Room</strong> to “${escapeHTML(room.name || 'this room')}”. Enter a <strong>room size</strong> above to draw its border.</div>`;
+      }
+    };
+    paintMini();
     const viewBtn = document.getElementById('mb-view-layout');
     if (viewBtn) viewBtn.addEventListener('click', () => openLayoutForRoom(mbFloor, room.id));
+    // Room-size inputs → store dims and redraw the mini plan in place
+    const wIn = document.getElementById('room-dim-w'), dIn = document.getElementById('room-dim-d');
+    const commitDim = (key, el) => {
+      const v = parseFloat(el.value);
+      room[key] = (isFinite(v) && v > 0) ? v : null;
+      persist();
+      paintMini();
+    };
+    if (wIn) wIn.addEventListener('change', () => commitDim('widthFt', wIn));
+    if (dIn) dIn.addEventListener('change', () => commitDim('depthFt', dIn));
   }
 
   // Current home photos (removable) + add-from-listing
@@ -9524,6 +9552,7 @@ function renderActive() {
   else if (active === 'design') {
     switchDesignSubtab(designSubtab);
   }
+  else if (active === 'layout') renderLayout();
   else if (active === 'budget') renderBudget();
 }
 
@@ -9604,9 +9633,8 @@ function openRoomFromLayout(roomId) {
 }
 // Room → layout: jump to the Layout tab for a room's floor and select its tagged shapes.
 function openLayoutForRoom(floor, roomId) {
-  const designBtn = document.querySelector('.tab-btn[data-tab="design"]');
-  if (designBtn) designBtn.click();
-  switchDesignSubtab('layout');
+  const layoutBtn = document.querySelector('.tab-btn[data-tab="layout"]');
+  if (layoutBtn) layoutBtn.click();
   switchLayoutFloor(floor); // sets floor, resets view, renders
   const shapes = ((state.layouts[floor] && state.layouts[floor].shapes) || []).filter(s => s.roomId === roomId);
   layoutSelectedIds = shapes.map(s => s.id);
@@ -9830,17 +9858,37 @@ function pickBudgetItem(shape, onPick) {
 }
 
 // A small visual layout of a room's tagged shapes (footprints in their real positions, colored by status).
-function renderRoomLayoutMini(shapes) {
+function renderRoomLayoutMini(shapes, room) {
   const wrap = document.createElement('div');
   wrap.className = 'room-mini-wrap';
-  if (!shapes.length) return wrap;
-  const pad = 1.2;
-  const minX = Math.min(...shapes.map(s => s.x)) - pad, minY = Math.min(...shapes.map(s => s.y)) - pad;
-  const maxX = Math.max(...shapes.map(s => s.x + s.w)) + pad, maxY = Math.max(...shapes.map(s => s.y + s.h)) + pad;
-  const w = Math.max(1, maxX - minX), h = Math.max(1, maxY - minY);
-  const fs = Math.min(1.2, Math.max(0.4, Math.min(w, h) * 0.055));
+  const rw = Number(room && room.widthFt) || 0;
+  const rd = Number(room && room.depthFt) || 0;
+  const hasRoom = rw > 0 && rd > 0;
+  if (!shapes.length && !hasRoom) return wrap;
   const cFill = st => st === 'own' ? 'rgba(110,114,91,0.32)' : st === 'buy' ? 'rgba(188,91,68,0.28)' : st === 'bought' ? 'rgba(136,129,120,0.30)' : 'rgba(166,160,148,0.30)';
   const cStroke = st => st === 'own' ? '#6E725B' : st === 'buy' ? '#BC5B44' : st === 'bought' ? '#888178' : '#A29B8E';
+  // Furniture bounding box (in layout feet); falls back to the room box when there is no furniture.
+  const fMinX = shapes.length ? Math.min(...shapes.map(s => s.x)) : 0;
+  const fMinY = shapes.length ? Math.min(...shapes.map(s => s.y)) : 0;
+  const fMaxX = shapes.length ? Math.max(...shapes.map(s => s.x + s.w)) : rw;
+  const fMaxY = shapes.length ? Math.max(...shapes.map(s => s.y + s.h)) : rd;
+  const fbW = Math.max(1, fMaxX - fMinX), fbH = Math.max(1, fMaxY - fMinY);
+  // Frame: the room box to scale (if a size is entered), else a padded box hugging the furniture.
+  let roomW, roomH, offX, offY, pad, vbX, vbY, vbW, vbH;
+  if (hasRoom) {
+    roomW = Math.max(rw, fbW);          // never clip furniture that overflows the entered size
+    roomH = Math.max(rd, fbH);
+    offX = (roomW - fbW) / 2 - fMinX;   // center the furniture group inside the room
+    offY = (roomH - fbH) / 2 - fMinY;
+    pad = Math.max(roomW, roomH) * 0.09 + 0.7; // margin for the dimension labels
+    vbX = -pad; vbY = -pad; vbW = roomW + pad * 2; vbH = roomH + pad * 2;
+  } else {
+    pad = 1.2;
+    offX = 0; offY = 0;
+    vbX = fMinX - pad; vbY = fMinY - pad; vbW = fbW + pad * 2; vbH = fbH + pad * 2;
+    roomW = fbW; roomH = fbH;
+  }
+  const fs = Math.min(1.2, Math.max(0.4, Math.min(roomW, roomH) * 0.055));
   const seenG = new Set();
   let inner = '';
   shapes.forEach(s => {
@@ -9860,9 +9908,21 @@ function renderRoomLayoutMini(shapes) {
     const nm = s.label || '';
     if (showLabel && nm) inner += `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle" style="font-size:${fs}px;font-family:'Manrope',sans-serif;fill:var(--ink);font-weight:600;">${escapeHTML(nm)}</text>`;
   });
-  const aspect = h / w;
-  const maxH = Math.min(360, Math.max(140, Math.round(560 * aspect)));
-  wrap.innerHTML = `<svg class="room-mini-svg" viewBox="${minX} ${minY} ${w} ${h}" preserveAspectRatio="xMidYMid meet" style="width:100%;height:auto;max-height:${maxH}px;">${inner}</svg>`;
+  // Shift the furniture so it sits (centered) inside the room frame.
+  const furniture = (offX || offY) ? `<g transform="translate(${offX} ${offY})">${inner}</g>` : inner;
+  // Room border + dimension labels (only when a size is entered).
+  let frame = '';
+  if (hasRoom) {
+    const bw = Math.max(0.1, Math.min(roomW, roomH) * 0.014);
+    const dfs = fs * 0.9;
+    const fmtFt = (ft) => { let wh = Math.floor(ft + 1e-6); let inch = Math.round((ft - wh) * 12); if (inch === 12) { wh += 1; inch = 0; } return inch ? `${wh}′ ${inch}″` : `${wh}′`; };
+    frame += `<rect x="0" y="0" width="${roomW}" height="${roomH}" fill="none" stroke="var(--ink-soft)" stroke-width="${bw}" rx="0.2"/>`;
+    frame += `<text x="${roomW / 2}" y="${-pad * 0.30}" text-anchor="middle" style="font-size:${dfs}px;font-family:'Manrope',sans-serif;fill:var(--ink-soft);font-weight:700;letter-spacing:0.02em;">${fmtFt(rw)}</text>`;
+    frame += `<text x="${-pad * 0.30}" y="${roomH / 2}" text-anchor="middle" dominant-baseline="middle" transform="rotate(-90 ${-pad * 0.30} ${roomH / 2})" style="font-size:${dfs}px;font-family:'Manrope',sans-serif;fill:var(--ink-soft);font-weight:700;letter-spacing:0.02em;">${fmtFt(rd)}</text>`;
+  }
+  const aspect = vbH / vbW;
+  const maxH = Math.min(400, Math.max(140, Math.round(560 * aspect)));
+  wrap.innerHTML = `<svg class="room-mini-svg" viewBox="${vbX} ${vbY} ${vbW} ${vbH}" preserveAspectRatio="xMidYMid meet" style="width:100%;height:auto;max-height:${maxH}px;">${frame}${furniture}</svg>`;
   return wrap;
 }
 
