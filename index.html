@@ -26,6 +26,7 @@
     --plum: #7B7269;
     --slate: #888178;
     --family: #B3A892;
+    --design: #A98A86;
     --behind: #BC5B44;
     --shadow: 0 1px 0 rgba(42,33,26,0.04), 0 8px 24px -12px rgba(42,33,26,0.12);
   }
@@ -511,6 +512,7 @@
   .task[data-track="admin"] { border-left-color: var(--slate); }
   .task[data-track="money"] { border-left-color: var(--plum); }
   .task[data-track="family"] { border-left-color: var(--family); }
+  .task[data-track="design"] { border-left-color: var(--design); }
   .task.behind { background: rgba(214,85,62,0.06); }
   .task.behind::before {
     content: '';
@@ -566,6 +568,7 @@
   .task[data-track="admin"] .task-track-tag { color: var(--slate); }
   .task[data-track="money"] .task-track-tag { color: var(--plum); }
   .task[data-track="family"] .task-track-tag { color: var(--family); }
+  .task[data-track="design"] .task-track-tag { color: var(--design); }
 
   .task-owner {
     display: inline-flex;
@@ -1451,6 +1454,15 @@
     background: var(--bg-card); color: var(--ink-faint); font-size: 18px; line-height: 1; cursor: pointer; transition: all 0.12s;
   }
   .rp-del:hover { border-color: var(--behind); color: var(--behind); }
+  /* Paint / Wallpaper segmented toggle per row */
+  .rp-type { flex: 0 0 auto; display: inline-flex; border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; background: var(--bg-card); }
+  .rp-type-btn {
+    border: none; background: transparent; cursor: pointer; font-family: 'Manrope', sans-serif;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.02em; color: var(--ink-soft); padding: 7px 11px; transition: background 0.12s, color 0.12s;
+  }
+  .rp-type-btn + .rp-type-btn { border-left: 1px solid var(--rule); }
+  .rp-type-btn.active { background: var(--clay); color: #fff; }
+  .rp-type-btn:not(.active):hover { background: rgba(122,110,94,0.08); color: var(--ink); }
   .rp-empty { font-size: 13px; color: var(--ink-faint); font-style: italic; padding: 4px 2px; }
   .rp-add {
     align-self: flex-start; margin-top: 4px; background: transparent; border: 1px dashed var(--clay-soft);
@@ -3491,6 +3503,7 @@
   .row-track.t-admin { background: var(--slate); }
   .row-track.t-money { background: var(--plum); }
   .row-track.t-family { background: var(--family); }
+  .row-track.t-design { background: var(--design); }
 
   .row-week { font-size: 12px; color: var(--ink-soft); white-space: nowrap; }
   .row-week .wn { font-weight: 600; }
@@ -3888,12 +3901,13 @@
     /* Design & layout navs / toolbars wrap instead of overflowing */
     .design-nav, .layout-controls, .layout-tools, .room-dim-set { flex-wrap: wrap; }
     .room-dim-set { row-gap: 4px; }
-    /* Room Paint plan rows → swatch + surface + delete on top, color chip full-width below */
+    /* Room Paint plan rows → swatch + surface + delete on top; type pills + value below */
     .rp-row { flex-wrap: wrap; row-gap: 8px; }
     .rp-swatch { order: 1; }
     .rp-surface { order: 2; flex: 1 1 auto; min-width: 0; }
     .rp-del { order: 3; }
-    .rp-color { order: 4; flex: 1 1 100%; }
+    .rp-type { order: 4; flex: 0 0 auto; }
+    .rp-color { order: 5; flex: 1 1 55%; min-width: 0; }
 
     /* Modal */
     .modal { padding: 18px 14px 14px; max-height: 90vh; overflow-y: auto; }
@@ -4235,6 +4249,7 @@
   <span class="legend-item"><span class="legend-swatch" style="background: var(--slate);"></span> Admin</span>
   <span class="legend-item"><span class="legend-swatch" style="background: var(--plum);"></span> Money</span>
   <span class="legend-item"><span class="legend-swatch" style="background: var(--family);"></span> Family · kids · dog</span>
+  <span class="legend-item"><span class="legend-swatch" style="background: var(--design);"></span> Design</span>
   <span class="legend-item"><span class="legend-swatch" style="background: var(--behind);"></span> Behind</span>
 </div>
   </div><!-- /timeline-body -->
@@ -7334,6 +7349,7 @@
       <option value="admin">Admin</option>
       <option value="money">Money</option>
       <option value="family">Family</option>
+      <option value="design">Design</option>
     </select>
     <select id="filter-owner"><option value="">All owners</option></select>
     <select id="filter-status">
@@ -7396,6 +7412,7 @@
           <option value="admin">Admin</option>
           <option value="money">Money</option>
           <option value="family">Family</option>
+          <option value="design">Design</option>
         </select>
       </div>
     </div>
@@ -8445,7 +8462,7 @@ function moveTask(srcId, dstId, position) {
 let listSort = { key: 'week', dir: 'asc' };
 const WEEK_ORDER = WEEKS.reduce((acc, w, i) => { acc[w.id] = i; return acc; }, {});
 
-const TRACK_LABELS = { chi: 'CHI sale', wi: 'WI purchase', rentback: 'Rent-back', logistics: 'Logistics', admin: 'Admin', money: 'Money', family: 'Family' };
+const TRACK_LABELS = { chi: 'CHI sale', wi: 'WI purchase', rentback: 'Rent-back', logistics: 'Logistics', admin: 'Admin', money: 'Money', family: 'Family', design: 'Design' };
 
 function groupKeyFor(task, key) {
   if (key === 'week') {
@@ -9173,16 +9190,9 @@ function renderMoodboard() {
       <div class="mb-board-meta">${meta.join('')}</div>
     </div>
 
-    <div class="mb-two-col">
-      <div class="mb-section">
-        <div class="mb-section-head"><span class="mb-section-title">Paint plan</span></div>
-        <div id="mb-room-palette-host"></div>
-      </div>
-
-      <div class="mb-section">
-        <div class="mb-section-head"><span class="mb-section-title">Wallpaper</span></div>
-        <div id="mb-wallpaper-host"></div>
-      </div>
+    <div class="mb-section">
+      <div class="mb-section-head"><span class="mb-section-title">Paint &amp; wallpaper</span></div>
+      <div id="mb-room-palette-host"></div>
     </div>
 
     <div class="mb-two-col">
@@ -9243,9 +9253,6 @@ function renderMoodboard() {
       renderMoodboard();
     }));
   }
-  // Wallpaper
-  const wpHost = board.querySelector('#mb-wallpaper-host');
-  if (wpHost) wpHost.appendChild(renderRoomWallpaper(room));
   // Room title rename
   const titleInput = board.querySelector('#mb-room-title-input');
   titleInput.addEventListener('change', e => {
@@ -13009,25 +13016,47 @@ function renderRoomPaintPlan(room, onChange) {
   room.paintAssignments.forEach((a, idx) => {
     const rowEl = document.createElement('div');
     rowEl.className = 'rp-row';
+    const type = a.type === 'wallpaper' ? 'wallpaper' : 'paint';
     const hasColor = !!(a.name || a.sw);
+    const hasWp = !!(a.wpName || a.wpImage || a.wpLink);
+    const swatchStyle = type === 'wallpaper'
+      ? (a.wpImage ? `background-image:url('${escapeHTML(a.wpImage)}');background-size:cover;background-position:center;` : 'background:repeating-linear-gradient(45deg,#ece7dd,#ece7dd 3px,#dcd5c8 3px,#dcd5c8 6px);')
+      : `background:${escapeHTML(a.hex || '#e8e4da')}`;
+    const valueInner = type === 'wallpaper'
+      ? `<span class="rp-color-name">${hasWp ? escapeHTML(a.wpName || 'Wallpaper') : 'Pick wallpaper'}</span>${a.wpLink ? `<span class="rp-color-sw">link ↗</span>` : ''}`
+      : `<span class="rp-color-name">${hasColor ? escapeHTML(a.name || 'Color') : 'Pick color'}</span>${a.sw ? `<span class="rp-color-sw">SW ${escapeHTML(a.sw)}${a.lrv != null && String(a.lrv).trim() ? ' · LRV ' + escapeHTML(String(a.lrv)) : ''}</span>` : ''}`;
+    const filled = type === 'wallpaper' ? hasWp : hasColor;
     rowEl.innerHTML = `
-      <span class="rp-swatch" style="background:${escapeHTML(a.hex || '#e8e4da')}"></span>
+      <span class="rp-swatch" style="${swatchStyle}"></span>
       <input class="rp-surface" list="rp-surface-suggest" value="${escapeHTML(a.surface || '')}" placeholder="Surface — e.g., Walls, Front door">
-      <button class="rp-color ${hasColor ? '' : 'empty'}" data-act="color" title="Choose paint color">
-        <span class="rp-color-name">${hasColor ? escapeHTML(a.name || 'Color') : 'Pick color'}</span>
-        ${a.sw ? `<span class="rp-color-sw">SW ${escapeHTML(a.sw)}${a.lrv != null && String(a.lrv).trim() ? ' · LRV ' + escapeHTML(String(a.lrv)) : ''}</span>` : ''}
+      <span class="rp-type">
+        <button class="rp-type-btn ${type === 'paint' ? 'active' : ''}" data-type="paint" title="Paint this surface">Paint</button>
+        <button class="rp-type-btn ${type === 'wallpaper' ? 'active' : ''}" data-type="wallpaper" title="Wallpaper this surface">Wallpaper</button>
+      </span>
+      <button class="rp-color ${filled ? '' : 'empty'}" data-act="value" title="${type === 'wallpaper' ? 'Choose wallpaper' : 'Choose paint color'}">
+        ${valueInner}
       </button>
       <button class="rp-del" data-act="del" title="Remove surface">×</button>
     `;
     rowEl.querySelector('.rp-surface').addEventListener('change', e => { a.surface = e.target.value.trim(); onChange(); });
-    rowEl.querySelector('[data-act="color"]').addEventListener('click', () => {
-      pickPaletteColor(a, picked => {
-        if (!picked) return;
-        a.name = picked.name || ''; a.sw = picked.sw || ''; a.hex = picked.hex || '#CCCCCC';
-        a.lrv = (picked.lrv != null ? picked.lrv : ''); a.url = picked.url || '';
-        ensureColorInStory(picked);
-        onChange();
-      });
+    rowEl.querySelectorAll('.rp-type-btn').forEach(btn => btn.addEventListener('click', () => {
+      const t = btn.dataset.type;
+      if ((a.type || 'paint') === t) return;
+      a.type = t;
+      onChange();
+    }));
+    rowEl.querySelector('[data-act="value"]').addEventListener('click', () => {
+      if (type === 'wallpaper') {
+        pickAssignmentWallpaper(a, onChange);
+      } else {
+        pickPaletteColor(a, picked => {
+          if (!picked) return;
+          a.name = picked.name || ''; a.sw = picked.sw || ''; a.hex = picked.hex || '#CCCCCC';
+          a.lrv = (picked.lrv != null ? picked.lrv : ''); a.url = picked.url || '';
+          ensureColorInStory(picked);
+          onChange();
+        });
+      }
     });
     rowEl.querySelector('[data-act="del"]').addEventListener('click', () => { room.paintAssignments.splice(idx, 1); onChange(); });
     wrap.appendChild(rowEl);
@@ -13035,19 +13064,71 @@ function renderRoomPaintPlan(room, onChange) {
   if (room.paintAssignments.length === 0) {
     const empty = document.createElement('div');
     empty.className = 'rp-empty';
-    empty.textContent = 'No paint yet. Add a surface (walls, trim, doors, cabinets…) and pick its color from the palette.';
+    empty.textContent = 'Nothing yet. Add a surface (walls, trim, doors, cabinets…), then choose a paint color or a wallpaper.';
     wrap.appendChild(empty);
   }
   const addBtn = document.createElement('button');
   addBtn.className = 'rp-add';
   addBtn.innerHTML = '+ Add surface';
   addBtn.addEventListener('click', () => {
-    room.paintAssignments.push({ surface: '', name: '', sw: '', hex: '', lrv: '', url: '' });
+    room.paintAssignments.push({ surface: '', type: 'paint', name: '', sw: '', hex: '', lrv: '', url: '' });
     onChange();
     setTimeout(() => { const inputs = document.querySelectorAll('.room-paintplan .rp-surface'); const last = inputs[inputs.length - 1]; if (last) last.focus(); }, 0);
   });
   wrap.appendChild(addBtn);
   return wrap;
+}
+
+// Editor for a wallpaper-type surface in the Paint & wallpaper plan (name / link / image).
+function pickAssignmentWallpaper(a, onDone) {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay active';
+  overlay.innerHTML = `
+    <div class="modal" style="max-width:480px;">
+      <h3>Wallpaper${a.surface ? ' — ' + escapeHTML(a.surface) : ''}</h3>
+      <div class="modal-row"><label>Name / pattern</label><input type="text" id="wpa-name" value="${escapeHTML(a.wpName || '')}" placeholder="e.g., Morris &amp; Co. Willow Bough"></div>
+      <div class="modal-row"><label>Link</label><input type="url" id="wpa-link" value="${escapeHTML(a.wpLink || '')}" placeholder="https://…"></div>
+      <div class="modal-row">
+        <label>Image</label>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <div id="wpa-thumb" class="wp-thumb" style="${a.wpImage ? `background-image:url('${escapeHTML(a.wpImage)}')` : ''}">${a.wpImage ? '' : '＋'}</div>
+          <div style="flex:1;display:flex;flex-direction:column;gap:6px;">
+            <input type="url" id="wpa-image" value="${escapeHTML(a.wpImage || '')}" placeholder="Paste image URL">
+            <button type="button" class="bd-image-btns-upl" id="wpa-upload">Upload image</button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-buttons">
+        ${(a.wpName || a.wpLink || a.wpImage) ? '<button class="btn-delete" data-act="clear">Clear</button>' : ''}
+        <button class="btn-cancel" data-act="cancel">Cancel</button>
+        <button class="btn-save" data-act="save">Save</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  const thumb = overlay.querySelector('#wpa-thumb');
+  const imageInput = overlay.querySelector('#wpa-image');
+  const draft = { image: a.wpImage || '' };
+  function setThumb(url) { draft.image = url || ''; thumb.style.backgroundImage = draft.image ? `url('${draft.image}')` : ''; thumb.textContent = draft.image ? '' : '＋'; }
+  imageInput.addEventListener('change', () => setThumb(imageInput.value.trim()));
+  overlay.querySelector('#wpa-upload').addEventListener('click', () => {
+    pickAndUploadItemImage(draft, () => { imageInput.value = draft.image; setThumb(draft.image); });
+  });
+  function close() { overlay.remove(); document.removeEventListener('keydown', onKey); }
+  function onKey(e) { if (e.key === 'Escape') close(); }
+  document.addEventListener('keydown', onKey);
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  overlay.querySelector('[data-act="cancel"]').addEventListener('click', close);
+  const clearBtn = overlay.querySelector('[data-act="clear"]');
+  if (clearBtn) clearBtn.addEventListener('click', () => { a.wpName = ''; a.wpLink = ''; a.wpImage = ''; close(); onDone && onDone(); });
+  overlay.querySelector('[data-act="save"]').addEventListener('click', () => {
+    a.wpName = overlay.querySelector('#wpa-name').value.trim();
+    a.wpLink = overlay.querySelector('#wpa-link').value.trim();
+    a.wpImage = (imageInput.value.trim() || draft.image || '');
+    close();
+    onDone && onDone();
+  });
+  setTimeout(() => overlay.querySelector('#wpa-name').focus(), 0);
 }
 
 // Single-select picker over the master palette (swatch + name + SW + LRV). Used by the room Paint plan.
