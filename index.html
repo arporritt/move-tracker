@@ -3841,10 +3841,59 @@
     .budget-cat-header { padding: 12px 14px; }
     .budget-cat-name { font-size: 15px; }
     .budget-cat-total { font-size: 12px; }
-    .budget-cols, .budget-line { grid-template-columns: 1fr 76px 76px 38px 28px; gap: 6px; padding: 8px 12px; }
-    .budget-input { font-size: 12.5px; padding: 5px 6px; }
-    .budget-cols { font-size: 9px; letter-spacing: 0.1em; }
+    /* Budget rows → stacked cards (the desktop multi-column grid is unreadable this narrow) */
+    .budget-cols { display: none; }
+    .budget-line, .budget-line.no-room {
+      grid-template-columns: 22px minmax(0,1fr) minmax(0,1fr) auto;
+      grid-template-areas:
+        "exp label label del"
+        "exp cat   cat   cat"
+        "exp room  room  room"
+        "exp est   act   paid";
+      column-gap: 8px; row-gap: 6px; padding: 12px; align-items: center;
+    }
+    .budget-line.no-room {
+      grid-template-areas:
+        "exp label label del"
+        "exp cat   cat   cat"
+        "exp est   act   paid";
+    }
+    .budget-line .expand-btn { grid-area: exp; align-self: start; margin-top: 5px; }
+    .budget-line .label { grid-area: label; font-weight: 600; }
+    .budget-line .cat { grid-area: cat; }
+    .budget-line .room { grid-area: room; }
+    .budget-line .estimated { grid-area: est; }
+    .budget-line .actual { grid-area: act; }
+    .budget-line .budget-paid { grid-area: paid; justify-content: flex-end; }
+    .budget-line .budget-del { grid-area: del; justify-self: end; opacity: 1; }
+    .budget-input { font-size: 12.5px; padding: 6px 8px; }
+    .budget-input.label { border: 1px solid var(--rule-soft); border-radius: 6px; }
     .budget-add { padding: 8px 14px; font-size: 12px; }
+
+    /* Palette table → stacked rows (the 8-column grid is ~660px wide otherwise) */
+    .palette-table { min-width: 0; }
+    .palette-table-head { display: none; }
+    .palette-table-row {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 14px;
+    }
+    .palette-table-row .pt-drag { display: none; }
+    .palette-table-row .pt-swatch-input { order: 0; flex: 0 0 auto; }
+    .palette-table-row .pt-name-cell { order: 1; flex: 1 1 55%; min-width: 0; }
+    .palette-table-row .pt-actions { order: 2; margin-left: auto; }
+    .palette-table-row .pt-sw-cell { order: 3; flex: 0 0 auto; }
+    .palette-table-row .pt-hex-input { order: 4; flex: 0 1 92px; }
+    .palette-table-row .pt-lrv-input { order: 5; flex: 0 1 58px; }
+    .palette-table-row .pt-rooms { order: 6; flex: 1 1 100%; }
+
+    /* Design & layout navs / toolbars wrap instead of overflowing */
+    .design-nav, .layout-controls, .layout-tools, .room-dim-set { flex-wrap: wrap; }
+    .room-dim-set { row-gap: 4px; }
+    /* Room Paint plan rows → swatch + surface + delete on top, color chip full-width below */
+    .rp-row { flex-wrap: wrap; row-gap: 8px; }
+    .rp-swatch { order: 1; }
+    .rp-surface { order: 2; flex: 1 1 auto; min-width: 0; }
+    .rp-del { order: 3; }
+    .rp-color { order: 4; flex: 1 1 100%; }
 
     /* Modal */
     .modal { padding: 18px 14px 14px; max-height: 90vh; overflow-y: auto; }
