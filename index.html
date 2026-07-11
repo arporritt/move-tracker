@@ -9822,7 +9822,7 @@ function renderLayout() {
   // Group labels — one combined name + bounding-box dims per group (grouped shapes hide their own label).
   const groups = {};
   fl.shapes.forEach(s => { if (s.groupId) (groups[s.groupId] = groups[s.groupId] || []).push(s); });
-  const u = layoutLabelUnit, gline = 15 * u;
+  const u = layoutLabelUnit, gline = 13 * u;
   Object.values(groups).forEach(members => {
     if (!members.length) return;
     const minX = Math.min(...members.map(m => m.x)), minY = Math.min(...members.map(m => m.y));
@@ -9831,12 +9831,12 @@ function renderLayout() {
     // The group label's offset is stored on the "primary" member (first with a name, else first member).
     const primary = members.find(m => m.label) || members[0];
     const name = (primary.label) || '';
-    const dimText = `${Math.round((maxX - minX) * 10) / 10}' × ${Math.round((maxY - minY) * 10) / 10}'`;
+    const dimInches = `${Math.round((maxX - minX) * 12)}" × ${Math.round((maxY - minY) * 12)}"`;
     const lx = gcx + (Number(primary.labelDX) || 0), ly = gcy + (Number(primary.labelDY) || 0);
     const movable = members.some(m => layoutSelectedIds.includes(m.id));
     const entries = name
-      ? [ { text: escapeHTML(name), cls: 'shape-label', px: 15, dy: -gline * 0.4 }, { text: dimText, cls: 'shape-dim', px: 12, dy: gline * 0.7 } ]
-      : [ { text: dimText, cls: 'shape-dim', px: 12, dy: 0 } ];
+      ? [ { text: escapeHTML(name), cls: 'shape-label', px: 12, dy: -gline * 0.35 }, { text: dimInches, cls: 'shape-dim', px: 9, dy: gline * 0.7 } ]
+      : [ { text: dimInches, cls: 'shape-dim', px: 9, dy: 0 } ];
     svgContent += buildLabelGroup(primary.id, lx, ly, entries, movable);
   });
   svg.innerHTML = svgContent;
@@ -10334,11 +10334,10 @@ function renderShapeSvg(s) {
   const onImg = hasImg ? ' on-image' : '';
   const cx = s.x + s.w/2, cy = s.y + s.h/2;
   const labelText = s.label || '';
-  const dimText = `${fmtNum(s.w)}' × ${fmtNum(s.h)}'`;
-  const dimInches = `(${Math.round(s.w * 12)}" × ${Math.round(s.h * 12)}")`;
+  const dimInches = `${Math.round(s.w * 12)}" × ${Math.round(s.h * 12)}"`;
   // Size labels in screen pixels (via layoutLabelUnit) so they stay readable at any zoom.
   const u = layoutLabelUnit;
-  const line = 15 * u;
+  const line = 13 * u;
   const halo = onImg ? `;stroke-width:${2 * u}px` : '';
   // Grouped shapes don't show their own label/dims — the group draws one combined label (see renderLayout).
   // The label sits at the shape center plus a user-adjustable offset (labelDX/labelDY), and is draggable when selected.
@@ -10347,11 +10346,9 @@ function renderShapeSvg(s) {
     const lx = cx + (Number(s.labelDX) || 0), ly = cy + (Number(s.labelDY) || 0);
     const movable = layoutSelectedIds.includes(s.id);
     const entries = labelText
-      ? [ { text: escapeHTML(labelText), cls: `shape-label${onImg}`, px: 15, dy: -line, halo },
-          { text: dimText, cls: `shape-dim${onImg}`, px: 12, dy: line * 0.15, halo },
-          { text: dimInches, cls: `shape-dim shape-dim-in${onImg}`, px: 10, dy: line * 1.15, halo } ]
-      : [ { text: dimText, cls: `shape-dim${onImg}`, px: 12, dy: -line * 0.5, halo },
-          { text: dimInches, cls: `shape-dim shape-dim-in${onImg}`, px: 10, dy: line * 0.6, halo } ];
+      ? [ { text: escapeHTML(labelText), cls: `shape-label${onImg}`, px: 12, dy: -line * 0.35, halo },
+          { text: dimInches, cls: `shape-dim shape-dim-in${onImg}`, px: 9, dy: line * 0.7, halo } ]
+      : [ { text: dimInches, cls: `shape-dim shape-dim-in${onImg}`, px: 9, dy: 0, halo } ];
     labelHtml = buildLabelGroup(s.id, lx, ly, entries, movable);
   }
   let handles = '';
