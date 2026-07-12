@@ -1912,6 +1912,8 @@
   .paint-schedule .ps-cell { padding: 4px; text-align: center; cursor: pointer; }
   .paint-schedule .ps-cell:hover { background: rgba(166,160,148,0.12); }
   .ps-swatch { display: inline-block; width: 32px; height: 20px; border-radius: 5px; border: 1px solid rgba(42,33,26,0.16); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.25); vertical-align: middle; }
+  .ps-swatch + .ps-swatch { margin-left: 3px; }
+  .paint-schedule .ps-cell.ps-multi .ps-swatch { width: 18px; }
   .ps-empty { color: var(--clay-soft); font-size: 15px; line-height: 1; }
   .paint-schedule-empty { padding: 18px; font-size: 13px; color: var(--ink-faint); font-style: italic; }
   .paint-schedule .ps-surface-input { width: 100%; min-width: 74px; box-sizing: border-box; border: none; background: transparent; font-family: 'Manrope', sans-serif; font-size: 12px; font-weight: 600; color: var(--ink); padding: 2px 4px; border-radius: 5px; outline: none; text-align: inherit; }
@@ -12369,8 +12371,11 @@ const SURFACE_SUGGESTIONS = ['Walls','Trim & baseboards','Ceiling','Doors','Fron
 
 // Match a per-room paint ASSIGNMENT to a master color. Location-agnostic: by SW# when present, else name.
 function assignmentIsColor(a, c) {
-  if (a && c && a.sw && c.sw) return a.sw === c.sw;
-  return !!(a && a.name) && (a.name || '').toLowerCase() === (c.name || '').toLowerCase();
+  // Same identity as colorMatches: SW# AND name must agree, so two colors that share an
+  // SW# (e.g., "Accessible Beige" vs "Accessible Beige (50%)") stay distinct and the
+  // Paint selections table matches the Paint assignments matrix.
+  if (!a || !c) return false;
+  return (a.sw || '') === (c.sw || '') && (a.name || '').trim().toLowerCase() === (c.name || '').trim().toLowerCase();
 }
 // Migrate legacy room.paintColors → room.paintAssignments (surface seeded from the old location). Runs once per room.
 function ensureRoomPaintPlans() {
@@ -13552,13 +13557,13 @@ function renderPaintSchedule(host) {
   allRooms.forEach(({ room }) => (room.paintAssignments || []).forEach(a => { const s = (a.surface || '').trim(); if (s && !usedSurfaces.includes(s)) usedSurfaces.push(s); }));
   const surfaces = [...DEFAULT_SCHEDULE_SURFACES];
   usedSurfaces.forEach(s => { if (!surfaces.includes(s)) surfaces.push(s); });
-  const colorFor = (room, surface) => (room.paintAssignments || []).find(a => (a.surface || '') === surface);
+  const colorsFor = (room, surface) => (room.paintAssignments || []).filter(a => (a.surface || '') === surface);
   const cellHtml = (r, surface) => {
-    const a = colorFor(r.room, surface);
-    const inner = a
-      ? `<span class="ps-swatch" style="background:${escapeHTML(a.hex || '#ccc')}" title="${escapeHTML((a.name || 'Color') + ' — ' + r.name + ' · ' + surface)}"></span>`
+    const list = colorsFor(r.room, surface);
+    const inner = list.length
+      ? list.map(a => `<span class="ps-swatch" style="background:${escapeHTML(a.hex || '#ccc')}" title="${escapeHTML((a.name || 'Color') + ' — ' + r.name + ' · ' + surface)}"></span>`).join('')
       : `<span class="ps-empty" title="Assign a color">+</span>`;
-    return `<td class="ps-cell" data-room="${escapeHTML(r.id)}" data-floor="${r.floor}" data-surface="${escapeHTML(surface)}">${inner}</td>`;
+    return `<td class="ps-cell${list.length > 1 ? ' ps-multi' : ''}" data-room="${escapeHTML(r.id)}" data-floor="${r.floor}" data-surface="${escapeHTML(surface)}">${inner}</td>`;
   };
   const surfInput = surface => `<input class="ps-surface-input" data-surface="${escapeHTML(surface)}" value="${escapeHTML(surface)}" title="Rename this surface everywhere it's used">`;
   let html = '<div class="paint-schedule-wrap"><table class="paint-schedule">';
