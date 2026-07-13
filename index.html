@@ -13085,10 +13085,14 @@ function renderRoomPaintPlan(room, onChange) {
         pickAssignmentWallpaper(a, onChange);
       } else {
         pickPaletteColor(a, picked => {
-          if (!picked) return;
-          a.name = picked.name || ''; a.sw = picked.sw || ''; a.hex = picked.hex || '#CCCCCC';
-          a.lrv = (picked.lrv != null ? picked.lrv : ''); a.url = picked.url || '';
-          ensureColorInStory(picked);
+          if (picked) {
+            a.name = picked.name || ''; a.sw = picked.sw || ''; a.hex = picked.hex || '#CCCCCC';
+            a.lrv = (picked.lrv != null ? picked.lrv : ''); a.url = picked.url || '';
+            ensureColorInStory(picked);
+          } else {
+            // "None (clear)" → unassign the color but keep the surface row
+            a.name = ''; a.sw = ''; a.hex = ''; a.lrv = ''; a.url = '';
+          }
           onChange();
         });
       }
