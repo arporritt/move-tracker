@@ -2901,6 +2901,10 @@
   .bd-exclude-toggle { display: flex; align-items: flex-start; gap: 8px; cursor: pointer; font-size: 12.5px; color: var(--ink-soft); }
   .bd-exclude-toggle input { margin-top: 2px; width: 15px; height: 15px; accent-color: var(--clay); flex: none; cursor: pointer; }
   .bd-exclude-hint { color: var(--ink-faint); font-style: italic; }
+  .bd-qty-hint { font-size: 12px; color: var(--ink-soft); }
+  .qty-badge { flex: none; display: inline-block; font-size: 10px; font-weight: 700; color: var(--clay); background: rgba(122,110,94,0.12); border-radius: 5px; padding: 1px 6px; letter-spacing: 0.02em; white-space: nowrap; }
+  .bl-labelcell { display: flex; align-items: center; gap: 6px; min-width: 0; }
+  .bl-labelcell > input { flex: 1; min-width: 0; }
   .budget-input {
     border: 1px solid transparent;
     background: transparent;
@@ -3893,7 +3897,8 @@
         "exp est   act   paid";
     }
     .budget-line .expand-btn { grid-area: exp; align-self: start; margin-top: 5px; }
-    .budget-line .label { grid-area: label; font-weight: 600; }
+    .budget-line .bl-labelcell { grid-area: label; }
+    .budget-line .label { font-weight: 600; }
     .budget-line .cat { grid-area: cat; }
     .budget-line .room { grid-area: room; }
     .budget-line .estimated { grid-area: est; }
@@ -9481,6 +9486,7 @@ function renderMbBuyTable(room, items) {
         <button class="mb-buy-expand${isExpanded ? ' open' : ''}" data-act="expand" title="Details, photos &amp; exclude from totals">${isExpanded ? '▾' : '▸'}</button>
         ${item.image ? `<img class="mb-buy-thumb" data-act="img-view" src="${escapeHTML(item.image)}" alt="">` : ''}
         <input type="text" class="name" value="${escapeHTML(item.label || '')}" placeholder="Item name">
+        ${itemQty(item) > 1 ? `<span class="qty-badge" title="Quantity ${itemQty(item)} — line total ${fmtMoney(effectiveEstimated(item))}">×${itemQty(item)}</span>` : ''}
       </div>
       <input type="text" class="price budget" value="${item.estimated ? fmtMoney(item.estimated) : ''}" placeholder="$—">
       <div class="check"><input type="checkbox" ${item.paid ? 'checked' : ''}></div>
@@ -14157,19 +14163,23 @@ function roomLabelFor(roomId, map) {
   return (map || getBudgetRoomMap()).get(roomId)?.name || 'Unknown room';
 }
 
+// Quantity for a line item (per-unit prices are multiplied by this). Defaults to 1.
+function itemQty(i) {
+  const q = Math.floor(Number(i && i.qty) || 0);
+  return q > 0 ? q : 1;
+}
 function effectiveActual(i) {
   // Items flagged "exclude from totals" (e.g., alternate options being compared) never count.
   if (i && i.excludeFromTotals) return 0;
-  // An item's amount = actual if entered, else the estimate. Paid vs unpaid only decides
-  // whether it counts as spent or forecast — a forecast item still contributes its estimate.
-  const a = Number(i.actual) || 0;
-  if (a > 0) return a;
-  return Number(i.estimated) || 0;
+  // Amount = actual if entered, else the estimate — as a PER-UNIT price, times quantity.
+  // Paid vs unpaid only decides whether it counts as spent or forecast.
+  const unit = (Number(i.actual) || 0) > 0 ? Number(i.actual) : (Number(i.estimated) || 0);
+  return unit * itemQty(i);
 }
-// Estimate that counts toward totals — 0 for items excluded from totals.
+// Estimate that counts toward totals (unit price × qty) — 0 for items excluded from totals.
 function effectiveEstimated(i) {
   if (i && i.excludeFromTotals) return 0;
-  return Number(i.estimated) || 0;
+  return (Number(i.estimated) || 0) * itemQty(i);
 }
 
 // Cross-filter state: click a bar in any chart to filter the other charts + the table (PowerBI style).
@@ -14825,7 +14835,7 @@ function renderActualsRow(item) {
   const hasDetail = item.image || item.link || item.note || item.notes || item.vendor || item.confirmation || item.purchaseDate;
   row.innerHTML = `
     <button class="expand-btn ${isExpanded ? 'open' : ''}" data-act="expand" title="${isExpanded ? 'Collapse' : 'Details, link & product image'}">${isExpanded ? '▾' : (hasDetail ? '●' : '▸')}</button>
-    <input type="text" class="alloc-input label" placeholder="What did you buy?" value="${escapeHTML(item.label || '')}">
+    <span class="bl-labelcell"><input type="text" class="alloc-input label" placeholder="What did you buy?" value="${escapeHTML(item.label || '')}">${itemQty(item) > 1 ? `<span class="qty-badge" title="Qty ${itemQty(item)} · line total ${fmtMoney(effectiveEstimated(item))}">×${itemQty(item)}</span>` : ''}</span>
     <select class="alloc-input cat">${catOpts}</select>
     <input type="text" class="alloc-input room" list="actuals-room-options" placeholder="Type or pick a room" value="${escapeHTML(currentRoomName)}">
     <select class="alloc-input priority ${item.priority === 'High' ? 'pri-high' : item.priority === 'Medium' ? 'pri-med' : item.priority === 'Low' ? 'pri-low' : ''}">
@@ -14990,6 +15000,15 @@ function renderBudgetDetailsRow(item, rerender) {
       <input type="date" data-field="purchaseDate" value="${escapeHTML(item.purchaseDate || '')}">
     </label>
     <label class="full">
+      Quantity
+      <span style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <input type="number" min="1" step="1" data-field="qty" value="${itemQty(item)}" style="width:80px;">
+        <span class="bd-qty-hint">${itemQty(item) > 1
+          ? `${itemQty(item)} × ${fmtMoney(Number(item.estimated) || 0)} each = <strong>${fmtMoney((Number(item.estimated) || 0) * itemQty(item))}</strong>`
+          : 'Amounts above are per item — line total = amount × quantity.'}</span>
+      </span>
+    </label>
+    <label class="full">
       Notes
       <textarea data-field="note" placeholder="Anything else worth remembering…">${escapeHTML(item.note && !linkVal ? item.note : (item.notes || ''))}</textarea>
     </label>
@@ -15010,6 +15029,8 @@ function renderBudgetDetailsRow(item, rerender) {
         addItemImage(item, e.target.value.trim());
       } else if (f === 'excludeFromTotals') {
         item.excludeFromTotals = e.target.checked;
+      } else if (f === 'qty') {
+        item.qty = Math.max(1, Math.floor(Number(e.target.value) || 1));
       } else if (f === 'note') {
         item.notes = e.target.value;
         if (!item.link && /^https?:\/\//.test(item.note || '')) item.link = item.note;
@@ -15117,7 +15138,7 @@ function renderBudgetLine(item) {
   }
   row.innerHTML = `
     <button class="expand-btn ${isExpanded ? 'open' : ''}" data-act="expand" title="${isExpanded ? 'Collapse' : 'Expand for notes/link'}">${isExpanded ? '▾' : '▸'}</button>
-    <input type="text" class="budget-input label" placeholder="Line item name" value="${escapeHTML(item.label || '')}">
+    <span class="bl-labelcell"><input type="text" class="budget-input label" placeholder="Line item name" value="${escapeHTML(item.label || '')}">${itemQty(item) > 1 ? `<span class="qty-badge" title="Qty ${itemQty(item)} · line total ${fmtMoney(effectiveEstimated(item))}">×${itemQty(item)}</span>` : ''}</span>
     <input type="text" class="budget-input cat" list="${datalistId}" placeholder="Type or pick category" value="${escapeHTML(item.category || '')}">
     <datalist id="${datalistId}">${catOpts}</datalist>
     ${roomCellHtml}
