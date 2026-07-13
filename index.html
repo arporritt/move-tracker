@@ -2888,6 +2888,12 @@
   .budget-line:first-of-type { border-top: none; }
   .budget-line:hover { background: rgba(166,160,148,0.04); }
   .budget-line.is-paid { opacity: 0.65; }
+  /* Items excluded from totals (alternate options) — dimmed, amounts struck through */
+  .budget-line.excluded, .actuals-row.excluded { opacity: 0.6; }
+  .budget-line.excluded .amount, .actuals-row.excluded .amount, .actuals-row.excluded .alloc-amount-display { text-decoration: line-through; }
+  .bd-exclude-toggle { display: flex; align-items: flex-start; gap: 8px; cursor: pointer; font-size: 12.5px; color: var(--ink-soft); }
+  .bd-exclude-toggle input { margin-top: 2px; width: 15px; height: 15px; accent-color: var(--clay); flex: none; cursor: pointer; }
+  .bd-exclude-hint { color: var(--ink-faint); font-style: italic; }
   .budget-input {
     border: 1px solid transparent;
     background: transparent;
@@ -9220,7 +9226,7 @@ function renderMoodboard() {
   const currents = room.currentPhotos || [];
   const roomBudgetItems = (state.budget?.items || []).filter(i => i.room === room.id);
   const productImages = roomBudgetItems.flatMap(i => getItemImages(i).map(url => ({ url, caption: i.label || '', id: i.id, _budget: true })));
-  const totalBuy = roomBudgetItems.reduce((s, i) => s + (Number(i.estimated) || 0), 0);
+  const totalBuy = roomBudgetItems.reduce((s, i) => s + effectiveEstimated(i), 0);
   const meta = [];
   meta.push(`<span class="stat"><strong>${insp.length + productImages.length}</strong> images</span>`);
   if (roomBudgetItems.length) meta.push(`<span class="stat"><strong>${roomBudgetItems.length}</strong> to buy · ${fmtMoney(totalBuy)}</span>`);
@@ -9354,7 +9360,7 @@ function renderMoodboard() {
     productImages.forEach((p, i) => {
       const fig = document.createElement('div');
       fig.className = 'photo';
-      fig.innerHTML = `<img src="${escapeHTML(p.url)}" alt="${escapeHTML(p.caption)}" loading="lazy">${p.caption ? `<span class="mb-photo-tag">${escapeHTML(p.caption)}</span>` : ''}<button class="mb-photo-del" title="Remove this product image">×</button>`;
+      fig.innerHTML = `<img src="${escapeHTML(p.url)}" alt="${escapeHTML(p.caption)}" title="${escapeHTML(p.caption)}" loading="lazy"><button class="mb-photo-del" title="Remove this product image">×</button>`;
       fig.querySelector('img').addEventListener('click', () => openLightbox(productImages, i));
       fig.querySelector('.mb-photo-del').addEventListener('click', (e) => {
         e.stopPropagation();
@@ -9435,7 +9441,7 @@ function renderMoodboard() {
 function renderMbBuyTable(room, items) {
   const wrap = document.createElement('div');
   wrap.className = 'mb-buy-table';
-  const budget = items.reduce((s, i) => s + (Number(i.estimated) || 0), 0);
+  const budget = items.reduce((s, i) => s + effectiveEstimated(i), 0);
   const spent = items.filter(i => i.paid).reduce((s, i) => s + effectiveActual(i), 0);
   const forecast = items.filter(i => !i.paid).reduce((s, i) => s + effectiveActual(i), 0);
   wrap.innerHTML = `
@@ -14138,10 +14144,17 @@ function roomLabelFor(roomId, map) {
 }
 
 function effectiveActual(i) {
+  // Items flagged "exclude from totals" (e.g., alternate options being compared) never count.
+  if (i && i.excludeFromTotals) return 0;
   // An item's amount = actual if entered, else the estimate. Paid vs unpaid only decides
   // whether it counts as spent or forecast — a forecast item still contributes its estimate.
   const a = Number(i.actual) || 0;
   if (a > 0) return a;
+  return Number(i.estimated) || 0;
+}
+// Estimate that counts toward totals — 0 for items excluded from totals.
+function effectiveEstimated(i) {
+  if (i && i.excludeFromTotals) return 0;
   return Number(i.estimated) || 0;
 }
 
@@ -14191,7 +14204,7 @@ function renderBudgetCharts(items) {
     if (budgetSubtab === 'home') {
       (state.budget.allocations || []).forEach(a => { ensureCat(a.category).budget += (Number(a.budget) || 0); });
     } else {
-      catItems.forEach(i => { ensureCat(i.category || 'Other').budget += (Number(i.estimated) || 0); });
+      catItems.forEach(i => { ensureCat(i.category || 'Other').budget += effectiveEstimated(i); });
     }
   }
 
@@ -14378,7 +14391,7 @@ function renderBudget() {
       </div>
     `;
   } else {
-    const totalEst = items.reduce((s, i) => s + (Number(i.estimated) || 0), 0);
+    const totalEst = items.reduce((s, i) => s + effectiveEstimated(i), 0);
     const totalActual = items.reduce((s, i) => s + effectiveActual(i), 0);
     const totalPaid = items.filter(i => i.paid).reduce((s, i) => s + effectiveActual(i), 0);
     const actualsCount = items.filter(i => effectiveActual(i) > 0).length;
@@ -14777,7 +14790,7 @@ function buildActualsTable(items) {
 function renderActualsRow(item) {
   const row = document.createElement('div');
   const allocCats = (state.budget.allocations || []).map(a => a.category).filter(Boolean);
-  row.className = 'actuals-row';
+  row.className = 'actuals-row' + (item.excludeFromTotals ? ' excluded' : '');
   row.dataset.id = item.id;
   // Category is locked to allocation categories — no free text. If item has a category not in allocations, include it as a stale option so it stays selected until changed.
   const includeOrphan = item.category && !allocCats.includes(item.category) ? [item.category] : [];
@@ -14864,7 +14877,7 @@ function renderActualsRow(item) {
 }
 
 function buildUnifiedBudgetTable(items, baseCats, actualsOnly) {
-  const totalEst = items.reduce((s, i) => s + (Number(i.estimated) || 0), 0);
+  const totalEst = items.reduce((s, i) => s + effectiveEstimated(i), 0);
   const totalActual = items.reduce((s, i) => s + effectiveActual(i), 0);
   const variance = totalEst - totalActual;
   const overBy = variance < 0;
@@ -14965,6 +14978,10 @@ function renderBudgetDetailsRow(item) {
       Notes
       <textarea data-field="note" placeholder="Anything else worth remembering…">${escapeHTML(item.note && !linkVal ? item.note : (item.notes || ''))}</textarea>
     </label>
+    <label class="full bd-exclude-toggle">
+      <input type="checkbox" data-field="excludeFromTotals" ${item.excludeFromTotals ? 'checked' : ''}>
+      <span>Exclude from budget totals<span class="bd-exclude-hint"> — for alternate options you're comparing. Keeps the line, but leaves it out of every total.</span></span>
+    </label>
     ${isHome ? `<div class="bd-sync-note">🎨 ${roomName
       ? `This shows in <strong>${escapeHTML(roomName)}</strong>'s design board — its image, link &amp; price stay in sync.<div style="margin-top:8px;"><button class="mb-view-budget" data-act="goto-room">View in ${escapeHTML(roomName)}'s room →</button></div>`
       : `Assign a <strong>Room</strong> (above) and this purchase appears on that room's design board automatically.`}</div>` : ''}
@@ -14976,6 +14993,8 @@ function renderBudgetDetailsRow(item) {
         item.link = e.target.value.trim();
       } else if (f === 'addimage') {
         addItemImage(item, e.target.value.trim());
+      } else if (f === 'excludeFromTotals') {
+        item.excludeFromTotals = e.target.checked;
       } else if (f === 'note') {
         item.notes = e.target.value;
         if (!item.link && /^https?:\/\//.test(item.note || '')) item.link = item.note;
@@ -15034,12 +15053,12 @@ function renderBudgetTableBody(body, items, groupBy) {
     groups[key].push(item);
   });
   const entries = Object.entries(groups).sort((a, b) => {
-    const aTot = a[1].reduce((s, i) => s + (Number(i.estimated) || 0), 0);
-    const bTot = b[1].reduce((s, i) => s + (Number(i.estimated) || 0), 0);
+    const aTot = a[1].reduce((s, i) => s + effectiveEstimated(i), 0);
+    const bTot = b[1].reduce((s, i) => s + effectiveEstimated(i), 0);
     return bTot - aTot;
   });
   entries.forEach(([name, list], idx) => {
-    const est = list.reduce((s, i) => s + (Number(i.estimated) || 0), 0);
+    const est = list.reduce((s, i) => s + effectiveEstimated(i), 0);
     const act = list.reduce((s, i) => s + effectiveActual(i), 0);
     const header = document.createElement('div');
     header.className = 'bt-group-header' + (idx === 0 ? ' first' : '');
@@ -15060,7 +15079,7 @@ const budgetExpandedIds = new Set();
 function renderBudgetLine(item) {
   const row = document.createElement('div');
   const hideRoom = isPurchaseCategory(item.category) || isSaleCategory(item.category) || budgetSubtab !== 'home';
-  row.className = 'budget-line' + (item.paid ? ' is-paid' : '') + (hideRoom ? ' no-room' : '');
+  row.className = 'budget-line' + (item.paid ? ' is-paid' : '') + (hideRoom ? ' no-room' : '') + (item.excludeFromTotals ? ' excluded' : '');
   row.dataset.id = item.id;
   const isExpanded = budgetExpandedIds.has(item.id);
   // Category — typeable input with autocomplete (built-ins + previously-added custom ones for this scope)
