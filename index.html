@@ -2869,6 +2869,13 @@
   .bd-sync-note a { color: var(--plum); font-weight: 600; cursor: pointer; text-decoration: none; }
   .bd-sync-note a:hover { text-decoration: underline; }
   .mb-buy-name-cell { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .mb-buy-expand {
+    flex: none; background: transparent; border: none; cursor: pointer;
+    color: var(--ink-faint); font-size: 11px; line-height: 1; padding: 2px 3px; border-radius: 4px;
+  }
+  .mb-buy-expand:hover { background: rgba(166,160,148,0.14); color: var(--ink); }
+  .mb-buy-expand.open { color: var(--clay); }
+  .mb-buy-table .budget-details-row { border-top: 1px solid var(--rule-soft); }
   .mb-buy-thumb {
     width: 34px; height: 34px; border-radius: 6px; object-fit: cover;
     border: 1px solid var(--rule); flex: none; cursor: pointer; background: white;
@@ -2889,8 +2896,8 @@
   .budget-line:hover { background: rgba(166,160,148,0.04); }
   .budget-line.is-paid { opacity: 0.65; }
   /* Items excluded from totals (alternate options) — dimmed, amounts struck through */
-  .budget-line.excluded, .actuals-row.excluded { opacity: 0.6; }
-  .budget-line.excluded .amount, .actuals-row.excluded .amount, .actuals-row.excluded .alloc-amount-display { text-decoration: line-through; }
+  .budget-line.excluded, .actuals-row.excluded, .mb-buy-table-row.excluded { opacity: 0.6; }
+  .budget-line.excluded .amount, .actuals-row.excluded .amount, .actuals-row.excluded .alloc-amount-display, .mb-buy-table-row.excluded .price { text-decoration: line-through; }
   .bd-exclude-toggle { display: flex; align-items: flex-start; gap: 8px; cursor: pointer; font-size: 12.5px; color: var(--ink-soft); }
   .bd-exclude-toggle input { margin-top: 2px; width: 15px; height: 15px; accent-color: var(--clay); flex: none; cursor: pointer; }
   .bd-exclude-hint { color: var(--ink-faint); font-style: italic; }
@@ -9466,10 +9473,12 @@ function renderMbBuyTable(room, items) {
   }
   items.forEach(item => {
     const row = document.createElement('div');
-    row.className = 'mb-buy-table-row' + (item.paid ? ' bought' : '');
+    row.className = 'mb-buy-table-row' + (item.paid ? ' bought' : '') + (item.excludeFromTotals ? ' excluded' : '');
     const mbLink = item.link || (item.note && /^https?:\/\//.test(item.note) ? item.note : '');
+    const isExpanded = budgetExpandedIds.has(item.id);
     row.innerHTML = `
       <div class="mb-buy-name-cell">
+        <button class="mb-buy-expand${isExpanded ? ' open' : ''}" data-act="expand" title="Details, photos &amp; exclude from totals">${isExpanded ? '▾' : '▸'}</button>
         ${item.image ? `<img class="mb-buy-thumb" data-act="img-view" src="${escapeHTML(item.image)}" alt="">` : ''}
         <input type="text" class="name" value="${escapeHTML(item.label || '')}" placeholder="Item name">
       </div>
@@ -9501,7 +9510,12 @@ function renderMbBuyTable(room, items) {
       persist(); renderMoodboard();
     });
     row.querySelector('[data-act="move"]').addEventListener('click', () => moveBudgetItemToRoom(item));
+    row.querySelector('[data-act="expand"]').addEventListener('click', () => {
+      if (budgetExpandedIds.has(item.id)) budgetExpandedIds.delete(item.id); else budgetExpandedIds.add(item.id);
+      renderMoodboard();
+    });
     rowsBox.appendChild(row);
+    if (isExpanded) rowsBox.appendChild(renderBudgetDetailsRow(item, renderMoodboard));
   });
   wrap.querySelector('.mb-view-budget').addEventListener('click', () => openBudgetForRoom(room.id));
   wrap.querySelector('.mb-buy-add-row button').addEventListener('click', () => {
@@ -14936,7 +14950,8 @@ function buildUnifiedBudgetTable(items, baseCats, actualsOnly) {
   return wrap;
 }
 
-function renderBudgetDetailsRow(item) {
+function renderBudgetDetailsRow(item, rerender) {
+  rerender = rerender || renderBudget;
   const details = document.createElement('div');
   details.className = 'budget-details-row';
   const linkVal = item.link || (item.note && /^https?:\/\//.test(item.note) ? item.note : '');
@@ -15003,16 +15018,16 @@ function renderBudgetDetailsRow(item) {
         item[f] = e.target.value.trim();
       }
       persist();
-      renderBudget();
+      rerender();
     });
   });
   const galleryLightbox = imgs.map(u => ({ url: u, caption: item.label || '' }));
   details.querySelectorAll('[data-act="ph-add"]').forEach(el =>
-    el.addEventListener('click', () => pickAndUploadItemPhotos(item, renderBudget)));
+    el.addEventListener('click', () => pickAndUploadItemPhotos(item, rerender)));
   details.querySelectorAll('[data-act="ph-view"]').forEach(el =>
     el.addEventListener('click', () => openLightbox(galleryLightbox, Number(el.getAttribute('data-idx')) || 0)));
   details.querySelectorAll('[data-act="ph-del"]').forEach(el =>
-    el.addEventListener('click', () => { removeItemImage(item, imgs[Number(el.getAttribute('data-idx'))]); persist(); renderBudget(); }));
+    el.addEventListener('click', () => { removeItemImage(item, imgs[Number(el.getAttribute('data-idx'))]); persist(); rerender(); }));
   const gotoRoom = details.querySelector('[data-act="goto-room"]');
   if (gotoRoom) gotoRoom.addEventListener('click', () => openRoomFromBudget(item.room));
   return details;
