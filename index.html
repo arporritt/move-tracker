@@ -1868,6 +1868,18 @@
     background: rgba(166,160,148,0.06); border-top: 1px solid var(--rule);
   }
   .palette-table-body > .palette-group-header:first-child { border-top: none; }
+  /* Decision-status group headers + per-color status control */
+  .palette-group-header.pgh-confirmed { color: var(--forest); background: rgba(111,114,83,0.08); }
+  .palette-group-header.pgh-contender { color: var(--gold); background: rgba(175,154,114,0.10); }
+  .palette-table-row.pt-st-confirmed { box-shadow: inset 3px 0 0 var(--forest); }
+  .palette-table-row.pt-st-contender { box-shadow: inset 3px 0 0 var(--gold); }
+  .pt-status-select {
+    flex: 0 0 auto; max-width: 122px; font-family: 'Manrope', sans-serif; font-size: 10.5px; font-weight: 600;
+    border: 1px solid var(--rule); border-radius: 6px; padding: 2px 4px; color: var(--ink-soft);
+    background: var(--bg-card); cursor: pointer; outline: none;
+  }
+  .pt-status-select.pt-status-confirmed { color: var(--forest); border-color: var(--forest); background: rgba(111,114,83,0.07); }
+  .pt-status-select.pt-status-contender { color: var(--gold); border-color: var(--gold); background: rgba(175,154,114,0.09); }
   .palette-table-row.dragging { opacity: 0.4; }
   .palette-table-row.drag-over { border-top: 2px solid var(--clay); }
   /* Star marking a color that comes from the White Duck & Neutral Ground PDF guide */
@@ -12557,7 +12569,8 @@ function renderPaletteTable(entries) {
     const universalRef = entry.refs.find(r => !r.roomId);
     const roomRefs = entry.refs.filter(r => r.roomId); // one per room · surface
     const row = document.createElement('div');
-    row.className = 'palette-table-row';
+    const stat = (c.status === 'confirmed' || c.status === 'contender') ? c.status : 'none';
+    row.className = 'palette-table-row pt-st-' + stat;
     row.innerHTML = `
       <span class="pt-drag" draggable="true" title="Drag to reorder">⠿</span>
       <input type="color" class="pt-swatch-input" value="${safeHexForInput(c.hex)}" title="Pick color">
@@ -12565,6 +12578,11 @@ function renderPaletteTable(entries) {
         <input type="text" class="pt-input pt-name-input" value="${escapeHTML(c.name || '')}" placeholder="Color name">
         <a class="pt-sw-link" target="_blank" rel="noopener" title="View on Sherwin-Williams" href="${escapeHTML(c.url || '')}" style="${c.url ? '' : 'display:none;'}">↗</a>
         ${colorInPdfPalette(c) ? `<span class="pt-pdf-star" title="From the White Duck &amp; Neutral Ground palette guide">★</span>` : ''}
+        <select class="pt-status-select pt-status-${stat}" title="Decision status — Confirmed, Contender, or Undecided">
+          <option value=""${!c.status ? ' selected' : ''}>Undecided</option>
+          <option value="confirmed"${c.status === 'confirmed' ? ' selected' : ''}>✓ Confirmed</option>
+          <option value="contender"${c.status === 'contender' ? ' selected' : ''}>◇ Contender</option>
+        </select>
       </div>
       <div class="pt-sw-cell"><span>SW</span><input type="text" class="pt-input pt-sw-input" value="${escapeHTML(c.sw || '')}" placeholder="0000"></div>
       <input type="text" class="pt-input pt-hex-input" value="${escapeHTML((c.hex || '').toUpperCase())}" placeholder="#hex">
@@ -12633,6 +12651,15 @@ function renderPaletteTable(entries) {
     if (assignBtn) assignBtn.addEventListener('click', () => assignColorToRoom(cur));
     const delColorBtn = row.querySelector('[data-act="del-color"]');
     if (delColorBtn) delColorBtn.addEventListener('click', () => deletePaletteColor(cur));
+    const statusSel = row.querySelector('.pt-status-select');
+    if (statusSel) statusSel.addEventListener('change', e => {
+      const val = e.target.value;
+      cur.status = val || undefined;
+      const m = (state.overallVision.palette || []).find(p => colorMatches(p, cur));
+      if (m) m.status = val || undefined;
+      persist();
+      renderPalette();
+    });
 
     // Drag to reorder (grip handle starts the drag; the row is the drop target)
     const grip = row.querySelector('.pt-drag');
@@ -12670,26 +12697,29 @@ function renderPaletteTable(entries) {
     });
     return row;
   }
-  // Group into Assigned (used in a room or universal) and Unassigned
-  const assigned = entries.filter(e => e.refs.length > 0);
-  const unassigned = entries.filter(e => e.refs.length === 0);
-  function addGroup(label, list) {
+  // Group by decision status: Confirmed, Contenders, then everything still undecided.
+  const confirmed = entries.filter(e => e.color.status === 'confirmed');
+  const contenders = entries.filter(e => e.color.status === 'contender');
+  const undecided = entries.filter(e => e.color.status !== 'confirmed' && e.color.status !== 'contender');
+  function addGroup(label, list, cls) {
     if (!list.length) return;
     const hdr = document.createElement('div');
-    hdr.className = 'palette-group-header';
+    hdr.className = 'palette-group-header pgh-' + (cls || 'none');
     hdr.textContent = `${label} · ${list.length}`;
     body.appendChild(hdr);
     list.forEach(e => body.appendChild(buildRow(e)));
   }
-  addGroup('Assigned to rooms', assigned);
-  addGroup('Unassigned', unassigned);
+  addGroup('✓ Confirmed', confirmed, 'confirmed');
+  addGroup('◇ Contenders', contenders, 'contender');
+  addGroup('Undecided', undecided, 'none');
   return wrap;
 }
 
 function renderPaletteCard(entry) {
   const c = entry.color;
+  const cstat = (c.status === 'confirmed' || c.status === 'contender') ? c.status : 'none';
   const card = document.createElement('div');
-  card.className = 'palette-card';
+  card.className = 'palette-card pt-st-' + cstat;
   // Determine which rooms are using this color (deduplicated by room.id)
   const universalRef = entry.refs.find(r => !r.roomId);
   const roomRefs = entry.refs.filter(r => r.roomId); // one per room · surface
@@ -12701,6 +12731,11 @@ function renderPaletteCard(entry) {
       <div class="palette-card-rooms" id="rooms-${escapeHTML(c.sw || '')}-${Math.random().toString(36).slice(2,6)}">
         ${universalRef ? '<span class="palette-room-chip" style="background:rgba(111,114,83,0.14);color:var(--forest);">★ Every room (universal)</span>' : ''}
       </div>
+      <select class="pt-status-select pt-status-${cstat}" style="margin-top:10px;max-width:150px;" title="Decision status">
+        <option value=""${!c.status ? ' selected' : ''}>Undecided</option>
+        <option value="confirmed"${c.status === 'confirmed' ? ' selected' : ''}>✓ Confirmed</option>
+        <option value="contender"${c.status === 'contender' ? ' selected' : ''}>◇ Contender</option>
+      </select>
       <div style="display:flex;gap:6px;margin-top:10px;">
         <button class="palette-add-room edit-color-btn">✎ Edit</button>
         <button class="palette-add-room add-room-btn">+ Assign</button>
@@ -12722,6 +12757,12 @@ function renderPaletteCard(entry) {
   card.querySelector('.edit-color-btn').addEventListener('click', () => editColorEverywhere(c));
   card.querySelector('.add-room-btn').addEventListener('click', () => assignColorToRoom(c));
   card.querySelector('.del-color-btn').addEventListener('click', () => deletePaletteColor(c));
+  const cardStatus = card.querySelector('.pt-status-select');
+  if (cardStatus) cardStatus.addEventListener('change', e => {
+    const m = (state.overallVision.palette || []).find(p => colorMatches(p, c));
+    if (m) m.status = e.target.value || undefined;
+    persist(); renderPalette();
+  });
   return card;
 }
 
