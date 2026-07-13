@@ -1454,6 +1454,14 @@
     background: var(--bg-card); color: var(--ink-faint); font-size: 18px; line-height: 1; cursor: pointer; transition: all 0.12s;
   }
   .rp-del:hover { border-color: var(--behind); color: var(--behind); }
+  /* Per-surface sheen / finish (differs by room) */
+  .rp-sheen {
+    flex: 0 0 auto; font-family: 'Manrope', sans-serif; font-size: 12px; font-weight: 600;
+    color: var(--ink-soft); background: var(--bg-card); border: 1px solid var(--rule);
+    border-radius: 8px; padding: 7px 8px; outline: none; cursor: pointer;
+  }
+  .rp-sheen.set { color: var(--ink); border-color: var(--clay-soft); }
+  .rp-sheen:focus { border-color: var(--clay); }
   /* Paint / Wallpaper segmented toggle per row */
   .rp-type { flex: 0 0 auto; display: inline-flex; border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; background: var(--bg-card); }
   .rp-type-btn {
@@ -3958,6 +3966,7 @@
     .rp-del { order: 3; }
     .rp-type { order: 4; flex: 0 0 auto; }
     .rp-color { order: 5; flex: 1 1 55%; min-width: 0; }
+    .rp-sheen { order: 6; flex: 0 0 auto; }
 
     /* Room design board — tighten so it isn't so tall on a phone */
     .mb-room-chips { gap: 5px; margin-bottom: 12px; }
@@ -12424,6 +12433,7 @@ try { const v = localStorage.getItem('mt-palette-view'); if (v === 'table' || v 
 // so removing a color from a room never deletes the color. Seeds itself from any existing universal/room colors.
 // Common surfaces offered as quick-picks when assigning paint (free-text still allowed).
 const SURFACE_SUGGESTIONS = ['Walls','Trim & baseboards','Ceiling','Doors','Front door','Cabinets','Island','Vanity','Accent wall','Built-ins','Fireplace','Wainscoting','Powder room'];
+const PAINT_SHEENS = ['Flat', 'Matte', 'Eggshell', 'Satin', 'Semi-gloss', 'Gloss'];
 
 // Match a per-room paint ASSIGNMENT to a master color. Location-agnostic: by SW# when present, else name.
 function assignmentIsColor(a, c) {
@@ -13182,6 +13192,10 @@ function renderRoomPaintPlan(room, onChange) {
       <button class="rp-color ${filled ? '' : 'empty'}" data-act="value" title="${type === 'wallpaper' ? 'Choose wallpaper' : 'Choose paint color'}">
         ${valueInner}
       </button>
+      ${type === 'paint' ? `<select class="rp-sheen${a.sheen ? ' set' : ''}" title="Sheen / finish for this surface — differs by room">
+        <option value="">Sheen…</option>
+        ${PAINT_SHEENS.map(s => `<option value="${escapeHTML(s)}"${a.sheen === s ? ' selected' : ''}>${escapeHTML(s)}</option>`).join('')}
+      </select>` : ''}
       <button class="rp-del" data-act="del" title="Remove surface">×</button>
     `;
     rowEl.querySelector('.rp-surface').addEventListener('change', e => { a.surface = e.target.value.trim(); onChange(); });
@@ -13208,6 +13222,8 @@ function renderRoomPaintPlan(room, onChange) {
         });
       }
     });
+    const sheenSel = rowEl.querySelector('.rp-sheen');
+    if (sheenSel) sheenSel.addEventListener('change', e => { a.sheen = e.target.value || ''; onChange(); });
     rowEl.querySelector('[data-act="del"]').addEventListener('click', () => { room.paintAssignments.splice(idx, 1); onChange(); });
     wrap.appendChild(rowEl);
   });
@@ -13676,7 +13692,7 @@ function renderPaintSchedule(host) {
   const cellHtml = (r, surface) => {
     const list = colorsFor(r.room, surface);
     const inner = list.length
-      ? list.map(a => `<span class="ps-swatch" style="background:${escapeHTML(a.hex || '#ccc')}" title="${escapeHTML((a.name || 'Color') + ' — ' + r.name + ' · ' + surface)}"></span>`).join('')
+      ? list.map(a => `<span class="ps-swatch" style="background:${escapeHTML(a.hex || '#ccc')}" title="${escapeHTML((a.name || 'Color') + (a.sheen ? ' · ' + a.sheen : '') + ' — ' + r.name + ' · ' + surface)}"></span>`).join('')
       : `<span class="ps-empty" title="Assign a color">+</span>`;
     return `<td class="ps-cell${list.length > 1 ? ' ps-multi' : ''}" data-room="${escapeHTML(r.id)}" data-floor="${r.floor}" data-surface="${escapeHTML(surface)}">${inner}</td>`;
   };
