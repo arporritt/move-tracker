@@ -12843,7 +12843,22 @@ function assignColorToRoom(c) {
   for (const f of ['basement','ground','upper']) {
     (state.inspiration[f] || []).forEach(r => rooms.push({ floor: f, id: r.id, name: r.name || 'Unnamed' }));
   }
-  const checked = new Set();
+  // Where this color is already assigned: surface -> Set(roomId). Used to pre-select the menu.
+  const existing = {};
+  for (const f of ['basement','ground','upper']) {
+    (state.inspiration[f] || []).forEach(r => {
+      (r.paintAssignments || []).forEach(a => {
+        if (assignmentIsColor(a, c)) {
+          const s = (a.surface || '').trim();
+          (existing[s] = existing[s] || new Set()).add(r.id);
+        }
+      });
+    });
+  }
+  // Open on the surface it's used on most, with those rooms already checked.
+  const usedSurfaces = Object.keys(existing).sort((x, y) => existing[y].size - existing[x].size);
+  const defaultSurface = usedSurfaces[0] || '';
+  const checked = new Set(existing[defaultSurface] ? [...existing[defaultSurface]] : []);
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay active';
   overlay.innerHTML = `
@@ -12851,12 +12866,12 @@ function assignColorToRoom(c) {
       <div class="picker-label"><span class="room-pick-swatch" style="background:${escapeHTML(c.hex || '#ccc')};vertical-align:middle;margin-right:6px;"></span>Assign <strong>${escapeHTML(c.name || 'color')}</strong> to a surface</div>
       <input type="text" class="picker-search picker-surface" list="assign-surface-suggest" placeholder="Surface — e.g., Walls, Front door, Cabinets" autocomplete="off">
       <datalist id="assign-surface-suggest">${SURFACE_SUGGESTIONS.map(s => `<option value="${escapeHTML(s)}">`).join('')}</datalist>
-      <div style="font-size:12px;color:var(--ink-faint);margin:8px 2px 4px;">Apply it to which room(s)?</div>
+      <div style="font-size:12px;color:var(--ink-faint);margin:8px 2px 4px;">Which rooms use it on this surface? <span style="font-style:italic;">Checked = assigned; uncheck to remove.</span></div>
       <input type="text" class="picker-search" placeholder="Search rooms…" autocomplete="off">
       <div class="picker-list"></div>
       <div class="picker-footer">
         <button class="picker-clear" data-act="all">Select all</button>
-        <button class="picker-done" data-act="done">Add</button>
+        <button class="picker-done" data-act="done">Apply</button>
       </div>
     </div>
   `;
@@ -12864,6 +12879,14 @@ function assignColorToRoom(c) {
   const listEl = overlay.querySelector('.picker-list');
   const searchEl = overlay.querySelectorAll('.picker-search')[1];
   const surfaceEl = overlay.querySelector('.picker-surface');
+  surfaceEl.value = defaultSurface;
+  // Switching the surface reflects the rooms already using this color on that surface.
+  surfaceEl.addEventListener('change', () => {
+    const s = surfaceEl.value.trim();
+    checked.clear();
+    (existing[s] ? [...existing[s]] : []).forEach(id => checked.add(id));
+    draw();
+  });
   function draw() {
     const q = searchEl.value.trim().toLowerCase();
     listEl.innerHTML = '';
@@ -12891,19 +12914,22 @@ function assignColorToRoom(c) {
   function onKey(e) { if (e.key === 'Escape') close(); else if (e.key === 'Enter' && document.activeElement !== surfaceEl) commit(); }
   function commit() {
     const surface = surfaceEl.value.trim();
-    if (!checked.size) { close(); return; }
     if (!state.overallVision.palette.some(p => colorMatches(p, c))) {
-      state.overallVision.palette.push({ location: c.location || '', name: c.name || '', sw: c.sw || '', hex: c.hex || '#CCCCCC', lrv: (c.lrv != null ? c.lrv : ''), url: c.url || '' });
+      state.overallVision.palette.push({ name: c.name || '', sw: c.sw || '', hex: c.hex || '#CCCCCC', lrv: (c.lrv != null ? c.lrv : ''), url: c.url || '' });
     }
+    // Sync this surface: checked rooms get the color, unchecked rooms have it removed.
     rooms.forEach(info => {
-      if (!checked.has(info.id)) return;
       const room = (state.inspiration[info.floor] || []).find(r => r.id === info.id);
       if (!room) return;
       if (!Array.isArray(room.paintAssignments)) room.paintAssignments = [];
-      const dup = room.paintAssignments.some(a => assignmentIsColor(a, c) && (a.surface || '') === surface);
-      if (!dup) room.paintAssignments.push({ surface, name: c.name || '', sw: c.sw || '', hex: c.hex || '#CCCCCC', lrv: (c.lrv != null ? c.lrv : ''), url: c.url || '' });
-      ensureColorInStory(c);
+      const idx = room.paintAssignments.findIndex(a => assignmentIsColor(a, c) && (a.surface || '') === surface);
+      if (checked.has(info.id)) {
+        if (idx < 0) room.paintAssignments.push({ surface, type: 'paint', name: c.name || '', sw: c.sw || '', hex: c.hex || '#CCCCCC', lrv: (c.lrv != null ? c.lrv : ''), url: c.url || '' });
+      } else if (idx >= 0) {
+        room.paintAssignments.splice(idx, 1);
+      }
     });
+    ensureColorInStory(c);
     persist(); close(); renderPalette();
   }
   document.addEventListener('keydown', onKey);
