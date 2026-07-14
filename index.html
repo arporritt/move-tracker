@@ -1142,6 +1142,10 @@
   .mb-room-chip .count {
     margin-left: 6px; opacity: 0.6; font-size: 10.5px;
   }
+  /* Drag-to-reorder room pills */
+  .mb-room-chip[draggable="true"] { cursor: grab; }
+  .mb-room-chip[draggable="true"]:active { cursor: grabbing; }
+  .mb-room-chip.dragging { opacity: 0.4; box-shadow: 0 6px 16px rgba(0,0,0,0.14); }
   .mb-board-header {
     margin-bottom: 20px;
     display: grid;
@@ -9204,6 +9208,20 @@ function selectMbRoom(id) {
   renderMoodboard();
 }
 
+// Rebuild the floor's room array from the current pill order in the DOM, then save + re-render.
+function commitRoomOrder(floor) {
+  const box = document.getElementById('mb-room-chips');
+  const arr = (state.inspiration && state.inspiration[floor]) || [];
+  if (!box || !arr.length) { renderMoodboard(); return; }
+  const domIds = [...box.querySelectorAll('.mb-room-chip[data-room-id]')].map(el => el.dataset.roomId);
+  const byId = new Map(arr.map(r => [r.id, r]));
+  const reordered = domIds.map(id => byId.get(id)).filter(Boolean);
+  arr.forEach(r => { if (!domIds.includes(r.id)) reordered.push(r); }); // safety: keep any stragglers
+  const changed = reordered.length === arr.length && reordered.some((r, i) => r.id !== arr[i].id);
+  if (changed) { state.inspiration[floor] = reordered; persist(); }
+  renderMoodboard();
+}
+
 // Per-section photo size (S/M/L) — controls how many columns the photo grid uses
 function photoSizeOf(key) {
   try { return localStorage.getItem('mt-psize-' + key) || 'm'; } catch (e) { return 'm'; }
@@ -9246,9 +9264,30 @@ function renderMoodboard() {
   rooms.forEach(room => {
     const chip = document.createElement('button');
     chip.className = 'mb-room-chip' + (room.id === mbRoomId ? ' active' : '');
+    chip.dataset.roomId = room.id;
+    chip.draggable = true;
     const photoCount = (room.inspirationPhotos || []).length;
     chip.innerHTML = `${escapeHTML(room.name || 'Unnamed')}${photoCount ? `<span class="count">${photoCount}</span>` : ''}`;
-    chip.addEventListener('click', () => selectMbRoom(room.id));
+    chip.addEventListener('click', () => { if (!chip.dataset.justDragged) selectMbRoom(room.id); });
+    // Drag-to-reorder: lift this pill, shift the others live, commit order on drop.
+    chip.addEventListener('dragstart', (e) => {
+      chip.classList.add('dragging');
+      if (e.dataTransfer) { e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', room.id); } catch (_) {} }
+    });
+    chip.addEventListener('dragover', (e) => {
+      const dragging = chipsBox.querySelector('.mb-room-chip.dragging');
+      if (!dragging || dragging === chip) return;
+      e.preventDefault();
+      const rect = chip.getBoundingClientRect();
+      const before = e.clientX < rect.left + rect.width / 2;
+      chipsBox.insertBefore(dragging, before ? chip : chip.nextSibling);
+    });
+    chip.addEventListener('dragend', () => {
+      chip.classList.remove('dragging');
+      chip.dataset.justDragged = '1';
+      setTimeout(() => { delete chip.dataset.justDragged; }, 0);
+      commitRoomOrder(mbFloor);
+    });
     chipsBox.appendChild(chip);
   });
   // + Add room button
