@@ -13850,16 +13850,10 @@ function _zipStore(entries) {
   return new Uint8Array(out);
 }
 // Build a single-sheet .xlsx from headers[] + rows[][]; numericCols = Set of 0-based col indexes written as numbers. Returns Uint8Array.
-// Build the paint-specs workbook: a "Summary" sheet with two pivot tables (Selections + Assignments)
-// followed by a "Paint specs" data sheet that is the pivot source. refreshOnLoad recomputes the pivots on open.
-function _buildPaintSpecsWorkbook(headers, rows, numericCols) {
+function _buildXlsx(sheetName, headers, rows, numericCols) {
   const enc = new TextEncoder();
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[c]));
   const colName = n => { let s = ''; n++; while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; };
-  const N = headers.length, nRows = rows.length, lastCol = colName(N - 1);
-  const XMLH = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
-
-  // --- Data sheet ("Paint specs") ---
   let sd = '<row r="1">';
   headers.forEach((h, ci) => { sd += `<c r="${colName(ci)}1" t="inlineStr" s="1"><is><t xml:space="preserve">${esc(h)}</t></is></c>`; });
   sd += '</row>';
@@ -13867,80 +13861,32 @@ function _buildPaintSpecsWorkbook(headers, rows, numericCols) {
     const rr = ri + 2; sd += `<row r="${rr}">`;
     cells.forEach((val, ci) => {
       const ref = colName(ci) + rr;
-      if (val === '' || val == null) return; // leave blank cells empty
-      if (numericCols && numericCols.has(ci) && isFinite(Number(val))) sd += `<c r="${ref}"><v>${Number(val)}</v></c>`;
+      if (numericCols && numericCols.has(ci) && val !== '' && val != null && isFinite(Number(val))) sd += `<c r="${ref}"><v>${Number(val)}</v></c>`;
       else sd += `<c r="${ref}" t="inlineStr"><is><t xml:space="preserve">${esc(val)}</t></is></c>`;
     });
     sd += '</row>';
   });
-  const dcols = `<cols>${headers.map((h, i) => `<col min="${i + 1}" max="${i + 1}" width="${Math.max(10, Math.min(42, String(h).length + 6))}" customWidth="1"/>`).join('')}</cols>`;
-  const dataSheet = XMLH + `<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="A1:${lastCol}${nRows + 1}"/><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft" activeCell="A2" sqref="A2"/></sheetView></sheetViews><sheetFormatPr defaultRowHeight="15"/>${dcols}<sheetData>${sd}</sheetData></worksheet>`;
-
-  // --- Summary sheet (holds the two pivot tables + section titles) ---
-  const titleCell = (ref, text) => `<c r="${ref}" t="inlineStr" s="2"><is><t xml:space="preserve">${esc(text)}</t></is></c>`;
-  const summarySheet = XMLH + `<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="A1:P200"/><sheetViews><sheetView tabSelected="1" workbookViewId="0"/></sheetViews><sheetFormatPr defaultRowHeight="15"/><cols><col min="2" max="2" width="24" customWidth="1"/><col min="3" max="5" width="15" customWidth="1"/><col min="7" max="7" width="22" customWidth="1"/><col min="8" max="11" width="16" customWidth="1"/></cols><sheetData><row r="2">${titleCell('B2', 'Selections')}${titleCell('G2', 'Assignments')}</row></sheetData></worksheet>`;
-
-  // --- Pivot cache (empty sharedItems + refreshOnLoad -> app rebuilds distinct items + body on open) ---
-  const cacheFields = headers.map(h => `<cacheField name="${esc(h)}" numFmtId="0"><sharedItems/></cacheField>`).join('');
-  const cacheDef = XMLH + `<pivotCacheDefinition xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="rId1" refreshOnLoad="1" refreshedBy="565 Hub" refreshedDate="45000" createdVersion="6" refreshedVersion="6" minRefreshableVersion="3" recordCount="${nRows}"><cacheSource type="worksheet"><worksheetSource ref="A1:${lastCol}${nRows + 1}" sheet="Paint specs"/></cacheSource><cacheFields count="${N}">${cacheFields}</cacheFields></pivotCacheDefinition>`;
-  const recs = rows.map(cells => {
-    let r = '<r>';
-    cells.forEach((val, ci) => {
-      if (val === '' || val == null) r += '<m/>';
-      else if (numericCols && numericCols.has(ci) && isFinite(Number(val))) r += `<n v="${Number(val)}"/>`;
-      else r += `<s v="${esc(val)}"/>`;
-    });
-    return r + '</r>';
-  }).join('');
-  const cacheRecords = XMLH + `<pivotCacheRecords xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" count="${nRows}">${recs}</pivotCacheRecords>`;
-
-  // --- A pivot table definition (tabular, no subtotals/grand totals, page filters) ---
-  const idx = name => headers.indexOf(name);
-  const pivotXml = (opts) => {
-    const rowSet = new Set(opts.rowFields), pageSet = new Set(opts.pageFields);
-    const dataIdx = opts.dataField ? opts.dataField.fld : -1;
-    let pf = '';
-    for (let i = 0; i < N; i++) {
-      if (rowSet.has(i)) pf += `<pivotField axis="axisRow" showAll="0" outline="0" compact="0" defaultSubtotal="0"/>`;
-      else if (pageSet.has(i)) pf += `<pivotField axis="axisPage" showAll="0"/>`;
-      else if (i === dataIdx) pf += `<pivotField dataField="1" showAll="0"/>`;
-      else pf += `<pivotField showAll="0"/>`;
-    }
-    const rowFields = `<rowFields count="${opts.rowFields.length}">${opts.rowFields.map(x => `<field x="${x}"/>`).join('')}</rowFields>`;
-    const rowItems = `<rowItems count="1"><i><x/></i></rowItems>`;
-    const colItems = opts.dataField ? `<colItems count="1"><i/></colItems>` : '';
-    const pageFields = `<pageFields count="${opts.pageFields.length}">${opts.pageFields.map(f => `<pageField fld="${f}" hier="-1"/>`).join('')}</pageFields>`;
-    const dataFields = opts.dataField ? `<dataFields count="1"><dataField name="${esc(opts.dataField.name)}" fld="${opts.dataField.fld}" subtotal="count" baseField="0" baseItem="0"/></dataFields>` : '';
-    return XMLH + `<pivotTableDefinition xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" name="${esc(opts.name)}" cacheId="1" applyNumberFormats="0" applyBorderFormats="0" applyFontFormats="0" applyPatternFormats="0" applyAlignmentFormats="0" applyWidthHeightFormats="1" dataCaption="Values" updatedVersion="6" minRefreshableVersion="3" useAutoFormatting="1" itemPrintTitles="1" createdVersion="6" indent="0" compact="0" compactData="0" outline="0" outlineData="0" gridDropZones="1" rowGrandTotals="0" colGrandTotals="0" multipleFieldFilters="0"><location ref="${opts.ref}" firstHeaderRow="1" firstDataRow="1" firstDataCol="1"/><pivotFields count="${N}">${pf}</pivotFields>${rowFields}${rowItems}${colItems}${pageFields}${dataFields}<pivotTableStyleInfo name="PivotStyleLight16" showRowHeaders="1" showColHeaders="1" showRowStripes="0" showColStripes="0" showLastColumn="1"/></pivotTableDefinition>`;
-  };
-  const pt1 = pivotXml({ name: 'Selections', ref: 'B7:E60', pageFields: [idx('Decision'), idx('Floor')], rowFields: [idx('Color / Pattern'), idx('Sheen'), idx('Surface')], dataField: { fld: idx('Room'), name: 'Count of Room' } });
-  const pt2 = pivotXml({ name: 'Assignments', ref: 'G7:K200', pageFields: [idx('Decision'), idx('Floor')], rowFields: [idx('Room'), idx('Room size'), idx('Color / Pattern'), idx('Sheen'), idx('Surface')], dataField: null });
-
-  const contentTypes = XMLH + `<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/><Override PartName="/xl/pivotCache/pivotCacheDefinition1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.pivotCacheDefinition+xml"/><Override PartName="/xl/pivotCache/pivotCacheRecords1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.pivotCacheRecords+xml"/><Override PartName="/xl/pivotTables/pivotTable1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.pivotTable+xml"/><Override PartName="/xl/pivotTables/pivotTable2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.pivotTable+xml"/></Types>`;
-  const rels = XMLH + `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`;
-  const workbook = XMLH + `<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Summary" sheetId="1" r:id="rId1"/><sheet name="Paint specs" sheetId="2" r:id="rId2"/></sheets><pivotCaches><pivotCache cacheId="1" r:id="rId4"/></pivotCaches></workbook>`;
-  const wbRels = XMLH + `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/><Relationship Id="rId4" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotCacheDefinition" Target="pivotCache/pivotCacheDefinition1.xml"/></Relationships>`;
-  const styles = XMLH + `<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="3"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font><font><b/><sz val="12"/><color rgb="FF3A342C"/><name val="Calibri"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF7A6E5E"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="3"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/><xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
-  const sheet1Rels = XMLH + `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotTable" Target="../pivotTables/pivotTable1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotTable" Target="../pivotTables/pivotTable2.xml"/></Relationships>`;
-  const cacheDefRels = XMLH + `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotCacheRecords" Target="pivotCacheRecords1.xml"/></Relationships>`;
-  const ptRels = XMLH + `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/pivotCacheDefinition" Target="../pivotCache/pivotCacheDefinition1.xml"/></Relationships>`;
-
+  const lastRef = colName(headers.length - 1) + (rows.length + 1);
+  const cols = `<cols>${headers.map((h, i) => `<col min="${i + 1}" max="${i + 1}" width="${Math.max(10, Math.min(42, String(h).length + 6))}" customWidth="1"/>`).join('')}</cols>`;
+  const sheetXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="A1:${lastRef}"/><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft" activeCell="A2" sqref="A2"/></sheetView></sheetViews><sheetFormatPr defaultRowHeight="15"/>${cols}<sheetData>${sd}</sheetData></worksheet>`;
+  const contentTypes = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`;
+  const rels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`;
+  const workbook = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="${esc(sheetName)}" sheetId="1" r:id="rId1"/></sheets></workbook>`;
+  const wbRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`;
+  const styles = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF7A6E5E"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
   return _zipStore([
     { name: '[Content_Types].xml', data: enc.encode(contentTypes) },
     { name: '_rels/.rels', data: enc.encode(rels) },
     { name: 'xl/workbook.xml', data: enc.encode(workbook) },
     { name: 'xl/_rels/workbook.xml.rels', data: enc.encode(wbRels) },
     { name: 'xl/styles.xml', data: enc.encode(styles) },
-    { name: 'xl/worksheets/sheet1.xml', data: enc.encode(summarySheet) },
-    { name: 'xl/worksheets/sheet2.xml', data: enc.encode(dataSheet) },
-    { name: 'xl/worksheets/_rels/sheet1.xml.rels', data: enc.encode(sheet1Rels) },
-    { name: 'xl/pivotCache/pivotCacheDefinition1.xml', data: enc.encode(cacheDef) },
-    { name: 'xl/pivotCache/_rels/pivotCacheDefinition1.xml.rels', data: enc.encode(cacheDefRels) },
-    { name: 'xl/pivotCache/pivotCacheRecords1.xml', data: enc.encode(cacheRecords) },
-    { name: 'xl/pivotTables/pivotTable1.xml', data: enc.encode(pt1) },
-    { name: 'xl/pivotTables/pivotTable2.xml', data: enc.encode(pt2) },
-    { name: 'xl/pivotTables/_rels/pivotTable1.xml.rels', data: enc.encode(ptRels) },
-    { name: 'xl/pivotTables/_rels/pivotTable2.xml.rels', data: enc.encode(ptRels) },
+    { name: 'xl/worksheets/sheet1.xml', data: enc.encode(sheetXml) },
   ]);
 }
 
@@ -13950,11 +13896,10 @@ function exportPaintSpecs(format) {
   if (!rows.length) { alert('No paint assignments yet — assign colors to rooms first.'); return; }
   const today = new Date().toISOString().slice(0, 10);
   if (format === 'xlsx') {
-    // Genuine .xlsx (OOXML zip) built in-browser: a Summary sheet with Selections + Assignments
-    // pivot tables, plus the Paint specs data sheet (the pivot source). Opens in Excel.
+    // Genuine .xlsx (OOXML zip) built in-browser — opens cleanly in Excel & Numbers.
     const headers = ['Floor', 'Room', 'Room size', 'Surface', 'Type', 'Color / Pattern', 'SW #', 'Hex', 'LRV', 'Sheen', 'Decision', 'Link'];
     const data = rows.map(r => [r.floor, r.room, r.roomSize, r.surface, r.type, r.color, r.sw, r.hex, r.lrv, r.sheen, r.decision, r.link]);
-    const bytes = _buildPaintSpecsWorkbook(headers, data, new Set([8])); // LRV (col index 8) as numbers
+    const bytes = _buildXlsx('Paint specs', headers, data, new Set([8])); // LRV (col index 8) as numbers
     const blob = new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
