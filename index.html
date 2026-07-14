@@ -15020,7 +15020,7 @@ function buildActualsTable(items) {
     const itemWrap = document.createElement('div');
     itemWrap.className = 'actuals-item';
     itemWrap.appendChild(renderActualsRow(item));
-    if (budgetExpandedIds.has(item.id)) itemWrap.appendChild(renderBudgetDetailsRow(item));
+    if (budgetExpandedIds.has(item.id)) itemWrap.appendChild(renderBudgetDetailsRow(item, null, 'actual'));
     body.appendChild(itemWrap);
   }
   if (actuals.length === 0) {
@@ -15135,7 +15135,7 @@ function renderActualsRow(item) {
   const hasDetail = item.image || item.link || item.note || item.notes || item.vendor || item.confirmation || item.purchaseDate;
   row.innerHTML = `
     <button class="expand-btn ${isExpanded ? 'open' : ''}" data-act="expand" title="${isExpanded ? 'Collapse' : 'Details, link & product image'}">${isExpanded ? '▾' : (hasDetail ? '●' : '▸')}</button>
-    <span class="bl-labelcell"><input type="text" class="alloc-input label" placeholder="What did you buy?" value="${escapeHTML(item.label || '')}">${itemQty(item) > 1 ? `<span class="qty-badge" title="Qty ${itemQty(item)} · line total ${fmtMoney(effectiveEstimated(item))}">×${itemQty(item)}</span>` : ''}</span>
+    <span class="bl-labelcell"><input type="text" class="alloc-input label" placeholder="What did you buy?" value="${escapeHTML(item.label || '')}">${itemQty(item) > 1 ? `<span class="qty-badge" title="Qty ${itemQty(item)} · line total ${fmtMoney(effectiveActual(item))}">×${itemQty(item)}</span>` : ''}</span>
     <select class="alloc-input cat">${catOpts}</select>
     <input type="text" class="alloc-input room" list="actuals-room-options" placeholder="Type or pick a room" value="${escapeHTML(currentRoomName)}">
     <select class="alloc-input priority ${item.priority === 'High' ? 'pri-high' : item.priority === 'Medium' ? 'pri-med' : item.priority === 'Low' ? 'pri-low' : ''}">
@@ -15261,8 +15261,15 @@ function buildUnifiedBudgetTable(items, baseCats, actualsOnly) {
   return wrap;
 }
 
-function renderBudgetDetailsRow(item, rerender) {
+function renderBudgetDetailsRow(item, rerender, costBasis) {
   rerender = rerender || renderBudget;
+  // The Purchases tab's row + Spent/Forecast totals use the ACTUAL amount, so its cost
+  // calculator must read/write actual (not the estimate) — otherwise the popup and the
+  // bolded line amount disagree. Everywhere else the calculator drives the estimate.
+  const useActual = costBasis === 'actual';
+  const unitVal = useActual
+    ? ((Number(item.actual) || 0) > 0 ? Number(item.actual) : (Number(item.estimated) || 0))
+    : (Number(item.estimated) || 0);
   const details = document.createElement('div');
   details.className = 'budget-details-row';
   const linkVal = item.link || (item.note && /^https?:\/\//.test(item.note) ? item.note : '');
@@ -15305,7 +15312,7 @@ function renderBudgetDetailsRow(item, rerender) {
       <div class="bd-cost-calc">
         <span class="bd-cost-part">
           <span class="bd-cost-cap">Unit cost</span>
-          <input type="text" data-field="unitcost" value="${(Number(item.estimated) || 0) ? fmtMoney(Number(item.estimated) || 0) : ''}" placeholder="$—">
+          <input type="text" data-field="unitcost" value="${unitVal ? fmtMoney(unitVal) : ''}" placeholder="$—">
         </span>
         <span class="bd-cost-op">×</span>
         <span class="bd-cost-part">
@@ -15315,7 +15322,7 @@ function renderBudgetDetailsRow(item, rerender) {
         <span class="bd-cost-op">=</span>
         <span class="bd-cost-part">
           <span class="bd-cost-cap">Line total</span>
-          <span class="bd-cost-total">${fmtMoney((Number(item.estimated) || 0) * itemQty(item))}</span>
+          <span class="bd-cost-total">${fmtMoney(unitVal * itemQty(item))}</span>
         </span>
       </div>
     </div>
@@ -15343,7 +15350,12 @@ function renderBudgetDetailsRow(item, rerender) {
       } else if (f === 'qty') {
         item.qty = Math.max(1, Math.floor(Number(e.target.value) || 1));
       } else if (f === 'unitcost') {
-        item.estimated = parseMoney(e.target.value);
+        if (useActual) {
+          item.actual = parseMoney(e.target.value);
+          if (item.actual > 0 && !item.estimated) item.estimated = item.actual;
+        } else {
+          item.estimated = parseMoney(e.target.value);
+        }
       } else if (f === 'note') {
         item.notes = e.target.value;
         if (!item.link && /^https?:\/\//.test(item.note || '')) item.link = item.note;
