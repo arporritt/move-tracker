@@ -13721,6 +13721,95 @@ function renderPaintSchedule(host) {
     try { localStorage.setItem('mt-paint-schedule-flip', paintScheduleFlip ? '1' : '0'); } catch (e) {}
     renderPaintSchedule(host);
   };
+  const csvBtn = document.getElementById('ps-export-csv');
+  if (csvBtn) csvBtn.onclick = () => exportPaintSpecs('csv');
+  const printBtn = document.getElementById('ps-export-print');
+  if (printBtn) printBtn.onclick = () => exportPaintSpecs('print');
+}
+
+// Gather every room's paint/wallpaper assignments as spec rows (grouped by floor, then room).
+function collectPaintSpecs() {
+  ensureInspirationState();
+  const rows = [];
+  for (const f of ['basement', 'ground', 'upper']) {
+    (state.inspiration[f] || []).forEach(room => {
+      (room.paintAssignments || []).forEach(a => {
+        const isWp = a.type === 'wallpaper';
+        rows.push({
+          floor: FLOOR_LABELS[f] || f,
+          room: room.name || 'Room',
+          surface: a.surface || '',
+          type: isWp ? 'Wallpaper' : 'Paint',
+          color: isWp ? (a.wpName || 'Wallpaper') : (a.name || ''),
+          sw: isWp ? '' : (a.sw || ''),
+          hex: a.hex || '',
+          lrv: (a.lrv != null ? String(a.lrv) : ''),
+          sheen: isWp ? '' : (a.sheen || ''),
+          link: isWp ? (a.wpLink || '') : (a.url || '')
+        });
+      });
+    });
+  }
+  return rows;
+}
+
+// Export the paint specification as a CSV download or a printable (Save-as-PDF) sheet.
+function exportPaintSpecs(format) {
+  const rows = collectPaintSpecs();
+  if (!rows.length) { alert('No paint assignments yet — assign colors to rooms first.'); return; }
+  const today = new Date().toISOString().slice(0, 10);
+  if (format === 'csv') {
+    const headers = ['Floor', 'Room', 'Surface', 'Type', 'Color / Pattern', 'SW #', 'Hex', 'LRV', 'Sheen', 'Link'];
+    const esc = v => { const s = String(v == null ? '' : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+    const lines = [headers.join(',')];
+    rows.forEach(r => lines.push([r.floor, r.room, r.surface, r.type, r.color, r.sw, r.hex, r.lrv, r.sheen, r.link].map(esc).join(',')));
+    const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `565-boulder-ridge-paint-specs-${today}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    return;
+  }
+  // Printable sheet: group by floor → room, one table per room, with color chips.
+  const byFloorRoom = {};
+  rows.forEach(r => {
+    (byFloorRoom[r.floor] = byFloorRoom[r.floor] || {});
+    (byFloorRoom[r.floor][r.room] = byFloorRoom[r.floor][r.room] || []).push(r);
+  });
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  let body = '';
+  Object.keys(byFloorRoom).forEach(floor => {
+    body += `<h2>${esc(floor)}</h2>`;
+    Object.keys(byFloorRoom[floor]).forEach(room => {
+      body += `<h3>${esc(room)}</h3><table><thead><tr><th>Surface</th><th>Type</th><th>Color / pattern</th><th>SW #</th><th>Sheen</th><th>LRV</th></tr></thead><tbody>`;
+      byFloorRoom[floor][room].forEach(r => {
+        const chip = r.hex ? `<span class="chip" style="background:${esc(r.hex)}"></span>` : '';
+        body += `<tr><td>${esc(r.surface)}</td><td>${esc(r.type)}</td><td>${chip}${esc(r.color)}</td><td>${r.sw ? 'SW ' + esc(r.sw) : ''}</td><td>${esc(r.sheen)}</td><td>${esc(r.lrv)}</td></tr>`;
+      });
+      body += `</tbody></table>`;
+    });
+  });
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>565 Boulder Ridge — Paint specs</title>
+    <style>
+      body { font-family: -apple-system, Segoe UI, Roboto, sans-serif; color: #2a211a; margin: 32px; }
+      h1 { font-size: 22px; margin: 0 0 2px; } .sub { color: #8a8178; font-size: 12px; margin: 0 0 20px; }
+      h2 { font-size: 15px; text-transform: uppercase; letter-spacing: 0.08em; color: #7A6E5E; margin: 24px 0 6px; border-bottom: 2px solid #e5e0d8; padding-bottom: 4px; }
+      h3 { font-size: 14px; margin: 14px 0 6px; }
+      table { border-collapse: collapse; width: 100%; margin-bottom: 8px; font-size: 12.5px; }
+      th { text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: #8a8178; border-bottom: 1px solid #ccc; padding: 4px 8px; }
+      td { border-bottom: 1px solid #eee; padding: 5px 8px; vertical-align: middle; }
+      .chip { display: inline-block; width: 14px; height: 14px; border-radius: 3px; border: 1px solid rgba(0,0,0,0.15); vertical-align: middle; margin-right: 7px; }
+      @media print { body { margin: 12px; } h2 { break-after: avoid; } h3 { break-after: avoid; } tr { break-inside: avoid; } }
+    </style></head>
+    <body onload="setTimeout(function(){window.print();},250)">
+      <h1>565 N Boulder Ridge — Paint specification</h1>
+      <p class="sub">Generated ${today} · ${rows.length} surfaces</p>
+      ${body}
+    </body></html>`;
+  const w = window.open('', '_blank');
+  if (!w) { alert('Pop-up blocked — allow pop-ups to open the printable spec sheet, or use ⬇ CSV instead.'); return; }
+  w.document.open(); w.document.write(html); w.document.close();
 }
 
 function renderOverallMoodboard(board) {
@@ -13773,7 +13862,7 @@ function renderOverallMoodboard(board) {
 
     <div class="mb-section-head" style="margin-top:28px;">
       <span class="mb-section-title">Paint assignments</span>
-      <span class="mb-head-right"><button id="ps-flip" class="mb-section-add" title="Swap rooms and surfaces">⇄ Flip</button><span style="font-weight:400;color:var(--ink-faint);font-size:12px;margin-left:10px;">click a cell to assign · rename a surface in its header</span></span>
+      <span class="mb-head-right"><button id="ps-export-csv" class="mb-section-add" title="Download all paint specs as a spreadsheet (CSV)">⬇ CSV</button><button id="ps-export-print" class="mb-section-add" title="Open a printable spec sheet — Save as PDF from the print dialog">🖨 Print / PDF</button><button id="ps-flip" class="mb-section-add" title="Swap rooms and surfaces">⇄ Flip</button></span>
     </div>
     <div id="paint-schedule-host"></div>
   `;
