@@ -1473,8 +1473,6 @@
   .rp-decision:focus { border-color: var(--clay); }
   .rp-decision.rp-decision-confirmed { color: var(--forest); border-color: var(--forest); background: rgba(111,114,83,0.07); }
   .rp-decision.rp-decision-contender { color: var(--gold); border-color: var(--gold); background: rgba(175,154,114,0.09); }
-  .rp-row.rp-dec-confirmed .rp-swatch { box-shadow: 0 0 0 2px var(--forest); }
-  .rp-row.rp-dec-contender .rp-swatch { box-shadow: 0 0 0 2px var(--gold); }
   /* Paint / Wallpaper segmented toggle per row */
   .rp-type { flex: 0 0 auto; display: inline-flex; border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; background: var(--bg-card); }
   .rp-type-btn {
@@ -13752,7 +13750,7 @@ function renderPaintSchedule(host) {
     renderPaintSchedule(host);
   };
   const csvBtn = document.getElementById('ps-export-csv');
-  if (csvBtn) csvBtn.onclick = () => exportPaintSpecs('csv');
+  if (csvBtn) csvBtn.onclick = () => exportPaintSpecs('xls');
   const printBtn = document.getElementById('ps-export-print');
   if (printBtn) printBtn.onclick = () => exportPaintSpecs('print');
 }
@@ -13761,13 +13759,16 @@ function renderPaintSchedule(host) {
 function collectPaintSpecs() {
   ensureInspirationState();
   const rows = [];
+  const dimF = v => { const d = splitFtIn(v); return d.inch ? `${d.ft}′ ${d.inch}″` : `${d.ft}′`; };
   for (const f of ['basement', 'ground', 'upper']) {
     (state.inspiration[f] || []).forEach(room => {
+      const roomSize = (Number(room.widthFt) > 0 && Number(room.depthFt) > 0) ? `${dimF(room.widthFt)} × ${dimF(room.depthFt)}` : '';
       (room.paintAssignments || []).forEach(a => {
         const isWp = a.type === 'wallpaper';
         rows.push({
           floor: FLOOR_LABELS[f] || f,
           room: room.name || 'Room',
+          roomSize,
           surface: a.surface || '',
           type: isWp ? 'Wallpaper' : 'Paint',
           color: isWp ? (a.wpName || 'Wallpaper') : (a.name || ''),
@@ -13789,15 +13790,22 @@ function exportPaintSpecs(format) {
   const rows = collectPaintSpecs();
   if (!rows.length) { alert('No paint assignments yet — assign colors to rooms first.'); return; }
   const today = new Date().toISOString().slice(0, 10);
-  if (format === 'csv') {
-    const headers = ['Floor', 'Room', 'Surface', 'Type', 'Color / Pattern', 'SW #', 'Hex', 'LRV', 'Sheen', 'Decision', 'Link'];
-    const esc = v => { const s = String(v == null ? '' : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
-    const lines = [headers.join(',')];
-    rows.forEach(r => lines.push([r.floor, r.room, r.surface, r.type, r.color, r.sw, r.hex, r.lrv, r.sheen, r.decision, r.link].map(esc).join(',')));
-    const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+  if (format === 'xls') {
+    // Real Excel-openable file via HTML-table (.xls) — opens cleanly in Excel & Numbers,
+    // avoids the macOS "unverified download" prompt that plain .csv triggers.
+    const headers = ['Floor', 'Room', 'Room size', 'Surface', 'Type', 'Color / Pattern', 'SW #', 'Hex', 'LRV', 'Sheen', 'Decision', 'Link'];
+    const esc = s => String(s == null ? '' : s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+    const th = headers.map(h => `<th style="background:#7A6E5E;color:#fff;text-align:left;padding:5px 9px;border:1px solid #b8ad9c;">${esc(h)}</th>`).join('');
+    const trs = rows.map(r => {
+      const cells = [r.floor, r.room, r.roomSize, r.surface, r.type, r.color, r.sw, r.hex, r.lrv, r.sheen, r.decision, r.link];
+      return `<tr>${cells.map(v => `<td style="border:1px solid #d8cfbf;padding:4px 9px;">${esc(v)}</td>`).join('')}</tr>`;
+    }).join('');
+    const table = `<table style="border-collapse:collapse;font-family:Calibri,Arial,sans-serif;font-size:11pt;"><thead><tr>${th}</tr></thead><tbody>${trs}</tbody></table>`;
+    const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Paint specs</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body>${table}</body></html>`;
+    const blob = new Blob(['﻿' + html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = `565-boulder-ridge-paint-specs-${today}.csv`;
+    a.href = url; a.download = `565-boulder-ridge-paint-specs-${today}.xls`;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 2000);
     return;
@@ -13813,7 +13821,8 @@ function exportPaintSpecs(format) {
   Object.keys(byFloorRoom).forEach(floor => {
     body += `<h2>${esc(floor)}</h2>`;
     Object.keys(byFloorRoom[floor]).forEach(room => {
-      body += `<h3>${esc(room)}</h3><table><thead><tr><th>Surface</th><th>Type</th><th>Color / pattern</th><th>SW #</th><th>Sheen</th><th>LRV</th><th>Decision</th></tr></thead><tbody>`;
+      const rs = (byFloorRoom[floor][room][0] || {}).roomSize;
+      body += `<h3>${esc(room)}${rs ? ` <span class="rsize">${esc(rs)}</span>` : ''}</h3><table><thead><tr><th>Surface</th><th>Type</th><th>Color / pattern</th><th>SW #</th><th>Sheen</th><th>LRV</th><th>Decision</th></tr></thead><tbody>`;
       byFloorRoom[floor][room].forEach(r => {
         const chip = r.hex ? `<span class="chip" style="background:${esc(r.hex)}"></span>` : '';
         const decCls = r.decision === 'Confirmed' ? ' class="dec-confirmed"' : r.decision === 'Contender' ? ' class="dec-contender"' : '';
@@ -13828,6 +13837,7 @@ function exportPaintSpecs(format) {
       h1 { font-size: 22px; margin: 0 0 2px; } .sub { color: #8a8178; font-size: 12px; margin: 0 0 20px; }
       h2 { font-size: 15px; text-transform: uppercase; letter-spacing: 0.08em; color: #7A6E5E; margin: 24px 0 6px; border-bottom: 2px solid #e5e0d8; padding-bottom: 4px; }
       h3 { font-size: 14px; margin: 14px 0 6px; }
+      h3 .rsize { font-weight: 400; color: #8a8178; font-size: 12px; margin-left: 6px; }
       table { border-collapse: collapse; width: 100%; margin-bottom: 8px; font-size: 12.5px; }
       th { text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: #8a8178; border-bottom: 1px solid #ccc; padding: 4px 8px; }
       td { border-bottom: 1px solid #eee; padding: 5px 8px; vertical-align: middle; }
@@ -13896,7 +13906,7 @@ function renderOverallMoodboard(board) {
 
     <div class="mb-section-head" style="margin-top:28px;">
       <span class="mb-section-title">Paint assignments</span>
-      <span class="mb-head-right"><button id="ps-export-csv" class="mb-section-add" title="Download all paint specs as a spreadsheet (CSV)">⬇ CSV</button><button id="ps-export-print" class="mb-section-add" title="Open a printable spec sheet — Save as PDF from the print dialog">🖨 Print / PDF</button><button id="ps-flip" class="mb-section-add" title="Swap rooms and surfaces">⇄ Flip</button></span>
+      <span class="mb-head-right"><button id="ps-export-csv" class="mb-section-add" title="Download all paint specs as an Excel spreadsheet (.xls)">⬇ Excel</button><button id="ps-export-print" class="mb-section-add" title="Open a printable spec sheet — Save as PDF from the print dialog">🖨 Print / PDF</button><button id="ps-flip" class="mb-section-add" title="Swap rooms and surfaces">⇄ Flip</button></span>
     </div>
     <div id="paint-schedule-host"></div>
   `;
