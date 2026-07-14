@@ -13785,7 +13785,7 @@ function renderPaintSchedule(host) {
     renderPaintSchedule(host);
   };
   const csvBtn = document.getElementById('ps-export-csv');
-  if (csvBtn) csvBtn.onclick = () => exportPaintSpecs('xls');
+  if (csvBtn) csvBtn.onclick = () => exportPaintSpecs('xlsx');
   const printBtn = document.getElementById('ps-export-print');
   if (printBtn) printBtn.onclick = () => exportPaintSpecs('print');
 }
@@ -13820,27 +13820,90 @@ function collectPaintSpecs() {
   return rows;
 }
 
-// Export the paint specification as a CSV download or a printable (Save-as-PDF) sheet.
+// ---- Dependency-free .xlsx (OOXML) writer: CRC32 + a STORE-only ZIP + a single-sheet builder ----
+const _CRC32_TABLE = (() => {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1); t[n] = c >>> 0; }
+  return t;
+})();
+function _crc32(u8) { let c = 0xFFFFFFFF; for (let i = 0; i < u8.length; i++) c = _CRC32_TABLE[(c ^ u8[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+// Build a ZIP (STORE / no compression) from [{name, data:Uint8Array}] -> Uint8Array.
+function _zipStore(entries) {
+  const enc = new TextEncoder();
+  const out = [], central = [];
+  const u16 = (a, n) => { a.push(n & 0xFF, (n >>> 8) & 0xFF); };
+  const u32 = (a, n) => { a.push(n & 0xFF, (n >>> 8) & 0xFF, (n >>> 16) & 0xFF, (n >>> 24) & 0xFF); };
+  const bytes = (a, b) => { for (let i = 0; i < b.length; i++) a.push(b[i]); };
+  for (const e of entries) {
+    const nameBytes = enc.encode(e.name), data = e.data, crc = _crc32(data), sz = data.length, localStart = out.length;
+    u32(out, 0x04034b50); u16(out, 20); u16(out, 0); u16(out, 0); u16(out, 0); u16(out, 0);
+    u32(out, crc); u32(out, sz); u32(out, sz); u16(out, nameBytes.length); u16(out, 0);
+    bytes(out, nameBytes); bytes(out, data);
+    u32(central, 0x02014b50); u16(central, 20); u16(central, 20); u16(central, 0); u16(central, 0); u16(central, 0); u16(central, 0);
+    u32(central, crc); u32(central, sz); u32(central, sz); u16(central, nameBytes.length); u16(central, 0); u16(central, 0);
+    u16(central, 0); u16(central, 0); u32(central, 0); u32(central, localStart); bytes(central, nameBytes);
+  }
+  const centralStart = out.length;
+  bytes(out, central);
+  u32(out, 0x06054b50); u16(out, 0); u16(out, 0); u16(out, entries.length); u16(out, entries.length);
+  u32(out, central.length); u32(out, centralStart); u16(out, 0);
+  return new Uint8Array(out);
+}
+// Build a single-sheet .xlsx from headers[] + rows[][]; numericCols = Set of 0-based col indexes written as numbers. Returns Uint8Array.
+function _buildXlsx(sheetName, headers, rows, numericCols) {
+  const enc = new TextEncoder();
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[c]));
+  const colName = n => { let s = ''; n++; while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; };
+  let sd = '<row r="1">';
+  headers.forEach((h, ci) => { sd += `<c r="${colName(ci)}1" t="inlineStr" s="1"><is><t xml:space="preserve">${esc(h)}</t></is></c>`; });
+  sd += '</row>';
+  rows.forEach((cells, ri) => {
+    const rr = ri + 2; sd += `<row r="${rr}">`;
+    cells.forEach((val, ci) => {
+      const ref = colName(ci) + rr;
+      if (numericCols && numericCols.has(ci) && val !== '' && val != null && isFinite(Number(val))) sd += `<c r="${ref}"><v>${Number(val)}</v></c>`;
+      else sd += `<c r="${ref}" t="inlineStr"><is><t xml:space="preserve">${esc(val)}</t></is></c>`;
+    });
+    sd += '</row>';
+  });
+  const lastRef = colName(headers.length - 1) + (rows.length + 1);
+  const cols = `<cols>${headers.map((h, i) => `<col min="${i + 1}" max="${i + 1}" width="${Math.max(10, Math.min(42, String(h).length + 6))}" customWidth="1"/>`).join('')}</cols>`;
+  const sheetXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="A1:${lastRef}"/><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft" activeCell="A2" sqref="A2"/></sheetView></sheetViews><sheetFormatPr defaultRowHeight="15"/>${cols}<sheetData>${sd}</sheetData></worksheet>`;
+  const contentTypes = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`;
+  const rels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`;
+  const workbook = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="${esc(sheetName)}" sheetId="1" r:id="rId1"/></sheets></workbook>`;
+  const wbRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`;
+  const styles = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF7A6E5E"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
+  return _zipStore([
+    { name: '[Content_Types].xml', data: enc.encode(contentTypes) },
+    { name: '_rels/.rels', data: enc.encode(rels) },
+    { name: 'xl/workbook.xml', data: enc.encode(workbook) },
+    { name: 'xl/_rels/workbook.xml.rels', data: enc.encode(wbRels) },
+    { name: 'xl/styles.xml', data: enc.encode(styles) },
+    { name: 'xl/worksheets/sheet1.xml', data: enc.encode(sheetXml) },
+  ]);
+}
+
+// Export the paint specification as an Excel .xlsx download or a printable (Save-as-PDF) sheet.
 function exportPaintSpecs(format) {
   const rows = collectPaintSpecs();
   if (!rows.length) { alert('No paint assignments yet — assign colors to rooms first.'); return; }
   const today = new Date().toISOString().slice(0, 10);
-  if (format === 'xls') {
-    // Real Excel-openable file via HTML-table (.xls) — opens cleanly in Excel & Numbers,
-    // avoids the macOS "unverified download" prompt that plain .csv triggers.
+  if (format === 'xlsx') {
+    // Genuine .xlsx (OOXML zip) built in-browser — opens cleanly in Excel & Numbers.
     const headers = ['Floor', 'Room', 'Room size', 'Surface', 'Type', 'Color / Pattern', 'SW #', 'Hex', 'LRV', 'Sheen', 'Decision', 'Link'];
-    const esc = s => String(s == null ? '' : s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
-    const th = headers.map(h => `<th style="background:#7A6E5E;color:#fff;text-align:left;padding:5px 9px;border:1px solid #b8ad9c;">${esc(h)}</th>`).join('');
-    const trs = rows.map(r => {
-      const cells = [r.floor, r.room, r.roomSize, r.surface, r.type, r.color, r.sw, r.hex, r.lrv, r.sheen, r.decision, r.link];
-      return `<tr>${cells.map(v => `<td style="border:1px solid #d8cfbf;padding:4px 9px;">${esc(v)}</td>`).join('')}</tr>`;
-    }).join('');
-    const table = `<table style="border-collapse:collapse;font-family:Calibri,Arial,sans-serif;font-size:11pt;"><thead><tr>${th}</tr></thead><tbody>${trs}</tbody></table>`;
-    const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Paint specs</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body>${table}</body></html>`;
-    const blob = new Blob(['﻿' + html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+    const data = rows.map(r => [r.floor, r.room, r.roomSize, r.surface, r.type, r.color, r.sw, r.hex, r.lrv, r.sheen, r.decision, r.link]);
+    const bytes = _buildXlsx('Paint specs', headers, data, new Set([8])); // LRV (col index 8) as numbers
+    const blob = new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = `565-boulder-ridge-paint-specs-${today}.xls`;
+    a.href = url; a.download = `565-boulder-ridge-paint-specs-${today}.xlsx`;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 2000);
     return;
@@ -13941,7 +14004,7 @@ function renderOverallMoodboard(board) {
 
     <div class="mb-section-head" style="margin-top:28px;">
       <span class="mb-section-title">Paint assignments</span>
-      <span class="mb-head-right"><button id="ps-export-csv" class="mb-section-add" title="Download all paint specs as an Excel spreadsheet (.xls)">⬇ Excel</button><button id="ps-export-print" class="mb-section-add" title="Open a printable spec sheet — Save as PDF from the print dialog">🖨 Print / PDF</button><button id="ps-flip" class="mb-section-add" title="Swap rooms and surfaces">⇄ Flip</button></span>
+      <span class="mb-head-right"><button id="ps-export-csv" class="mb-section-add" title="Download all paint specs as an Excel spreadsheet (.xlsx)">⬇ Excel</button><button id="ps-export-print" class="mb-section-add" title="Open a printable spec sheet — Save as PDF from the print dialog">🖨 Print / PDF</button><button id="ps-flip" class="mb-section-add" title="Swap rooms and surfaces">⇄ Flip</button></span>
     </div>
     <div id="paint-schedule-host"></div>
   `;
