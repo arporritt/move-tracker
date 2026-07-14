@@ -1150,6 +1150,8 @@
     gap: 6px 12px;
     align-items: center;
   }
+  /* Room header no longer has a meta stats row — collapse to a single row. */
+  .mb-board-header:has(.mb-room-title-input) { grid-template-areas: "title actions"; }
   .mb-room-title-input {
     grid-area: title;
     font-family: 'Fraunces', serif;
@@ -9283,16 +9285,10 @@ function renderMoodboard() {
   const currents = room.currentPhotos || [];
   const roomBudgetItems = (state.budget?.items || []).filter(i => i.room === room.id);
   const productImages = roomBudgetItems.flatMap(i => getItemImages(i).map(url => ({ url, caption: i.label || '', id: i.id, _budget: true })));
-  const totalBuy = roomBudgetItems.reduce((s, i) => s + effectiveEstimated(i), 0);
-  const meta = [];
-  meta.push(`<span class="stat"><strong>${insp.length + productImages.length}</strong> images</span>`);
-  if (roomBudgetItems.length) meta.push(`<span class="stat"><strong>${roomBudgetItems.length}</strong> to buy · ${fmtMoney(totalBuy)}</span>`);
-  if (currents.length) meta.push(`<span class="stat"><strong>${currents.length}</strong> current photos</span>`);
   board.innerHTML = `
     <div class="mb-board-header">
       <input type="text" class="mb-room-title-input" id="mb-room-title-input" value="${escapeHTML(room.name || '')}" placeholder="Room name">
       <div class="mb-room-header-actions"><button class="mb-room-move-btn" id="mb-room-move" title="Move to another floor">⇄ Floor</button><button class="mb-room-del-btn" id="mb-room-del" title="Delete this room">×</button></div>
-      <div class="mb-board-meta">${meta.join('')}</div>
     </div>
 
     <div class="mb-section">
