@@ -1464,6 +1464,17 @@
   }
   .rp-sheen.set { color: var(--ink); border-color: var(--clay-soft); }
   .rp-sheen:focus { border-color: var(--clay); }
+  /* Per-room decision: is this surface's choice confirmed or a contender? */
+  .rp-decision {
+    flex: 0 0 auto; font-family: 'Manrope', sans-serif; font-size: 12px; font-weight: 700;
+    color: var(--ink-soft); background: var(--bg-card); border: 1px solid var(--rule);
+    border-radius: 8px; padding: 7px 8px; outline: none; cursor: pointer;
+  }
+  .rp-decision:focus { border-color: var(--clay); }
+  .rp-decision.rp-decision-confirmed { color: var(--forest); border-color: var(--forest); background: rgba(111,114,83,0.07); }
+  .rp-decision.rp-decision-contender { color: var(--gold); border-color: var(--gold); background: rgba(175,154,114,0.09); }
+  .rp-row.rp-dec-confirmed .rp-swatch { box-shadow: 0 0 0 2px var(--forest); }
+  .rp-row.rp-dec-contender .rp-swatch { box-shadow: 0 0 0 2px var(--gold); }
   /* Paint / Wallpaper segmented toggle per row */
   .rp-type { flex: 0 0 auto; display: inline-flex; border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; background: var(--bg-card); }
   .rp-type-btn {
@@ -3971,6 +3982,7 @@
     .rp-type { order: 4; flex: 0 0 auto; }
     .rp-color { order: 5; flex: 1 1 55%; min-width: 0; }
     .rp-sheen { order: 6; flex: 0 0 auto; }
+    .rp-decision { order: 7; flex: 0 0 auto; }
 
     /* Room design board — tighten so it isn't so tall on a phone */
     .mb-room-chips { gap: 5px; margin-bottom: 12px; }
@@ -13184,7 +13196,8 @@ function renderRoomPaintPlan(room, onChange) {
   wrap.innerHTML = `<datalist id="rp-surface-suggest">${SURFACE_SUGGESTIONS.map(s => `<option value="${escapeHTML(s)}">`).join('')}</datalist>`;
   room.paintAssignments.forEach((a, idx) => {
     const rowEl = document.createElement('div');
-    rowEl.className = 'rp-row';
+    const dec = (a.decision === 'confirmed' || a.decision === 'contender') ? a.decision : 'none';
+    rowEl.className = 'rp-row rp-dec-' + dec;
     const type = a.type === 'wallpaper' ? 'wallpaper' : 'paint';
     const hasColor = !!(a.name || a.sw);
     const hasWp = !!(a.wpName || a.wpImage || a.wpLink);
@@ -13209,6 +13222,11 @@ function renderRoomPaintPlan(room, onChange) {
         <option value="">Sheen…</option>
         ${PAINT_SHEENS.map(s => `<option value="${escapeHTML(s)}"${a.sheen === s ? ' selected' : ''}>${escapeHTML(s)}</option>`).join('')}
       </select>` : ''}
+      <select class="rp-decision rp-decision-${dec}" title="Is this choice confirmed or still a contender for this room?">
+        <option value=""${!a.decision ? ' selected' : ''}>Undecided</option>
+        <option value="confirmed"${a.decision === 'confirmed' ? ' selected' : ''}>✓ Confirmed</option>
+        <option value="contender"${a.decision === 'contender' ? ' selected' : ''}>◇ Contender</option>
+      </select>
       <button class="rp-del" data-act="del" title="Remove surface">×</button>
     `;
     rowEl.querySelector('.rp-surface').addEventListener('change', e => { a.surface = e.target.value.trim(); onChange(); });
@@ -13237,6 +13255,8 @@ function renderRoomPaintPlan(room, onChange) {
     });
     const sheenSel = rowEl.querySelector('.rp-sheen');
     if (sheenSel) sheenSel.addEventListener('change', e => { a.sheen = e.target.value || ''; onChange(); });
+    const decSel = rowEl.querySelector('.rp-decision');
+    if (decSel) decSel.addEventListener('change', e => { a.decision = e.target.value || ''; onChange(); });
     rowEl.querySelector('[data-act="del"]').addEventListener('click', () => { room.paintAssignments.splice(idx, 1); onChange(); });
     wrap.appendChild(rowEl);
   });
@@ -13745,6 +13765,7 @@ function collectPaintSpecs() {
           hex: a.hex || '',
           lrv: (a.lrv != null ? String(a.lrv) : ''),
           sheen: isWp ? '' : (a.sheen || ''),
+          decision: a.decision === 'confirmed' ? 'Confirmed' : a.decision === 'contender' ? 'Contender' : '',
           link: isWp ? (a.wpLink || '') : (a.url || '')
         });
       });
@@ -13759,10 +13780,10 @@ function exportPaintSpecs(format) {
   if (!rows.length) { alert('No paint assignments yet — assign colors to rooms first.'); return; }
   const today = new Date().toISOString().slice(0, 10);
   if (format === 'csv') {
-    const headers = ['Floor', 'Room', 'Surface', 'Type', 'Color / Pattern', 'SW #', 'Hex', 'LRV', 'Sheen', 'Link'];
+    const headers = ['Floor', 'Room', 'Surface', 'Type', 'Color / Pattern', 'SW #', 'Hex', 'LRV', 'Sheen', 'Decision', 'Link'];
     const esc = v => { const s = String(v == null ? '' : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
     const lines = [headers.join(',')];
-    rows.forEach(r => lines.push([r.floor, r.room, r.surface, r.type, r.color, r.sw, r.hex, r.lrv, r.sheen, r.link].map(esc).join(',')));
+    rows.forEach(r => lines.push([r.floor, r.room, r.surface, r.type, r.color, r.sw, r.hex, r.lrv, r.sheen, r.decision, r.link].map(esc).join(',')));
     const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -13782,10 +13803,11 @@ function exportPaintSpecs(format) {
   Object.keys(byFloorRoom).forEach(floor => {
     body += `<h2>${esc(floor)}</h2>`;
     Object.keys(byFloorRoom[floor]).forEach(room => {
-      body += `<h3>${esc(room)}</h3><table><thead><tr><th>Surface</th><th>Type</th><th>Color / pattern</th><th>SW #</th><th>Sheen</th><th>LRV</th></tr></thead><tbody>`;
+      body += `<h3>${esc(room)}</h3><table><thead><tr><th>Surface</th><th>Type</th><th>Color / pattern</th><th>SW #</th><th>Sheen</th><th>LRV</th><th>Decision</th></tr></thead><tbody>`;
       byFloorRoom[floor][room].forEach(r => {
         const chip = r.hex ? `<span class="chip" style="background:${esc(r.hex)}"></span>` : '';
-        body += `<tr><td>${esc(r.surface)}</td><td>${esc(r.type)}</td><td>${chip}${esc(r.color)}</td><td>${r.sw ? 'SW ' + esc(r.sw) : ''}</td><td>${esc(r.sheen)}</td><td>${esc(r.lrv)}</td></tr>`;
+        const decCls = r.decision === 'Confirmed' ? ' class="dec-confirmed"' : r.decision === 'Contender' ? ' class="dec-contender"' : '';
+        body += `<tr><td>${esc(r.surface)}</td><td>${esc(r.type)}</td><td>${chip}${esc(r.color)}</td><td>${r.sw ? 'SW ' + esc(r.sw) : ''}</td><td>${esc(r.sheen)}</td><td>${esc(r.lrv)}</td><td${decCls}>${esc(r.decision)}</td></tr>`;
       });
       body += `</tbody></table>`;
     });
@@ -13800,6 +13822,8 @@ function exportPaintSpecs(format) {
       th { text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: #8a8178; border-bottom: 1px solid #ccc; padding: 4px 8px; }
       td { border-bottom: 1px solid #eee; padding: 5px 8px; vertical-align: middle; }
       .chip { display: inline-block; width: 14px; height: 14px; border-radius: 3px; border: 1px solid rgba(0,0,0,0.15); vertical-align: middle; margin-right: 7px; }
+      .dec-confirmed { color: #4f6b2e; font-weight: 700; }
+      .dec-contender { color: #9a7a2b; font-weight: 700; }
       @media print { body { margin: 12px; } h2 { break-after: avoid; } h3 { break-after: avoid; } tr { break-inside: avoid; } }
     </style></head>
     <body onload="setTimeout(function(){window.print();},250)">
