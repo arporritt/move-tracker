@@ -2924,11 +2924,13 @@
   }
   .budget-line.no-room,
   .budget-cols.no-room {
-    grid-template-columns: 24px minmax(0,1.6fr) 130px 110px 110px 60px 32px;
+    grid-template-columns: 24px minmax(0,1.6fr) 130px 120px 60px 32px;
   }
+  .budget-cols.no-room div:nth-child(4) { text-align: right; }
+  .budget-cols.no-room div:nth-child(5) { text-align: center; }
   @media (max-width: 720px) {
     .budget-line.no-room, .budget-cols.no-room {
-      grid-template-columns: 20px 1fr 90px 80px 80px 36px 24px;
+      grid-template-columns: 20px 1fr 90px 90px 36px 24px;
     }
   }
   .budget-line:first-of-type { border-top: none; }
@@ -3936,22 +3938,21 @@
         "exp label label del"
         "exp cat   cat   cat"
         "exp room  room  room"
-        "exp est   act   paid";
+        "exp amt   amt   paid";
       column-gap: 8px; row-gap: 6px; padding: 12px; align-items: center;
     }
     .budget-line.no-room {
       grid-template-areas:
         "exp label label del"
         "exp cat   cat   cat"
-        "exp est   act   paid";
+        "exp amt   amt   paid";
     }
     .budget-line .expand-btn { grid-area: exp; align-self: start; margin-top: 5px; }
     .budget-line .bl-labelcell { grid-area: label; }
     .budget-line .label { font-weight: 600; }
     .budget-line .cat { grid-area: cat; }
     .budget-line .room { grid-area: room; }
-    .budget-line .estimated { grid-area: est; }
-    .budget-line .actual { grid-area: act; }
+    .budget-line .amount { grid-area: amt; }
     .budget-line .budget-paid { grid-area: paid; justify-content: flex-end; }
     .budget-line .budget-del { grid-area: del; justify-self: end; opacity: 1; }
     .budget-input { font-size: 12.5px; padding: 6px 8px; }
@@ -9533,19 +9534,19 @@ function renderMoodboard() {
 function renderMbBuyTable(room, items) {
   const wrap = document.createElement('div');
   wrap.className = 'mb-buy-table';
-  const budget = items.reduce((s, i) => s + effectiveEstimated(i), 0);
+  const total = items.reduce((s, i) => s + effectiveActual(i), 0);
   const spent = items.filter(i => i.paid).reduce((s, i) => s + effectiveActual(i), 0);
   const forecast = items.filter(i => !i.paid).reduce((s, i) => s + effectiveActual(i), 0);
   wrap.innerHTML = `
     <div class="mb-buy-summary">
-      <span class="mbs-cell"><span class="mbs-label">Budget</span><span class="mbs-val">${fmtMoney(budget)}</span></span>
+      <span class="mbs-cell"><span class="mbs-label">Total</span><span class="mbs-val">${fmtMoney(total)}</span></span>
       <span class="mbs-cell"><span class="mbs-label">Spent</span><span class="mbs-val">${fmtMoney(spent)}</span></span>
       <span class="mbs-cell"><span class="mbs-label">Forecast</span><span class="mbs-val">${fmtMoney(forecast)}</span></span>
       <button class="mb-view-budget" data-act="view-budget">View in Budget →</button>
     </div>
     <div class="mb-buy-table-head">
       <div>Item</div>
-      <div class="price">Budget</div>
+      <div class="price">Cost</div>
       <div class="check">Paid</div>
       <div></div>
     </div>
@@ -9561,14 +9562,15 @@ function renderMbBuyTable(room, items) {
     row.className = 'mb-buy-table-row' + (item.paid ? ' bought' : '') + (item.excludeFromTotals ? ' excluded' : '');
     const mbLink = item.link || (item.note && /^https?:\/\//.test(item.note) ? item.note : '');
     const isExpanded = budgetExpandedIds.has(item.id);
+    const unitAmt = (Number(item.actual) || 0) > 0 ? Number(item.actual) : (Number(item.estimated) || 0);
     row.innerHTML = `
       <div class="mb-buy-name-cell">
         <button class="mb-buy-expand${isExpanded ? ' open' : ''}" data-act="expand" title="Details, photos &amp; exclude from totals">${isExpanded ? '▾' : '▸'}</button>
         ${item.image ? `<img class="mb-buy-thumb" data-act="img-view" src="${escapeHTML(item.image)}" alt="">` : ''}
         <input type="text" class="name" value="${escapeHTML(item.label || '')}" placeholder="Item name">
-        ${itemQty(item) > 1 ? `<span class="qty-badge" title="Quantity ${itemQty(item)} — line total ${fmtMoney(effectiveEstimated(item))}">×${itemQty(item)}</span>` : ''}
+        ${itemQty(item) > 1 ? `<span class="qty-badge" title="Quantity ${itemQty(item)} — line total ${fmtMoney(effectiveActual(item))}">×${itemQty(item)}</span>` : ''}
       </div>
-      <input type="text" class="price budget${itemQty(item) > 1 ? ' amt-locked' : ''}" value="${itemQty(item) > 1 ? fmtMoney((Number(item.estimated) || 0) * itemQty(item)) : (item.estimated ? fmtMoney(item.estimated) : '')}" placeholder="$—"${itemQty(item) > 1 ? ' readonly title="Line total = unit cost × qty — edit the unit cost or quantity in the details (▸)"' : ''}>
+      <input type="text" class="price budget${itemQty(item) > 1 ? ' amt-locked' : ''}" value="${itemQty(item) > 1 ? fmtMoney(unitAmt * itemQty(item)) : (unitAmt ? fmtMoney(unitAmt) : '')}" placeholder="$—"${itemQty(item) > 1 ? ' readonly title="Line total = unit cost × qty — edit in the details (▸)"' : ''}>
       <div class="check"><input type="checkbox" ${item.paid ? 'checked' : ''}></div>
       <div class="actions">
         ${mbLink ? `<a href="${escapeHTML(mbLink)}" target="_blank" rel="noopener" title="Open link">↗</a>` : ''}
@@ -9579,7 +9581,7 @@ function renderMbBuyTable(room, items) {
       </div>
     `;
     row.querySelector('.name').addEventListener('change', e => { item.label = e.target.value.trim(); persist(); });
-    row.querySelector('.budget').addEventListener('change', e => { if (itemQty(item) > 1) { renderMoodboard(); return; } item.estimated = parseMoney(e.target.value); persist(); renderMoodboard(); });
+    row.querySelector('.budget').addEventListener('change', e => { if (itemQty(item) > 1) { renderMoodboard(); return; } item.actual = parseMoney(e.target.value); persist(); renderMoodboard(); });
     row.querySelector('.check input').addEventListener('change', e => { item.paid = e.target.checked; persist(); renderMoodboard(); });
     row.querySelector('[data-act="del"]').addEventListener('click', () => {
       if (!confirm('Remove this item from your budget?')) return;
@@ -14521,12 +14523,9 @@ function renderBudgetCharts(items) {
     const amt = effectiveActual(i);
     if (i.paid) ensureCat(k).actuals += amt; else ensureCat(k).forecast += amt;
   });
-  if (catBudgetActive) {
-    if (budgetSubtab === 'home') {
-      (state.budget.allocations || []).forEach(a => { ensureCat(a.category).budget += (Number(a.budget) || 0); });
-    } else {
-      catItems.forEach(i => { ensureCat(i.category || 'Other').budget += effectiveEstimated(i); });
-    }
+  if (catBudgetActive && budgetSubtab === 'home') {
+    // "Budget" only exists at the category level (Home allocations); line items have one amount.
+    (state.budget.allocations || []).forEach(a => { ensureCat(a.category).budget += (Number(a.budget) || 0); });
   }
 
   // Aggregate by room (key = room id / 'overall' / '__unassigned__')
@@ -14712,33 +14711,26 @@ function renderBudget() {
       </div>
     `;
   } else {
-    const totalEst = items.reduce((s, i) => s + effectiveEstimated(i), 0);
     const totalActual = items.reduce((s, i) => s + effectiveActual(i), 0);
-    const totalPaid = items.filter(i => i.paid).reduce((s, i) => s + effectiveActual(i), 0);
-    const actualsCount = items.filter(i => effectiveActual(i) > 0).length;
-    const delta = totalEst - totalActual;
-    const deltaCls = delta >= 0 ? 'delta-pos' : 'delta-neg';
-    const deltaPrefix = delta >= 0 ? 'under by ' : 'over by ';
+    const paidItems = items.filter(i => i.paid);
+    const unpaidItems = items.filter(i => !i.paid);
+    const totalSpent = paidItems.reduce((s, i) => s + effectiveActual(i), 0);
+    const totalForecast = unpaidItems.reduce((s, i) => s + effectiveActual(i), 0);
     sumHTML = `
       <div class="budget-sum-cell">
-        <div class="budget-sum-label">Estimated total</div>
-        <div class="budget-sum-value">${fmtMoney(totalEst)}</div>
+        <div class="budget-sum-label">Total</div>
+        <div class="budget-sum-value">${fmtMoney(totalActual)}</div>
         <div class="budget-sum-sub">${items.length} line items</div>
       </div>
       <div class="budget-sum-cell">
-        <div class="budget-sum-label">Actual total</div>
-        <div class="budget-sum-value">${fmtMoney(totalActual)}</div>
-        <div class="budget-sum-sub">${actualsCount} with actuals</div>
+        <div class="budget-sum-label">Spent</div>
+        <div class="budget-sum-value">${fmtMoney(totalSpent)}</div>
+        <div class="budget-sum-sub">${paidItems.length} paid</div>
       </div>
       <div class="budget-sum-cell">
-        <div class="budget-sum-label">Paid so far</div>
-        <div class="budget-sum-value">${fmtMoney(totalPaid)}</div>
-        <div class="budget-sum-sub">${items.filter(i => i.paid).length} of ${items.length} paid</div>
-      </div>
-      <div class="budget-sum-cell">
-        <div class="budget-sum-label">Est. vs Actual</div>
-        <div class="budget-sum-value ${deltaCls}">${deltaPrefix}${fmtMoney(Math.abs(delta))}</div>
-        <div class="budget-sum-sub">${totalActual === 0 ? 'no actuals yet' : 'running variance'}</div>
+        <div class="budget-sum-label">Forecast</div>
+        <div class="budget-sum-value">${fmtMoney(totalForecast)}</div>
+        <div class="budget-sum-sub">${unpaidItems.length} unpaid</div>
       </div>
     `;
   }
@@ -15202,10 +15194,8 @@ function renderActualsRow(item) {
 }
 
 function buildUnifiedBudgetTable(items, baseCats, actualsOnly) {
-  const totalEst = items.reduce((s, i) => s + effectiveEstimated(i), 0);
   const totalActual = items.reduce((s, i) => s + effectiveActual(i), 0);
-  const variance = totalEst - totalActual;
-  const overBy = variance < 0;
+  const totalPaid = items.filter(i => i.paid).reduce((s, i) => s + effectiveActual(i), 0);
   const showRoomCol = budgetSubtab === 'home';
   const wrap = document.createElement('div');
   wrap.className = 'budget-table-wrap' + (actualsOnly ? ' actuals-table' : '');
@@ -15214,7 +15204,7 @@ function buildUnifiedBudgetTable(items, baseCats, actualsOnly) {
   try { groupBy = localStorage.getItem(groupKey) || 'category'; } catch (e) {}
   const totalsHtml = actualsOnly
     ? `<span><strong>${fmtMoney(totalActual)}</strong> total spent</span>`
-    : `<span><strong>${fmtMoney(totalEst)}</strong> budget</span><span><strong>${fmtMoney(totalActual)}</strong> spent</span><span class="${overBy ? 'over' : ''}">${overBy ? '+'+fmtMoney(-variance)+' over' : fmtMoney(variance)+' under'}</span>`;
+    : `<span><strong>${fmtMoney(totalActual)}</strong> total</span><span><strong>${fmtMoney(totalPaid)}</strong> paid</span>`;
   wrap.innerHTML = `
     <div class="budget-table-toolbar">
       <div class="budget-table-title">${actualsOnly ? 'Actuals' : 'Budget'}</div>
@@ -15229,7 +15219,7 @@ function buildUnifiedBudgetTable(items, baseCats, actualsOnly) {
       </label>
     </div>
     <div class="budget-cols ${showRoomCol ? '' : 'no-room'}">
-      <div></div><div>Item</div><div>Category</div>${showRoomCol ? '<div>Room</div>' : ''}<div>Estimated</div><div>Actual</div><div>Paid</div><div></div>
+      <div></div><div>Item</div><div>Category</div>${showRoomCol ? '<div>Room</div>' : ''}<div>Amount</div><div>Paid</div><div></div>
     </div>
     <div class="bt-body"></div>
     ${actualsOnly ? '' : `<div class="add-line-bar"><button data-act="add">+ Add line item</button></div>`}
@@ -15263,10 +15253,10 @@ function buildUnifiedBudgetTable(items, baseCats, actualsOnly) {
 
 function renderBudgetDetailsRow(item, rerender, costBasis) {
   rerender = rerender || renderBudget;
-  // The Purchases tab's row + Spent/Forecast totals use the ACTUAL amount, so its cost
-  // calculator must read/write actual (not the estimate) — otherwise the popup and the
-  // bolded line amount disagree. Everywhere else the calculator drives the estimate.
-  const useActual = costBasis === 'actual';
+  // Line items have ONE amount (stored in `actual`); "estimate" only exists at the
+  // category-budget level. So the cost calculator always reads/writes the single amount,
+  // and every row's amount column stays equal to this popup. (Pass 'estimated' to opt out.)
+  const useActual = costBasis !== 'estimated';
   const unitVal = useActual
     ? ((Number(item.actual) || 0) > 0 ? Number(item.actual) : (Number(item.estimated) || 0))
     : (Number(item.estimated) || 0);
@@ -15414,18 +15404,18 @@ function renderBudgetTableBody(body, items, groupBy) {
     groups[key].push(item);
   });
   const entries = Object.entries(groups).sort((a, b) => {
-    const aTot = a[1].reduce((s, i) => s + effectiveEstimated(i), 0);
-    const bTot = b[1].reduce((s, i) => s + effectiveEstimated(i), 0);
+    const aTot = a[1].reduce((s, i) => s + effectiveActual(i), 0);
+    const bTot = b[1].reduce((s, i) => s + effectiveActual(i), 0);
     return bTot - aTot;
   });
   entries.forEach(([name, list], idx) => {
-    const est = list.reduce((s, i) => s + effectiveEstimated(i), 0);
     const act = list.reduce((s, i) => s + effectiveActual(i), 0);
+    const paidTot = list.filter(i => i.paid).reduce((s, i) => s + effectiveActual(i), 0);
     const header = document.createElement('div');
     header.className = 'bt-group-header' + (idx === 0 ? ' first' : '');
     header.innerHTML = `
       <div class="bt-group-name">${escapeHTML(name)}</div>
-      <div class="bt-group-totals"><strong>${fmtMoney(est)}</strong> budget · <strong>${fmtMoney(act)}</strong> spent</div>
+      <div class="bt-group-totals"><strong>${fmtMoney(act)}</strong> total · <strong>${fmtMoney(paidTot)}</strong> paid</div>
     `;
     body.appendChild(header);
     list.forEach(item => {
@@ -15461,14 +15451,15 @@ function renderBudgetLine(item) {
     roomCellHtml = `<input type="text" class="budget-input room" list="${roomListId}" placeholder="Type or pick room" value="${escapeHTML(currentRoomName)}">
     <datalist id="${roomListId}">${roomOpts}</datalist>`;
   }
+  // One amount per line item (the cost). Stored in `actual`; falls back to any legacy estimate.
+  const unitAmt = (Number(item.actual) || 0) > 0 ? Number(item.actual) : (Number(item.estimated) || 0);
   row.innerHTML = `
     <button class="expand-btn ${isExpanded ? 'open' : ''}" data-act="expand" title="${isExpanded ? 'Collapse' : 'Expand for notes/link'}">${isExpanded ? '▾' : '▸'}</button>
-    <span class="bl-labelcell"><input type="text" class="budget-input label" placeholder="Line item name" value="${escapeHTML(item.label || '')}">${itemQty(item) > 1 ? `<span class="qty-badge" title="Qty ${itemQty(item)} · line total ${fmtMoney(effectiveEstimated(item))}">×${itemQty(item)}</span>` : ''}</span>
+    <span class="bl-labelcell"><input type="text" class="budget-input label" placeholder="Line item name" value="${escapeHTML(item.label || '')}">${itemQty(item) > 1 ? `<span class="qty-badge" title="Qty ${itemQty(item)} · line total ${fmtMoney(effectiveActual(item))}">×${itemQty(item)}</span>` : ''}</span>
     <input type="text" class="budget-input cat" list="${datalistId}" placeholder="Type or pick category" value="${escapeHTML(item.category || '')}">
     <datalist id="${datalistId}">${catOpts}</datalist>
     ${roomCellHtml}
-    <input type="text" class="budget-input amount estimated${itemQty(item) > 1 ? ' amt-locked' : ''}" placeholder="—" value="${itemQty(item) > 1 ? fmtMoney((Number(item.estimated) || 0) * itemQty(item)) : (item.estimated ? fmtMoney(item.estimated) : '')}"${itemQty(item) > 1 ? ' readonly title="Line total = unit cost × qty — edit the unit cost or quantity in the details (▸)"' : ''}>
-    <input type="text" class="budget-input amount actual${itemQty(item) > 1 ? ' amt-locked' : ''}" placeholder="—" value="${itemQty(item) > 1 ? fmtMoney((Number(item.actual) || 0) * itemQty(item)) : (item.actual ? fmtMoney(item.actual) : '')}"${itemQty(item) > 1 ? ' readonly title="Line total = unit × qty — edit the quantity in the details (▸)"' : ''}>
+    <input type="text" class="budget-input amount actual${itemQty(item) > 1 ? ' amt-locked' : ''}" placeholder="—" value="${itemQty(item) > 1 ? fmtMoney(unitAmt * itemQty(item)) : (unitAmt ? fmtMoney(unitAmt) : '')}"${itemQty(item) > 1 ? ' readonly title="Line total = unit cost × qty — edit in the details (▸)"' : ''}>
     <label class="budget-paid"><input type="checkbox" class="budget-paid-check" ${item.paid ? 'checked' : ''}></label>
     <button class="budget-del" title="Delete">×</button>
   `;
@@ -15506,14 +15497,8 @@ function renderBudgetLine(item) {
     else budgetExpandedIds.add(item.id);
     renderBudget();
   });
-  row.querySelector('.estimated').addEventListener('change', e => {
-    if (itemQty(item) > 1) { renderBudget(); return; } // total is unit × qty — edit in the details
-    item.estimated = parseMoney(e.target.value);
-    persist();
-    renderBudget();
-  });
   row.querySelector('.actual').addEventListener('change', e => {
-    if (itemQty(item) > 1) { renderBudget(); return; }
+    if (itemQty(item) > 1) { renderBudget(); return; } // total is unit × qty — edit in the details
     item.actual = parseMoney(e.target.value);
     persist();
     renderBudget();
