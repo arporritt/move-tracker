@@ -2946,6 +2946,8 @@
   .bd-cost-op { font-size: 15px; color: var(--ink-faint); padding-bottom: 7px; }
   .bd-cost-total { font-family: 'Fraunces', serif; font-size: 18px; color: var(--ink); padding: 5px 0; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .qty-badge { flex: none; display: inline-block; font-size: 10px; font-weight: 700; color: var(--clay); background: rgba(122,110,94,0.12); border-radius: 5px; padding: 1px 6px; letter-spacing: 0.02em; white-space: nowrap; }
+  /* A qty>1 line total shown read-only in the collapsed row (edit unit cost/qty in the details) */
+  .amt-locked { cursor: not-allowed; font-weight: 700; color: var(--ink) !important; }
   .bl-labelcell { display: flex; align-items: center; gap: 6px; min-width: 0; }
   .bl-labelcell > input { flex: 1; min-width: 0; }
   .budget-input {
@@ -9533,7 +9535,7 @@ function renderMbBuyTable(room, items) {
         <input type="text" class="name" value="${escapeHTML(item.label || '')}" placeholder="Item name">
         ${itemQty(item) > 1 ? `<span class="qty-badge" title="Quantity ${itemQty(item)} — line total ${fmtMoney(effectiveEstimated(item))}">×${itemQty(item)}</span>` : ''}
       </div>
-      <input type="text" class="price budget" value="${item.estimated ? fmtMoney(item.estimated) : ''}" placeholder="$—">
+      <input type="text" class="price budget${itemQty(item) > 1 ? ' amt-locked' : ''}" value="${itemQty(item) > 1 ? fmtMoney((Number(item.estimated) || 0) * itemQty(item)) : (item.estimated ? fmtMoney(item.estimated) : '')}" placeholder="$—"${itemQty(item) > 1 ? ' readonly title="Line total = unit cost × qty — edit the unit cost or quantity in the details (▸)"' : ''}>
       <div class="check"><input type="checkbox" ${item.paid ? 'checked' : ''}></div>
       <div class="actions">
         ${mbLink ? `<a href="${escapeHTML(mbLink)}" target="_blank" rel="noopener" title="Open link">↗</a>` : ''}
@@ -9544,7 +9546,7 @@ function renderMbBuyTable(room, items) {
       </div>
     `;
     row.querySelector('.name').addEventListener('change', e => { item.label = e.target.value.trim(); persist(); });
-    row.querySelector('.budget').addEventListener('change', e => { item.estimated = parseMoney(e.target.value); persist(); renderMoodboard(); });
+    row.querySelector('.budget').addEventListener('change', e => { if (itemQty(item) > 1) { renderMoodboard(); return; } item.estimated = parseMoney(e.target.value); persist(); renderMoodboard(); });
     row.querySelector('.check input').addEventListener('change', e => { item.paid = e.target.checked; persist(); renderMoodboard(); });
     row.querySelector('[data-act="del"]').addEventListener('click', () => {
       if (!confirm('Remove this item from your budget?')) return;
@@ -15033,7 +15035,7 @@ function renderActualsRow(item) {
       <option value="Medium"${item.priority === 'Medium' ? ' selected' : ''}>Med</option>
       <option value="Low"${item.priority === 'Low' ? ' selected' : ''}>Low</option>
     </select>
-    <input type="text" class="alloc-input amount" placeholder="$—" value="${unitAmt ? fmtMoney(unitAmt) : ''}">
+    <input type="text" class="alloc-input amount${itemQty(item) > 1 ? ' amt-locked' : ''}" placeholder="$—" value="${itemQty(item) > 1 ? fmtMoney(unitAmt * itemQty(item)) : (unitAmt ? fmtMoney(unitAmt) : '')}"${itemQty(item) > 1 ? ' readonly title="Line total = unit cost × qty — edit the unit cost or quantity in the details (▸)"' : ''}>
     <label class="budget-paid" style="display:flex;justify-content:center;"><input type="checkbox" class="budget-paid-check" ${item.paid ? 'checked' : ''}></label>
     <button class="budget-del" title="Delete">×</button>
   `;
@@ -15070,6 +15072,7 @@ function renderActualsRow(item) {
     renderBudget();
   });
   row.querySelector('.amount').addEventListener('change', e => {
+    if (itemQty(item) > 1) { renderBudget(); return; } // total is unit × qty — edit in the details
     item.actual = parseMoney(e.target.value);
     if (item.actual > 0 && !item.estimated) item.estimated = item.actual;
     persist();
@@ -15343,8 +15346,8 @@ function renderBudgetLine(item) {
     <input type="text" class="budget-input cat" list="${datalistId}" placeholder="Type or pick category" value="${escapeHTML(item.category || '')}">
     <datalist id="${datalistId}">${catOpts}</datalist>
     ${roomCellHtml}
-    <input type="text" class="budget-input amount estimated" placeholder="—" value="${item.estimated ? fmtMoney(item.estimated) : ''}">
-    <input type="text" class="budget-input amount actual" placeholder="—" value="${item.actual ? fmtMoney(item.actual) : ''}">
+    <input type="text" class="budget-input amount estimated${itemQty(item) > 1 ? ' amt-locked' : ''}" placeholder="—" value="${itemQty(item) > 1 ? fmtMoney((Number(item.estimated) || 0) * itemQty(item)) : (item.estimated ? fmtMoney(item.estimated) : '')}"${itemQty(item) > 1 ? ' readonly title="Line total = unit cost × qty — edit the unit cost or quantity in the details (▸)"' : ''}>
+    <input type="text" class="budget-input amount actual${itemQty(item) > 1 ? ' amt-locked' : ''}" placeholder="—" value="${itemQty(item) > 1 ? fmtMoney((Number(item.actual) || 0) * itemQty(item)) : (item.actual ? fmtMoney(item.actual) : '')}"${itemQty(item) > 1 ? ' readonly title="Line total = unit × qty — edit the quantity in the details (▸)"' : ''}>
     <label class="budget-paid"><input type="checkbox" class="budget-paid-check" ${item.paid ? 'checked' : ''}></label>
     <button class="budget-del" title="Delete">×</button>
   `;
@@ -15383,11 +15386,13 @@ function renderBudgetLine(item) {
     renderBudget();
   });
   row.querySelector('.estimated').addEventListener('change', e => {
+    if (itemQty(item) > 1) { renderBudget(); return; } // total is unit × qty — edit in the details
     item.estimated = parseMoney(e.target.value);
     persist();
     renderBudget();
   });
   row.querySelector('.actual').addEventListener('change', e => {
+    if (itemQty(item) > 1) { renderBudget(); return; }
     item.actual = parseMoney(e.target.value);
     persist();
     renderBudget();
