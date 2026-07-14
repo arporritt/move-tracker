@@ -13196,10 +13196,13 @@ function renderRoomPaintPlan(room, onChange) {
   wrap.innerHTML = `<datalist id="rp-surface-suggest">${SURFACE_SUGGESTIONS.map(s => `<option value="${escapeHTML(s)}">`).join('')}</datalist>`;
   room.paintAssignments.forEach((a, idx) => {
     const rowEl = document.createElement('div');
-    const dec = (a.decision === 'confirmed' || a.decision === 'contender') ? a.decision : 'none';
-    rowEl.className = 'rp-row rp-dec-' + dec;
     const type = a.type === 'wallpaper' ? 'wallpaper' : 'paint';
     const hasColor = !!(a.name || a.sw);
+    // Confirmed / Contender mirrors this color's status on the Overall page (Paint selections) —
+    // one value per color, kept in sync. Only paint rows with a chosen color show/drive it.
+    const masterColor = (type === 'paint' && hasColor) ? (state.overallVision.palette || []).find(c => assignmentIsColor(a, c)) : null;
+    const dec = (masterColor && (masterColor.status === 'confirmed' || masterColor.status === 'contender')) ? masterColor.status : 'none';
+    rowEl.className = 'rp-row rp-dec-' + dec;
     const hasWp = !!(a.wpName || a.wpImage || a.wpLink);
     const swatchStyle = type === 'wallpaper'
       ? (a.wpImage ? `background-image:url('${escapeHTML(a.wpImage)}');background-size:cover;background-position:center;` : 'background:repeating-linear-gradient(45deg,#ece7dd,#ece7dd 3px,#dcd5c8 3px,#dcd5c8 6px);')
@@ -13222,11 +13225,11 @@ function renderRoomPaintPlan(room, onChange) {
         <option value="">Sheen…</option>
         ${PAINT_SHEENS.map(s => `<option value="${escapeHTML(s)}"${a.sheen === s ? ' selected' : ''}>${escapeHTML(s)}</option>`).join('')}
       </select>` : ''}
-      <select class="rp-decision rp-decision-${dec}" title="Is this choice confirmed or still a contender for this room?">
-        <option value=""${!a.decision ? ' selected' : ''}>Undecided</option>
-        <option value="confirmed"${a.decision === 'confirmed' ? ' selected' : ''}>✓ Confirmed</option>
-        <option value="contender"${a.decision === 'contender' ? ' selected' : ''}>◇ Contender</option>
-      </select>
+      ${masterColor ? `<select class="rp-decision rp-decision-${dec}" title="Confirmed / Contender — synced with this color on the Overall page. Changing it here updates it everywhere this color is used.">
+        <option value=""${dec === 'none' ? ' selected' : ''}>Undecided</option>
+        <option value="confirmed"${dec === 'confirmed' ? ' selected' : ''}>✓ Confirmed</option>
+        <option value="contender"${dec === 'contender' ? ' selected' : ''}>◇ Contender</option>
+      </select>` : ''}
       <button class="rp-del" data-act="del" title="Remove surface">×</button>
     `;
     rowEl.querySelector('.rp-surface').addEventListener('change', e => { a.surface = e.target.value.trim(); onChange(); });
@@ -13256,7 +13259,12 @@ function renderRoomPaintPlan(room, onChange) {
     const sheenSel = rowEl.querySelector('.rp-sheen');
     if (sheenSel) sheenSel.addEventListener('change', e => { a.sheen = e.target.value || ''; onChange(); });
     const decSel = rowEl.querySelector('.rp-decision');
-    if (decSel) decSel.addEventListener('change', e => { a.decision = e.target.value || ''; onChange(); });
+    if (decSel) decSel.addEventListener('change', e => {
+      // Write to the color's global status so it stays synced with the Overall page + every room.
+      const m = (state.overallVision.palette || []).find(c => assignmentIsColor(a, c));
+      if (m) m.status = e.target.value || undefined;
+      onChange();
+    });
     rowEl.querySelector('[data-act="del"]').addEventListener('click', () => { room.paintAssignments.splice(idx, 1); onChange(); });
     wrap.appendChild(rowEl);
   });
@@ -13765,7 +13773,7 @@ function collectPaintSpecs() {
           hex: a.hex || '',
           lrv: (a.lrv != null ? String(a.lrv) : ''),
           sheen: isWp ? '' : (a.sheen || ''),
-          decision: a.decision === 'confirmed' ? 'Confirmed' : a.decision === 'contender' ? 'Contender' : '',
+          decision: (() => { if (isWp) return ''; const m = (state.overallVision.palette || []).find(c => assignmentIsColor(a, c)); const s = m && m.status; return s === 'confirmed' ? 'Confirmed' : s === 'contender' ? 'Contender' : ''; })(),
           link: isWp ? (a.wpLink || '') : (a.url || '')
         });
       });
