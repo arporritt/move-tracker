@@ -1373,6 +1373,8 @@
     display: flex; align-items: center; justify-content: center;
   }
   .cs-block-add:hover { color: var(--clay); border-color: var(--clay-soft); }
+  .cs-empty { font-size: 13px; color: var(--ink-faint); font-style: italic; padding: 14px 2px; line-height: 1.5; }
+  .cs-caption { font-size: 12px; color: var(--ink-soft); margin: -4px 0 12px; line-height: 1.5; }
   .mb-buy-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -1862,9 +1864,11 @@
   }
   .palette-table-head, .palette-table-row {
     display: grid;
-    grid-template-columns: 22px 44px minmax(0,1.4fr) 80px 92px 58px minmax(0,1.4fr) 72px;
+    grid-template-columns: 0 44px minmax(0,1.4fr) 80px 92px 58px minmax(0,1.4fr) 72px;
     gap: 12px; align-items: center; padding: 10px 16px;
   }
+  /* Order is now automatic (LRV within each status group), so the manual drag handle is hidden. */
+  .pt-drag { display: none; }
   .palette-table-head {
     font-size: 9.5px; letter-spacing: 0.14em; text-transform: uppercase;
     color: var(--ink-faint); font-weight: 700; background: rgba(166,160,148,0.04);
@@ -12564,6 +12568,9 @@ function renderPalette() {
   // delete, edit, status) re-renders the matrix too, so the two tables never drift apart.
   const psHost = document.getElementById('paint-schedule-host');
   if (psHost) renderPaintSchedule(psHost);
+  // The Palette ribbon mirrors the Confirmed colors — re-render it on any change too.
+  const csHost = document.getElementById('cs-host');
+  if (csHost) renderColorStory(csHost);
 }
 
 function renderPaletteTable(entries) {
@@ -12715,13 +12722,15 @@ function renderPaletteTable(entries) {
   const confirmed = entries.filter(e => e.color.status === 'confirmed');
   const contenders = entries.filter(e => e.color.status === 'contender');
   const undecided = entries.filter(e => e.color.status !== 'confirmed' && e.color.status !== 'contender');
+  const lrvNum = e => { const v = parseFloat(e.color && e.color.lrv); return isFinite(v) ? v : -1; };
   function addGroup(label, list, cls) {
     if (!list.length) return;
     const hdr = document.createElement('div');
     hdr.className = 'palette-group-header pgh-' + (cls || 'none');
     hdr.textContent = `${label} · ${list.length}`;
     body.appendChild(hdr);
-    list.forEach(e => body.appendChild(buildRow(e)));
+    // Within each status group, sort lightest → darkest (LRV high to low).
+    [...list].sort((a, b) => lrvNum(b) - lrvNum(a)).forEach(e => body.appendChild(buildRow(e)));
   }
   addGroup('✓ Confirmed', confirmed, 'confirmed');
   addGroup('◇ Contenders', contenders, 'contender');
@@ -13564,82 +13573,43 @@ function syncPdfPalette(force) {
 // layered on top, all editable in place. Lives at the top of Overall.
 let csDragFrom = null; // index of the ribbon color being dragged to reorder
 function renderColorStory(host) {
-  ensureColorStory();
-  const story = state.overallVision.colorStory;
+  // The Palette ribbon mirrors the colors marked "✓ Confirmed" in Paint selections.
+  // It's read-only and kept in sync — set a color's status below to add/remove it here.
+  ensurePaletteMaster();
+  const master = state.overallVision.palette || [];
+  const lrvNum = c => { const v = parseFloat(c && c.lrv); return isFinite(v) ? v : -1; };
+  const confirmed = master.filter(c => c.status === 'confirmed').slice().sort((a, b) => lrvNum(b) - lrvNum(a));
   host.innerHTML = '';
+  if (!confirmed.length) {
+    const empty = document.createElement('div');
+    empty.className = 'cs-empty';
+    empty.innerHTML = 'No confirmed colors yet. In <strong>Paint selections</strong> below, set a color to <strong>✓ Confirmed</strong> and it appears here — this palette stays in sync automatically.';
+    host.appendChild(empty);
+    return;
+  }
   const ribbon = document.createElement('div');
   ribbon.className = 'cs-ribbon';
-  story.forEach((c, i) => {
+  confirmed.forEach(c => {
     const hex = safeHexForInput(c.hex);
-    // LRV: use the stored value, else look it up from the guide palette / master list by name.
+    // LRV: stored value, else look it up from the guide palette by name.
     let lrvVal = (c.lrv != null && String(c.lrv).trim() !== '') ? c.lrv : null;
     if (lrvVal == null) {
       const p = PDF_PALETTE.find(p => p.name.toLowerCase() === (c.name || '').toLowerCase());
       if (p) lrvVal = p.lrv;
-      else {
-        const m = (state.overallVision.palette || []).find(m => (m.name || '').toLowerCase() === (c.name || '').toLowerCase());
-        if (m && m.lrv != null && String(m.lrv).trim() !== '') lrvVal = m.lrv;
-      }
     }
     const block = document.createElement('div');
     block.className = 'cs-block';
     block.style.background = hex;
     block.innerHTML = `
       <div class="cs-scrim"></div>
-      <div class="cs-block-controls">
-        <span class="cs-drag" draggable="true" title="Drag to reorder">⠿</span>
-        <label class="cs-color-chip" title="Change color"><input type="color" value="${hex}"></label>
-        <button class="cs-block-del" title="Remove color">×</button>
-      </div>
       <div class="cs-block-labels">
-        <input type="text" class="cs-block-name" value="${escapeHTML(c.name || '')}" placeholder="Name">
-        <input type="text" class="cs-block-usage" value="${escapeHTML(c.usage || '')}" placeholder="what it's for">
+        <div class="cs-block-name">${escapeHTML(c.name || 'Color')}</div>
+        <div class="cs-block-usage">${c.sw ? 'SW ' + escapeHTML(c.sw) : ''}</div>
         ${lrvVal != null && String(lrvVal).trim() !== '' ? `<div class="cs-block-lrv">LRV ${escapeHTML(String(lrvVal))}</div>` : ''}
       </div>
     `;
-    const colorInput = block.querySelector('input[type="color"]');
-    colorInput.addEventListener('change', e => {
-      c.hex = e.target.value;
-      block.style.background = safeHexForInput(c.hex);
-      persist();
-    });
-    block.querySelector('.cs-block-name').addEventListener('change', e => { c.name = e.target.value.trim(); persist(); });
-    block.querySelector('.cs-block-usage').addEventListener('change', e => { c.usage = e.target.value.trim(); persist(); });
-    block.querySelector('.cs-block-del').addEventListener('click', () => {
-      if (!confirm(`Remove "${c.name || 'this color'}"?`)) return;
-      story.splice(i, 1);
-      persist();
-      renderColorStory(host);
-    });
-    // Drag to reorder
-    const grip = block.querySelector('.cs-drag');
-    grip.addEventListener('dragstart', e => { csDragFrom = i; e.dataTransfer.effectAllowed = 'move'; });
-    block.addEventListener('dragover', e => { if (csDragFrom != null) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; block.classList.add('cs-drop'); } });
-    block.addEventListener('dragleave', () => block.classList.remove('cs-drop'));
-    block.addEventListener('drop', e => {
-      e.preventDefault();
-      block.classList.remove('cs-drop');
-      const from = csDragFrom; csDragFrom = null;
-      if (from == null || from === i) return;
-      const [moved] = story.splice(from, 1);
-      story.splice(from < i ? i - 1 : i, 0, moved);
-      persist();
-      renderColorStory(host);
-    });
     ribbon.appendChild(block);
   });
-  const add = document.createElement('button');
-  add.className = 'cs-block-add';
-  add.innerHTML = '+ Add';
-  add.addEventListener('click', () => {
-    story.push({ name: 'New color', hex: '#CCCCCC', usage: '' });
-    persist();
-    renderColorStory(host);
-    const names = host.querySelectorAll('.cs-block-name');
-    const last = names[names.length - 1];
-    if (last) { last.focus(); last.select(); }
-  });
-  ribbon.appendChild(add);
   host.appendChild(ribbon);
 }
 
@@ -13796,6 +13766,7 @@ function renderOverallMoodboard(board) {
       <span class="mb-head-right"><a class="palette-guide-link" href="${PALETTE_GUIDE_URL}" target="_blank" rel="noopener">📖 Open palette guide (PDF)</a></span>
     </div>
     <div class="palette-guide-note">From <strong>White Duck &amp; Neutral Ground</strong> — a curated Sherwin-Williams palette by Amerie Creative. <a href="${PALETTE_GUIDE_URL}" target="_blank" rel="noopener">Open the full guide ↗</a></div>
+    <div class="cs-caption">Your <strong>confirmed</strong> colors, lightest → darkest — synced automatically from the ✓ Confirmed picks in Paint selections below.</div>
     <div id="cs-host"></div>
 
     <div id="palette-board"></div>
