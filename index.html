@@ -3322,6 +3322,15 @@
   }
   .bar-row { margin-bottom: 14px; }
   .bar-row:last-child { margin-bottom: 0; }
+  /* "By room" chart: collapse to the top few, reveal the rest via the toggle */
+  .rooms-collapsed .bar-row-extra { display: none; }
+  .bar-more-toggle {
+    display: block; width: 100%; margin-top: 4px; padding: 7px 10px;
+    background: transparent; border: 1px dashed var(--rule); border-radius: 8px;
+    color: var(--ink-soft); font-family: 'Manrope', sans-serif; font-size: 12px;
+    font-weight: 600; letter-spacing: 0.02em; cursor: pointer; transition: all 0.15s;
+  }
+  .bar-more-toggle:hover { border-color: var(--clay-soft); color: var(--clay); }
   .bar-row-header {
     display: flex; justify-content: space-between; align-items: baseline;
     margin-bottom: 6px; gap: 12px;
@@ -9539,14 +9548,14 @@ function renderMbBuyTable(room, items) {
   const forecast = items.filter(i => !i.paid).reduce((s, i) => s + effectiveActual(i), 0);
   wrap.innerHTML = `
     <div class="mb-buy-summary">
-      <span class="mbs-cell"><span class="mbs-label">Total</span><span class="mbs-val">${fmtMoney(total)}</span></span>
       <span class="mbs-cell"><span class="mbs-label">Spent</span><span class="mbs-val">${fmtMoney(spent)}</span></span>
       <span class="mbs-cell"><span class="mbs-label">Forecast</span><span class="mbs-val">${fmtMoney(forecast)}</span></span>
+      <span class="mbs-cell"><span class="mbs-label">Total</span><span class="mbs-val">${fmtMoney(total)}</span></span>
       <button class="mb-view-budget" data-act="view-budget">View in Budget →</button>
     </div>
     <div class="mb-buy-table-head">
       <div>Item</div>
-      <div class="price">Cost</div>
+      <div class="price">Amount</div>
       <div class="check">Paid</div>
       <div></div>
     </div>
@@ -14566,7 +14575,7 @@ function renderBudgetCharts(items) {
   `;
   renderBudgetBars(document.getElementById('bars-cat'), byCat, { withBudget: catBudgetActive, dim: 'category', selectedKey: cf.category });
   renderRoomBars(document.getElementById('bars-priority'), byPriority, { order: ['High','Medium','Low','__none__'], showZero: true, dim: 'priority', selectedKey: cf.priority });
-  renderRoomBars(document.getElementById('bars-room'), byRoom, { dim: 'room', selectedKey: cf.room });
+  renderRoomBars(document.getElementById('bars-room'), byRoom, { dim: 'room', selectedKey: cf.room, collapseTo: 6 });
 
   // Single delegated click handler for cross-filtering (onclick assignment avoids stacking listeners).
   container.onclick = (e) => {
@@ -14618,6 +14627,7 @@ function renderBudgetBars(container, dataMap, opts = {}) {
   });
 }
 
+let roomBarsExpanded = false; // "By room" chart shows top 6 until expanded
 function renderRoomBars(container, dataMap, opts = {}) {
   let entries = Object.entries(dataMap)
     .map(([k, v]) => [k, { ...v, total: v.actuals + v.forecast }])
@@ -14637,12 +14647,13 @@ function renderRoomBars(container, dataMap, opts = {}) {
   const max = Math.max(...entries.map(([_, v]) => v.total)) || 1;
   const grand = entries.reduce((s, [_, v]) => s + v.total, 0);
   const sel = opts.selectedKey;
-  entries.forEach(([key, v]) => {
+  const collapseTo = opts.collapseTo || 0; // show only the top N, with a "show more" toggle
+  entries.forEach(([key, v], idx) => {
     const actPct = (v.actuals / max) * 100;
     const fcstPct = (v.forecast / max) * 100;
     const share = grand > 0 ? Math.round((v.total / grand) * 100) : 0;
     const row = document.createElement('div');
-    row.className = 'bar-row' + (sel != null && key === sel ? ' cf-selected' : (sel != null ? ' cf-dimmed' : ''));
+    row.className = 'bar-row' + (collapseTo && idx >= collapseTo ? ' bar-row-extra' : '') + (sel != null && key === sel ? ' cf-selected' : (sel != null ? ' cf-dimmed' : ''));
     if (opts.dim) { row.setAttribute('data-cf-dim', opts.dim); row.setAttribute('data-cf-key', key); }
     row.innerHTML = `
       <div class="bar-row-header">
@@ -14659,6 +14670,20 @@ function renderRoomBars(container, dataMap, opts = {}) {
     `;
     container.appendChild(row);
   });
+  if (collapseTo && entries.length > collapseTo) {
+    if (!roomBarsExpanded) container.classList.add('rooms-collapsed');
+    const hidden = entries.length - collapseTo;
+    const btn = document.createElement('button');
+    btn.className = 'bar-more-toggle';
+    const collapsedLabel = `▾ Show ${hidden} more room${hidden === 1 ? '' : 's'}`;
+    btn.textContent = roomBarsExpanded ? '▴ Show fewer' : collapsedLabel;
+    btn.addEventListener('click', () => {
+      roomBarsExpanded = !roomBarsExpanded;
+      container.classList.toggle('rooms-collapsed', !roomBarsExpanded);
+      btn.textContent = roomBarsExpanded ? '▴ Show fewer' : collapsedLabel;
+    });
+    container.appendChild(btn);
+  }
 }
 
 function renderBudget() {
