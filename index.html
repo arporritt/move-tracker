@@ -3394,6 +3394,16 @@
   .bar-legend .legend-dot:first-child { margin-left: 0; }
   .legend-actuals { background: linear-gradient(90deg, #7A6E5E, #5E5446); }
   .legend-forecast { background: repeating-linear-gradient(45deg, #EAE6DD, #EAE6DD 3px, #DBD6CB 3px, #DBD6CB 6px); }
+  /* Clickable Spent/Forecast filter chips in the legend */
+  .legend-item {
+    display: inline-flex; align-items: center; gap: 5px; cursor: pointer;
+    padding: 2px 8px; border-radius: 100px; border: 1px solid transparent; transition: all 0.14s;
+  }
+  .legend-item .legend-dot { margin: 0; }
+  .legend-item:hover { border-color: var(--rule); color: var(--ink); }
+  .legend-item.cf-active { background: var(--forest); border-color: var(--forest); color: #fff; }
+  .legend-item.cf-active .legend-dot { box-shadow: 0 0 0 1px rgba(255,255,255,0.6); }
+  .legend-item.cf-dimmed { opacity: 0.45; }
   .bar-empty-state {
     text-align: center; padding: 28px 20px;
     color: var(--ink-faint); font-style: italic; font-size: 13px;
@@ -14393,7 +14403,7 @@ try {
 
 function switchBudgetSubtab(name) {
   budgetSubtab = name;
-  budgetCrossFilter = { category: null, priority: null, room: null }; // don't carry a stale filter across subtabs
+  budgetCrossFilter = { category: null, priority: null, room: null, paid: null }; // don't carry a stale filter across subtabs
   try { localStorage.setItem('mt-budget-subtab', name); } catch (e) {}
   document.querySelectorAll('.floor-tab-btn[data-budget-subtab]').forEach(b => b.classList.toggle('active', b.dataset.budgetSubtab === name));
   renderBudget();
@@ -14491,16 +14501,18 @@ function effectiveEstimated(i) {
 }
 
 // Cross-filter state: click a bar in any chart to filter the other charts + the table (PowerBI style).
-let budgetCrossFilter = { category: null, priority: null, room: null };
+let budgetCrossFilter = { category: null, priority: null, room: null, paid: null };
 function cfMatchCat(i, val) { return (i.category || 'Other') === val; }
 function cfMatchPri(i, val) { return val === '__none__' ? !i.priority : i.priority === val; }
 function cfMatchRoom(i, val) { return val === '__unassigned__' ? !i.room : (i.room || '') === val; }
+function cfMatchPaid(i, val) { return val === 'spent' ? !!i.paid : !i.paid; } // 'spent' = paid, 'forecast' = unpaid
 // Does an item pass ALL active cross-filters (used for the table + KPI subset)?
 function itemMatchesCross(i) {
   const cf = budgetCrossFilter;
   if (cf.category && !cfMatchCat(i, cf.category)) return false;
   if (cf.priority && !cfMatchPri(i, cf.priority)) return false;
   if (cf.room && !cfMatchRoom(i, cf.room)) return false;
+  if (cf.paid && !cfMatchPaid(i, cf.paid)) return false;
   return true;
 }
 // Does an item pass the cross-filters EXCEPT the given dimension (so a chart isn't filtered by itself)?
@@ -14509,9 +14521,10 @@ function crossExcept(i, dim) {
   if (dim !== 'category' && cf.category && !cfMatchCat(i, cf.category)) return false;
   if (dim !== 'priority' && cf.priority && !cfMatchPri(i, cf.priority)) return false;
   if (dim !== 'room' && cf.room && !cfMatchRoom(i, cf.room)) return false;
+  if (cf.paid && !cfMatchPaid(i, cf.paid)) return false; // paid isn't a chart axis, so it always applies
   return true;
 }
-function anyCrossFilter() { return !!(budgetCrossFilter.category || budgetCrossFilter.priority || budgetCrossFilter.room); }
+function anyCrossFilter() { return !!(budgetCrossFilter.category || budgetCrossFilter.priority || budgetCrossFilter.room || budgetCrossFilter.paid); }
 
 function renderBudgetCharts(items) {
   const container = document.getElementById('budget-charts');
@@ -14558,7 +14571,9 @@ function renderBudgetCharts(items) {
     if (i.paid) byPriority[k].actuals += amt; else byPriority[k].forecast += amt;
   });
 
-  const legend = `<span class="bar-legend"><span class="legend-dot legend-actuals"></span>Spent<span class="legend-dot legend-forecast"></span>Forecast</span>`;
+  // Legend doubles as a Spent/Forecast filter — clicking a chip filters the whole tab.
+  const legendChip = (key, label, dot) => `<span class="legend-item${cf.paid === key ? ' cf-active' : (cf.paid ? ' cf-dimmed' : '')}" data-cf-dim="paid" data-cf-key="${key}" role="button" tabindex="0" title="Show ${label.toLowerCase()} only (click again to clear)"><span class="legend-dot ${dot}"></span>${label}</span>`;
+  const legend = `<span class="bar-legend">${legendChip('spent', 'Spent', 'legend-actuals')}${legendChip('forecast', 'Forecast', 'legend-forecast')}</span>`;
   container.innerHTML = `
     <div class="budget-chart-card">
       <div class="budget-chart-title">By category ${legend}</div>
@@ -14579,10 +14594,10 @@ function renderBudgetCharts(items) {
 
   // Single delegated click handler for cross-filtering (onclick assignment avoids stacking listeners).
   container.onclick = (e) => {
-    const row = e.target.closest('.bar-row[data-cf-dim]');
-    if (!row) return;
-    const dim = row.getAttribute('data-cf-dim');
-    const key = row.getAttribute('data-cf-key');
+    const el = e.target.closest('[data-cf-dim]'); // bar rows AND the Spent/Forecast legend chips
+    if (!el) return;
+    const dim = el.getAttribute('data-cf-dim');
+    const key = el.getAttribute('data-cf-key');
     budgetCrossFilter[dim] = (budgetCrossFilter[dim] === key) ? null : key;
     renderBudget();
   };
@@ -14786,6 +14801,7 @@ function renderCrossFilterBar() {
   if (cf.category) chips.push({ dim: 'category', label: 'Category: ' + cf.category });
   if (cf.priority) chips.push({ dim: 'priority', label: 'Priority: ' + (cf.priority === '__none__' ? 'No priority' : cf.priority) });
   if (cf.room) chips.push({ dim: 'room', label: 'Room: ' + roomLabelFor(cf.room === '__unassigned__' ? null : cf.room) });
+  if (cf.paid) chips.push({ dim: 'paid', label: cf.paid === 'spent' ? 'Spent only' : 'Forecast only' });
   if (!chips.length) { host.innerHTML = ''; host.style.display = 'none'; return; }
   host.style.display = 'flex';
   host.innerHTML = `<span class="cf-bar-label">Filtered by</span>` +
@@ -14795,7 +14811,7 @@ function renderCrossFilterBar() {
     const btn = e.target.closest('[data-cf-clear]');
     if (!btn) return;
     const d = btn.getAttribute('data-cf-clear');
-    if (d === 'all') budgetCrossFilter = { category: null, priority: null, room: null };
+    if (d === 'all') budgetCrossFilter = { category: null, priority: null, room: null, paid: null };
     else budgetCrossFilter[d] = null;
     renderBudget();
   };
