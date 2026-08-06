@@ -8180,13 +8180,21 @@ async function initApp() {
   if (loader) loader.style.display = 'flex';
   const cloud = await cloudLoad();
   const cloudHasTasks = cloud && Array.isArray(cloud.tasks) && cloud.tasks.length > 0;
+  // This device's last saved copy — our safety net if the cloud fetch comes back empty.
+  let localSaved = null;
+  try { localSaved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null'); } catch (e) {}
+  const localHasData = !!(localSaved && Array.isArray(localSaved.tasks) && localSaved.tasks.length > 0);
   if (cloudHasTasks) {
     state = cloud;
     lastSyncedJSON = JSON.stringify({ p: APP_PASSWORD, data: state });
+  } else if (localHasData) {
+    // Cloud returned nothing (transient error, or it was emptied). DO NOT wipe or reseed —
+    // fall back to this device's saved data and leave the cloud untouched until the user edits.
+    state = localSaved;
+    console.warn('Cloud returned no data — kept this device\'s saved copy instead of reseeding.');
   } else {
-    // No valid cloud data — start fresh from seed and ignore stale localStorage
+    // Genuinely nothing anywhere (first run). Keep localStorage as-is; don't delete it.
     state = seedState();
-    try { localStorage.removeItem(STORAGE_KEY); } catch(e) {}
   }
   // Migrate any tasks still on the removed 'beyond' week
   state.tasks.forEach(t => { if (t.week === 'beyond') t.week = 'w15'; });
@@ -8204,9 +8212,12 @@ async function initApp() {
   updateCountdowns();
   if (!SCRIPT_URL) {
     updateSyncStatus('nocloud');
-  } else if (!cloudHasTasks) {
+  } else if (!cloudHasTasks && !localHasData) {
+    // Brand-new setup with nothing anywhere — safe to seed the cloud.
     cloudSave(state);
   } else {
+    // Never auto-overwrite the cloud with a seed. If the cloud was momentarily empty but this
+    // device has data, the next real edit will sync it back up; until then leave the cloud alone.
     updateSyncStatus('saved');
   }
   if (loader) loader.style.display = 'none';
