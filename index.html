@@ -14431,7 +14431,7 @@ try {
 
 function switchBudgetSubtab(name) {
   budgetSubtab = name;
-  budgetCrossFilter = { category: null, priority: null, room: null, paid: null }; // don't carry a stale filter across subtabs
+  budgetCrossFilter = { category: [], priority: [], room: [], paid: [] }; // don't carry a stale filter across subtabs
   try { localStorage.setItem('mt-budget-subtab', name); } catch (e) {}
   document.querySelectorAll('.floor-tab-btn[data-budget-subtab]').forEach(b => b.classList.toggle('active', b.dataset.budgetSubtab === name));
   renderBudget();
@@ -14529,7 +14529,10 @@ function effectiveEstimated(i) {
 }
 
 // Cross-filter state: click a bar in any chart to filter the other charts + the table (PowerBI style).
-let budgetCrossFilter = { category: null, priority: null, room: null, paid: null };
+// Each dimension holds an ARRAY of selected values (multi-select). Empty array = no filter on that dimension.
+// Within a dimension the selections are OR'd; across dimensions they're AND'd.
+let budgetCrossFilter = { category: [], priority: [], room: [], paid: [] };
+let pendingBudgetFocus = null; // CSS selector of a field to re-focus after renderBudget (so price entry survives the re-sort)
 function cfMatchCat(i, val) { return (i.category || 'Other') === val; }
 function cfMatchPri(i, val) { return val === '__none__' ? !i.priority : i.priority === val; }
 function cfMatchRoom(i, val) { return val === '__unassigned__' ? !i.room : (i.room || '') === val; }
@@ -14537,22 +14540,32 @@ function cfMatchPaid(i, val) { return val === 'spent' ? !!i.paid : !i.paid; } //
 // Does an item pass ALL active cross-filters (used for the table + KPI subset)?
 function itemMatchesCross(i) {
   const cf = budgetCrossFilter;
-  if (cf.category && !cfMatchCat(i, cf.category)) return false;
-  if (cf.priority && !cfMatchPri(i, cf.priority)) return false;
-  if (cf.room && !cfMatchRoom(i, cf.room)) return false;
-  if (cf.paid && !cfMatchPaid(i, cf.paid)) return false;
+  if (cf.category.length && !cf.category.some(v => cfMatchCat(i, v))) return false;
+  if (cf.priority.length && !cf.priority.some(v => cfMatchPri(i, v))) return false;
+  if (cf.room.length && !cf.room.some(v => cfMatchRoom(i, v))) return false;
+  if (cf.paid.length && !cf.paid.some(v => cfMatchPaid(i, v))) return false;
   return true;
 }
 // Does an item pass the cross-filters EXCEPT the given dimension (so a chart isn't filtered by itself)?
 function crossExcept(i, dim) {
   const cf = budgetCrossFilter;
-  if (dim !== 'category' && cf.category && !cfMatchCat(i, cf.category)) return false;
-  if (dim !== 'priority' && cf.priority && !cfMatchPri(i, cf.priority)) return false;
-  if (dim !== 'room' && cf.room && !cfMatchRoom(i, cf.room)) return false;
-  if (cf.paid && !cfMatchPaid(i, cf.paid)) return false; // paid isn't a chart axis, so it always applies
+  if (dim !== 'category' && cf.category.length && !cf.category.some(v => cfMatchCat(i, v))) return false;
+  if (dim !== 'priority' && cf.priority.length && !cf.priority.some(v => cfMatchPri(i, v))) return false;
+  if (dim !== 'room' && cf.room.length && !cf.room.some(v => cfMatchRoom(i, v))) return false;
+  if (cf.paid.length && !cf.paid.some(v => cfMatchPaid(i, v))) return false; // paid isn't a chart axis, so it always applies
   return true;
 }
-function anyCrossFilter() { return !!(budgetCrossFilter.category || budgetCrossFilter.priority || budgetCrossFilter.room || budgetCrossFilter.paid); }
+function anyCrossFilter() { const cf = budgetCrossFilter; return !!(cf.category.length || cf.priority.length || cf.room.length || cf.paid.length); }
+// New items added while chart cross-filters are active inherit any single-valued selection,
+// so the new row matches the current filter and stays visible in that view.
+function applyActiveCrossFilters(item) {
+  const cf = budgetCrossFilter;
+  if (cf.category.length === 1) item.category = cf.category[0];
+  if (cf.room.length === 1) item.room = (cf.room[0] === '__unassigned__' ? null : cf.room[0]);
+  if (cf.priority.length === 1) item.priority = (cf.priority[0] === '__none__' ? '' : cf.priority[0]);
+  if (cf.paid.length === 1) item.paid = (cf.paid[0] === 'spent');
+  return item;
+}
 
 function renderBudgetCharts(items) {
   const container = document.getElementById('budget-charts');
@@ -14565,7 +14578,7 @@ function renderBudgetCharts(items) {
 
   // Aggregate by category (key = category string). Budget context is shown only when no other
   // cross-filter is active, since allocations aren't broken out by room/priority.
-  const catBudgetActive = !cf.priority && !cf.room;
+  const catBudgetActive = !cf.priority.length && !cf.room.length;
   const byCat = {};
   const ensureCat = k => (byCat[k] || (byCat[k] = { name: k, budget: 0, actuals: 0, forecast: 0 }));
   catItems.forEach(i => {
@@ -14600,7 +14613,7 @@ function renderBudgetCharts(items) {
   });
 
   // Legend doubles as a Spent/Forecast filter — clicking a chip filters the whole tab.
-  const legendChip = (key, label, dot) => `<span class="legend-item${cf.paid === key ? ' cf-active' : (cf.paid ? ' cf-dimmed' : '')}" data-cf-dim="paid" data-cf-key="${key}" role="button" tabindex="0" title="Show ${label.toLowerCase()} only (click again to clear)"><span class="legend-dot ${dot}"></span>${label}</span>`;
+  const legendChip = (key, label, dot) => `<span class="legend-item${cf.paid.includes(key) ? ' cf-active' : (cf.paid.length ? ' cf-dimmed' : '')}" data-cf-dim="paid" data-cf-key="${key}" role="button" tabindex="0" title="Show ${label.toLowerCase()} only (click again to clear)"><span class="legend-dot ${dot}"></span>${label}</span>`;
   const legend = `<span class="bar-legend">${legendChip('spent', 'Spent', 'legend-actuals')}${legendChip('forecast', 'Forecast', 'legend-forecast')}</span>`;
   container.innerHTML = `
     <div class="budget-chart-card">
@@ -14616,9 +14629,9 @@ function renderBudgetCharts(items) {
       <div id="bars-room"></div>
     </div>
   `;
-  renderBudgetBars(document.getElementById('bars-cat'), byCat, { withBudget: catBudgetActive, dim: 'category', selectedKey: cf.category });
-  renderRoomBars(document.getElementById('bars-priority'), byPriority, { order: ['High','Medium','Low','__none__'], showZero: true, dim: 'priority', selectedKey: cf.priority });
-  renderRoomBars(document.getElementById('bars-room'), byRoom, { dim: 'room', selectedKey: cf.room, collapseTo: 6 });
+  renderBudgetBars(document.getElementById('bars-cat'), byCat, { withBudget: catBudgetActive, dim: 'category', selectedKeys: cf.category });
+  renderRoomBars(document.getElementById('bars-priority'), byPriority, { order: ['High','Medium','Low','__none__'], showZero: true, dim: 'priority', selectedKeys: cf.priority });
+  renderRoomBars(document.getElementById('bars-room'), byRoom, { dim: 'room', selectedKeys: cf.room, collapseTo: 6 });
 
   // Single delegated click handler for cross-filtering (onclick assignment avoids stacking listeners).
   container.onclick = (e) => {
@@ -14626,7 +14639,9 @@ function renderBudgetCharts(items) {
     if (!el) return;
     const dim = el.getAttribute('data-cf-dim');
     const key = el.getAttribute('data-cf-key');
-    budgetCrossFilter[dim] = (budgetCrossFilter[dim] === key) ? null : key;
+    const arr = budgetCrossFilter[dim] || (budgetCrossFilter[dim] = []);
+    const at = arr.indexOf(key);
+    if (at >= 0) arr.splice(at, 1); else arr.push(key); // toggle this value in the multi-select set
     renderBudget();
   };
 }
@@ -14640,7 +14655,7 @@ function renderBudgetBars(container, dataMap, opts = {}) {
     container.innerHTML = '<div class="bar-empty-state">No spending yet</div>';
     return;
   }
-  const sel = opts.selectedKey;
+  const sel = opts.selectedKeys || [];
   const showBudgetMeta = opts.withBudget !== false; // budget context is hidden while cross-filtered
   entries.forEach(([key, v]) => {
     const denom = Math.max(v.budget, v.total) || 1;
@@ -14650,7 +14665,7 @@ function renderBudgetBars(container, dataMap, opts = {}) {
     const overAmt = v.total - v.budget;
     const noBudget = showBudgetMeta && v.budget === 0 && v.total > 0;
     const row = document.createElement('div');
-    row.className = 'bar-row' + (sel != null && key === sel ? ' cf-selected' : (sel != null ? ' cf-dimmed' : ''));
+    row.className = 'bar-row' + (sel.includes(key) ? ' cf-selected' : (sel.length ? ' cf-dimmed' : ''));
     if (opts.dim) { row.setAttribute('data-cf-dim', opts.dim); row.setAttribute('data-cf-key', key); }
     row.innerHTML = `
       <div class="bar-row-header">
@@ -14689,14 +14704,14 @@ function renderRoomBars(container, dataMap, opts = {}) {
   }
   const max = Math.max(...entries.map(([_, v]) => v.total)) || 1;
   const grand = entries.reduce((s, [_, v]) => s + v.total, 0);
-  const sel = opts.selectedKey;
+  const sel = opts.selectedKeys || [];
   const collapseTo = opts.collapseTo || 0; // show only the top N, with a "show more" toggle
   entries.forEach(([key, v], idx) => {
     const actPct = (v.actuals / max) * 100;
     const fcstPct = (v.forecast / max) * 100;
     const share = grand > 0 ? Math.round((v.total / grand) * 100) : 0;
     const row = document.createElement('div');
-    row.className = 'bar-row' + (collapseTo && idx >= collapseTo ? ' bar-row-extra' : '') + (sel != null && key === sel ? ' cf-selected' : (sel != null ? ' cf-dimmed' : ''));
+    row.className = 'bar-row' + (collapseTo && idx >= collapseTo ? ' bar-row-extra' : '') + (sel.includes(key) ? ' cf-selected' : (sel.length ? ' cf-dimmed' : ''));
     if (opts.dim) { row.setAttribute('data-cf-dim', opts.dim); row.setAttribute('data-cf-key', key); }
     row.innerHTML = `
       <div class="bar-row-header">
@@ -14818,6 +14833,12 @@ function renderBudget() {
     // Purchase / Sale: unified budget table
     c.appendChild(buildUnifiedBudgetTable(crossItems, baseCats, false));
   }
+  // Keep the cursor on a price field we just edited, so entering amounts survives the re-sort.
+  if (pendingBudgetFocus) {
+    const el = document.querySelector(pendingBudgetFocus);
+    if (el) { el.focus(); try { const n = (el.value || '').length; el.setSelectionRange(n, n); } catch (e) {} }
+    pendingBudgetFocus = null;
+  }
 }
 
 // Chip bar above the charts showing the active cross-filters, each removable, plus Clear all.
@@ -14826,21 +14847,26 @@ function renderCrossFilterBar() {
   if (!host) return;
   const cf = budgetCrossFilter;
   const chips = [];
-  if (cf.category) chips.push({ dim: 'category', label: 'Category: ' + cf.category });
-  if (cf.priority) chips.push({ dim: 'priority', label: 'Priority: ' + (cf.priority === '__none__' ? 'No priority' : cf.priority) });
-  if (cf.room) chips.push({ dim: 'room', label: 'Room: ' + roomLabelFor(cf.room === '__unassigned__' ? null : cf.room) });
-  if (cf.paid) chips.push({ dim: 'paid', label: cf.paid === 'spent' ? 'Spent only' : 'Forecast only' });
+  cf.category.forEach(v => chips.push({ dim: 'category', key: v, label: 'Category: ' + v }));
+  cf.priority.forEach(v => chips.push({ dim: 'priority', key: v, label: 'Priority: ' + (v === '__none__' ? 'No priority' : v) }));
+  cf.room.forEach(v => chips.push({ dim: 'room', key: v, label: 'Room: ' + roomLabelFor(v === '__unassigned__' ? null : v) }));
+  cf.paid.forEach(v => chips.push({ dim: 'paid', key: v, label: v === 'spent' ? 'Spent only' : 'Forecast only' }));
   if (!chips.length) { host.innerHTML = ''; host.style.display = 'none'; return; }
   host.style.display = 'flex';
   host.innerHTML = `<span class="cf-bar-label">Filtered by</span>` +
-    chips.map(c => `<button class="cf-chip" data-cf-clear="${c.dim}">${escapeHTML(c.label)} <span class="cf-chip-x">×</span></button>`).join('') +
+    chips.map(c => `<button class="cf-chip" data-cf-clear="${c.dim}" data-cf-clearkey="${escapeHTML(String(c.key))}">${escapeHTML(c.label)} <span class="cf-chip-x">×</span></button>`).join('') +
     (chips.length > 1 ? `<button class="cf-chip cf-chip-clear" data-cf-clear="all">Clear all</button>` : '');
   host.onclick = (e) => {
     const btn = e.target.closest('[data-cf-clear]');
     if (!btn) return;
     const d = btn.getAttribute('data-cf-clear');
-    if (d === 'all') budgetCrossFilter = { category: null, priority: null, room: null, paid: null };
-    else budgetCrossFilter[d] = null;
+    if (d === 'all') { budgetCrossFilter = { category: [], priority: [], room: [], paid: [] }; }
+    else {
+      const k = btn.getAttribute('data-cf-clearkey');
+      const arr = budgetCrossFilter[d] || [];
+      const at = arr.indexOf(k);
+      if (at >= 0) arr.splice(at, 1);
+    }
     renderBudget();
   };
 }
@@ -15159,6 +15185,7 @@ function buildActualsTable(items) {
       priority: (filters.priority && filters.priority !== 'none') ? filters.priority : '',
       note: ''
     };
+    applyActiveCrossFilters(newItem); // also inherit the active chart cross-filters so it stays in view
     state.budget.items.push(newItem);
     persist();
     renderBudget();
@@ -15246,6 +15273,7 @@ function renderActualsRow(item) {
     item.actual = parseMoney(e.target.value);
     if (item.actual > 0 && !item.estimated) item.estimated = item.actual;
     persist();
+    pendingBudgetFocus = `.actuals-row[data-id="${item.id}"] .amount`; // keep the cursor here after the re-sort
     renderBudget();
   });
   row.querySelector('.budget-paid-check').addEventListener('change', e => {
@@ -15308,6 +15336,7 @@ function buildUnifiedBudgetTable(items, baseCats, actualsOnly) {
     addBtn.addEventListener('click', () => {
       const newCat = baseCats[0] || 'Other';
       const newItem = { id: uid(), category: newCat, label: '', estimated: 0, actual: 0, paid: false, note: '' };
+      applyActiveCrossFilters(newItem); // inherit active chart cross-filters so it stays in view
       state.budget.items.push(newItem);
       persist();
       renderBudget();
@@ -15570,6 +15599,7 @@ function renderBudgetLine(item) {
     if (itemQty(item) > 1) { renderBudget(); return; } // total is unit × qty — edit in the details
     item.actual = parseMoney(e.target.value);
     persist();
+    pendingBudgetFocus = `.budget-line[data-id="${item.id}"] .actual`; // keep the cursor here after the re-sort
     renderBudget();
   });
   row.querySelector('.budget-paid-check').addEventListener('change', e => {
