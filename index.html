@@ -7996,6 +7996,15 @@ const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby61Hr9q6zVNN7nvKZbK
 let cloudReady = false;
 let saveTimer = null;
 let lastSyncedJSON = null;
+let hadRealData = false; // set once we've loaded/seen real data, so we never overwrite it with a blank state
+// A state that looks like a blank reset: no rooms, no completed tasks, no budget line items.
+function looksEmptyState(st) {
+  if (!st) return true;
+  const rooms = ['basement', 'ground', 'upper'].reduce((n, f) => n + (((st.inspiration || {})[f]) || []).length, 0);
+  const done = (st.tasks || []).filter(t => t.done).length;
+  const items = ((st.budget || {}).items || []).length;
+  return rooms === 0 && done === 0 && items === 0;
+}
 
 function updateSyncStatus(s) {
   const labels = {
@@ -8100,6 +8109,12 @@ async function cloudSave(payload) {
     // Always preserve local-only data-URL photos in localStorage first
     persistLocalOnlyPhotos();
     const stripped = stripLocalOnlyPhotos(payload);
+    // Safety net: once we've had real data, never overwrite the cloud with a blank/reset state.
+    if (hadRealData && looksEmptyState(stripped)) {
+      console.warn('cloudSave: refusing to overwrite existing data with a blank state');
+      updateSyncStatus('saved');
+      return;
+    }
     const body = JSON.stringify({ p: APP_PASSWORD, data: stripped });
     if (body === lastSyncedJSON) { updateSyncStatus('saved'); return; }
     // State is now stored as a JSON file in Drive — no practical size limit.
@@ -8180,14 +8195,24 @@ async function initApp() {
   if (loader) loader.style.display = 'flex';
   const cloud = await cloudLoad();
   const cloudHasTasks = cloud && Array.isArray(cloud.tasks) && cloud.tasks.length > 0;
+  // This device's last saved copy — our safety net if the cloud fetch comes back empty.
+  let localSaved = null;
+  try { localSaved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null'); } catch (e) {}
+  const localHasData = !!(localSaved && Array.isArray(localSaved.tasks) && localSaved.tasks.length > 0);
   if (cloudHasTasks) {
     state = cloud;
     lastSyncedJSON = JSON.stringify({ p: APP_PASSWORD, data: state });
+  } else if (localHasData) {
+    // Cloud returned nothing (transient error, or it was emptied). DO NOT wipe or reseed —
+    // fall back to this device's saved data and leave the cloud untouched until the user edits.
+    state = localSaved;
+    console.warn('Cloud returned no data — kept this device\'s saved copy instead of reseeding.');
   } else {
-    // No valid cloud data — start fresh from seed and ignore stale localStorage
+    // Genuinely nothing anywhere (first run). Keep localStorage as-is; don't delete it.
     state = seedState();
-    try { localStorage.removeItem(STORAGE_KEY); } catch(e) {}
   }
+  // Once we've loaded anything non-blank, lock in the "don't overwrite with an empty state" guard.
+  if (!looksEmptyState(state)) hadRealData = true;
   // Migrate any tasks still on the removed 'beyond' week
   state.tasks.forEach(t => { if (t.week === 'beyond') t.week = 'w15'; });
   cloudReady = true;
@@ -8204,9 +8229,12 @@ async function initApp() {
   updateCountdowns();
   if (!SCRIPT_URL) {
     updateSyncStatus('nocloud');
-  } else if (!cloudHasTasks) {
+  } else if (!cloudHasTasks && !localHasData) {
+    // Brand-new setup with nothing anywhere — safe to seed the cloud.
     cloudSave(state);
   } else {
+    // Never auto-overwrite the cloud with a seed. If the cloud was momentarily empty but this
+    // device has data, the next real edit will sync it back up; until then leave the cloud alone.
     updateSyncStatus('saved');
   }
   if (loader) loader.style.display = 'none';
