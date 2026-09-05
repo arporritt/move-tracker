@@ -2952,6 +2952,7 @@
   .bd-cost-op { font-size: 15px; color: var(--ink-faint); padding-bottom: 7px; }
   .bd-cost-total { font-family: 'Fraunces', serif; font-size: 18px; color: var(--ink); padding: 5px 0; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .qty-badge { flex: none; display: inline-block; font-size: 10px; font-weight: 700; color: var(--clay); background: rgba(122,110,94,0.12); border-radius: 5px; padding: 1px 6px; letter-spacing: 0.02em; white-space: nowrap; }
+  .fin-badge { flex: none; display: inline-block; font-size: 10px; font-weight: 700; color: var(--forest); background: rgba(111,114,83,0.14); border-radius: 5px; padding: 1px 6px; letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap; }
   /* A qty>1 line total shown read-only in the collapsed row (edit unit cost/qty in the details) */
   .amt-locked { cursor: not-allowed; font-weight: 700; color: var(--ink) !important; }
   .bl-labelcell { display: flex; align-items: center; gap: 6px; min-width: 0; }
@@ -9615,7 +9616,7 @@ function renderMbBuyTable(room, items) {
         <button class="mb-buy-expand${isExpanded ? ' open' : ''}" data-act="expand" title="Details, photos &amp; exclude from totals">${isExpanded ? '▾' : '▸'}</button>
         ${item.image ? `<img class="mb-buy-thumb" data-act="img-view" src="${escapeHTML(item.image)}" alt="">` : ''}
         <input type="text" class="name" value="${escapeHTML(item.label || '')}" placeholder="Item name">
-        ${itemQty(item) > 1 ? `<span class="qty-badge" title="Quantity ${itemQty(item)} — line total ${fmtMoney(effectiveActual(item))}">×${itemQty(item)}</span>` : ''}
+        ${itemQty(item) > 1 ? `<span class="qty-badge" title="Quantity ${itemQty(item)} — line total ${fmtMoney(effectiveActual(item))}">×${itemQty(item)}</span>` : ''}${item.financed ? `<span class="fin-badge" title="Financed / on a payment plan">Financed</span>` : ''}
       </div>
       <input type="text" class="price budget${itemQty(item) > 1 ? ' amt-locked' : ''}" value="${itemQty(item) > 1 ? fmtMoney(unitAmt * itemQty(item)) : (unitAmt ? fmtMoney(unitAmt) : '')}" placeholder="$—"${itemQty(item) > 1 ? ' readonly title="Line total = unit cost × qty — edit in the details (▸)"' : ''}>
       <div class="check"><input type="checkbox" ${item.paid ? 'checked' : ''}></div>
@@ -15223,7 +15224,7 @@ function renderActualsRow(item) {
   const hasDetail = item.image || item.link || item.note || item.notes || item.vendor || item.confirmation || item.purchaseDate;
   row.innerHTML = `
     <button class="expand-btn ${isExpanded ? 'open' : ''}" data-act="expand" title="${isExpanded ? 'Collapse' : 'Details, link & product image'}">${isExpanded ? '▾' : (hasDetail ? '●' : '▸')}</button>
-    <span class="bl-labelcell"><input type="text" class="alloc-input label" placeholder="What did you buy?" value="${escapeHTML(item.label || '')}">${itemQty(item) > 1 ? `<span class="qty-badge" title="Qty ${itemQty(item)} · line total ${fmtMoney(effectiveActual(item))}">×${itemQty(item)}</span>` : ''}</span>
+    <span class="bl-labelcell"><input type="text" class="alloc-input label" placeholder="What did you buy?" value="${escapeHTML(item.label || '')}">${itemQty(item) > 1 ? `<span class="qty-badge" title="Qty ${itemQty(item)} · line total ${fmtMoney(effectiveActual(item))}">×${itemQty(item)}</span>` : ''}${item.financed ? `<span class="fin-badge" title="Financed / on a payment plan">Financed</span>` : ''}</span>
     <select class="alloc-input cat">${catOpts}</select>
     <input type="text" class="alloc-input room" list="actuals-room-options" placeholder="Type or pick a room" value="${escapeHTML(currentRoomName)}">
     <select class="alloc-input priority ${item.priority === 'High' ? 'pri-high' : item.priority === 'Medium' ? 'pri-med' : item.priority === 'Low' ? 'pri-low' : ''}">
@@ -15419,6 +15420,10 @@ function renderBudgetDetailsRow(item, rerender, costBasis) {
       <textarea data-field="note" placeholder="Anything else worth remembering…">${escapeHTML(item.note && !linkVal ? item.note : (item.notes || ''))}</textarea>
     </label>
     <label class="full bd-exclude-toggle">
+      <input type="checkbox" data-field="financed" ${item.financed ? 'checked' : ''}>
+      <span>Financed<span class="bd-exclude-hint"> — on a loan or payment plan. Just a marker; it still counts in your totals.</span></span>
+    </label>
+    <label class="full bd-exclude-toggle">
       <input type="checkbox" data-field="excludeFromTotals" ${item.excludeFromTotals ? 'checked' : ''}>
       <span>Exclude from budget totals<span class="bd-exclude-hint"> — for alternate options you're comparing. Keeps the line, but leaves it out of every total.</span></span>
     </label>
@@ -15433,6 +15438,8 @@ function renderBudgetDetailsRow(item, rerender, costBasis) {
         item.link = e.target.value.trim();
       } else if (f === 'addimage') {
         addItemImage(item, e.target.value.trim());
+      } else if (f === 'financed') {
+        item.financed = e.target.checked;
       } else if (f === 'excludeFromTotals') {
         item.excludeFromTotals = e.target.checked;
       } else if (f === 'qty') {
@@ -15553,7 +15560,7 @@ function renderBudgetLine(item) {
   const unitAmt = (Number(item.actual) || 0) > 0 ? Number(item.actual) : (Number(item.estimated) || 0);
   row.innerHTML = `
     <button class="expand-btn ${isExpanded ? 'open' : ''}" data-act="expand" title="${isExpanded ? 'Collapse' : 'Expand for notes/link'}">${isExpanded ? '▾' : '▸'}</button>
-    <span class="bl-labelcell"><input type="text" class="budget-input label" placeholder="Line item name" value="${escapeHTML(item.label || '')}">${itemQty(item) > 1 ? `<span class="qty-badge" title="Qty ${itemQty(item)} · line total ${fmtMoney(effectiveActual(item))}">×${itemQty(item)}</span>` : ''}</span>
+    <span class="bl-labelcell"><input type="text" class="budget-input label" placeholder="Line item name" value="${escapeHTML(item.label || '')}">${itemQty(item) > 1 ? `<span class="qty-badge" title="Qty ${itemQty(item)} · line total ${fmtMoney(effectiveActual(item))}">×${itemQty(item)}</span>` : ''}${item.financed ? `<span class="fin-badge" title="Financed / on a payment plan">Financed</span>` : ''}</span>
     <input type="text" class="budget-input cat" list="${datalistId}" placeholder="Type or pick category" value="${escapeHTML(item.category || '')}">
     <datalist id="${datalistId}">${catOpts}</datalist>
     ${roomCellHtml}
